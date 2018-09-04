@@ -1,4 +1,4 @@
-# node-emberplus
+# Sofie: The Modern TV News Studio Automation System (Ember+ Connection)
 
 This is an implementation of [Lawo's
 Ember+](https://github.com/Lawo/ember-plus) control protocol for Node.  One of
