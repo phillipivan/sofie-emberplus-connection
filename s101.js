@@ -1,5 +1,4 @@
 const EventEmitter = require('events').EventEmitter;
-const util = require('util');
 const SmartBuffer = require('smart-buffer').SmartBuffer;
 const winston = require('winston');
 
@@ -64,243 +63,276 @@ const CRC_TABLE = [
     0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
 ];
 
-function S101Codec() {
-    var self = this;
-    S101Codec.super_.call(this);
-    self.inbuf = new SmartBuffer();
-    self.emberbuf = new SmartBuffer();
-    self.escaped = false;
-}
+class S101Codec extends EventEmitter {
 
-util.inherits(S101Codec, EventEmitter);
-
-S101Codec.prototype.dataIn = function(buf) {
-    var self = this;
-    for(var i=0; i<buf.length; i++) {
-        var b = buf.readUInt8(i);
-        if(self.escaped) {
-            self.inbuf.writeUInt8(b ^ S101_XOR);
-            self.escaped = false;
-        } else if(b == S101_CE) {
-            self.escaped = true;
-        } else if(b == S101_BOF) {
-            self.inbuf.clear();
-            self.escaped = false;
-        } else if(b == S101_EOF) {
-            self.inbuf.moveTo(0);
-            self.handleFrame(self.inbuf);
-            self.inbuf.clear();
-        } else {
-            self.inbuf.writeUInt8(b);
-        }
-    }
-}
-
-S101Codec.prototype.handleFrame = function(frame) {
-    var self = this;
-    if(!validateFrame(frame.toBuffer())) {
-        winston.error('dropping frame of length %d with invalid CRC',
-            frame.length);
-        return;
+    constructor () {
+        super()
+        this.inbuf = new SmartBuffer();
+        this.emberbuf = new SmartBuffer();
+        this.escaped = false;
     }
 
-    var slot = frame.readUInt8();
-    var message = frame.readUInt8();
-    if(slot != SLOT || message != MSG_EMBER) {
-        winston.error('dropping frame of length %d (not an ember frame; slot=%d, msg=%d)',
-            frame.length, slot, message);
-        return;
-    }
-
-    var command = frame.readUInt8();
-    if(command == CMD_KEEPALIVE_REQ) {
-        winston.debug('received keepalive request');
-        self.emit('keepaliveReq');
-    } else if(command == CMD_KEEPALIVE_RESP) {
-        winston.debug('received keepalive response');
-        self.emit('keepaliveResp');
-    } else if(command == CMD_EMBER) {
-        self.handleEmberFrame(frame);
-    } else {
-        winston.error('dropping frame of length %d with unknown command %d',
-            frame.length, command);
-        return;
-    }
-}
-
-S101Codec.prototype.handleEmberFrame = function(frame) {
-    var self = this;
-    var version = frame.readUInt8();
-    var flags = frame.readUInt8();
-    var dtd = frame.readUInt8();
-    var appBytes = frame.readUInt8();
-
-    if(version != VERSION) {
-        winston.warn('Unknown ember frame version %d', version);
-    }
-
-    if(dtd != DTD_GLOW) {
-        winston.error('Dropping frame with non-Glow DTD');
-        return;
-    }
-
-    var glowMinor = 0;
-    var glowMajor = 0;
-
-    if(appBytes < 2) {
-        winston.warn('Frame missing Glow DTD version');
-        frame.skip(appBytes);
-    } else {
-        glowMinor = frame.readUInt8();
-        glowMajor = frame.readUInt8();
-        appBytes -= 2;
-        if(appBytes > 0) {
-            frame.skip(appBytes);
-            winston.warn('App bytes with unknown meaning left over');
-        }
-    }
-
-
-    var payload = frame.readBuffer();
-    payload = payload.slice(0, payload.length - 2);
-    if(flags & FLAG_FIRST_MULTI_PACKET) {
-        winston.debug('multi ember packet start');
-        self.emberbuf.clear();
-    }
-    if ((flags & FLAG_EMPTY_PACKET) === 0) {
-        // not empty, save the payload
-        self.emberbuf.writeBuffer(payload);
-    }
-    if(flags & FLAG_LAST_MULTI_PACKET) {
-        winston.debug('multi ember packet end');
-        self.emberbuf.moveTo(0);
-        self.handleEmberPacket(self.emberbuf);
-        self.emberbuf.clear();
-    }
-}
-
-S101Codec.prototype.handleEmberPacket = function(packet) {
-    var self = this;
-
-    winston.debug('ember packet');
-    self.emit('emberPacket', packet.toBuffer());
-}
-
-var makeBERFrame = function(flags, data) {
-    var frame = new SmartBuffer();
-    frame.writeUInt8(S101_BOF);
-    frame.writeUInt8(SLOT);
-    frame.writeUInt8(MSG_EMBER);
-    frame.writeUInt8(CMD_EMBER);
-    frame.writeUInt8(VERSION);
-    frame.writeUInt8(flags);
-    frame.writeUInt8(DTD_GLOW);
-    frame.writeUInt8(2); // number of app bytes
-    frame.writeUInt8(DTD_VERSION_MINOR);
-    frame.writeUInt8(DTD_VERSION_MAJOR);
-    frame.writeBuffer(data);
-    return finalizeBuffer(frame);
-}
-
-S101Codec.prototype.encodeBER = function(data) {
-    var frames = [];
-    var encbuf = new SmartBuffer();
-    for(var i=0; i<data.length; i++) {
-        var b = data.readUInt8(i);
-        if(b < S101_INV) {
-            encbuf.writeUInt8(b);
-        } else {
-            encbuf.writeUInt8(S101_CE);
-            encbuf.writeUInt8(b ^ S101_XOR);
-        }
-
-        if(encbuf.length >= 1024 && i < data.length-1) {
-            if(frames.length == 0) {
-                frames.push(makeBERFrame(FLAG_FIRST_MULTI_PACKET, encbuf.toBuffer()));
+    /**
+     * 
+     * @param {Buffer} buf 
+     */
+    dataIn (buf) {
+        for(let i=0; i<buf.length; i++) {
+            const b = buf.readUInt8(i);
+            if(this.escaped) {
+                this.inbuf.writeUInt8(b ^ S101_XOR);
+                this.escaped = false;
+            } else if(b === S101_CE) {
+                this.escaped = true;
+            } else if(b === S101_BOF) {
+                this.inbuf.clear();
+                this.escaped = false;
+            } else if(b === S101_EOF) {
+                this.inbuf.moveTo(0);
+                this.handleFrame(this.inbuf);
+                this.inbuf.clear();
             } else {
-                frames.push(makeBERFrame(FLAG_MULTI_PACKET, encbuf.toBuffer()));
+                this.inbuf.writeUInt8(b);
             }
-            encbuf.clear();
         }
     }
 
-    if(frames.length == 0) {
-        frames.push(makeBERFrame(FLAG_SINGLE_PACKET, encbuf.toBuffer()));
-    } else {
-        frames.push(makeBERFrame(FLAG_LAST_MULTI_PACKET, encbuf.toBuffer()));
-    }
-
-    return frames;
-};
-
-S101Codec.prototype.keepAliveRequest = function() {
-    var packet = new SmartBuffer();
-    packet.writeUInt8(S101_BOF);
-    packet.writeUInt8(SLOT);
-    packet.writeUInt8(MSG_EMBER);
-    packet.writeUInt8(CMD_KEEPALIVE_REQ);
-    packet.writeUInt8(VERSION);
-    return finalizeBuffer(packet);
-}
-
-S101Codec.prototype.keepAliveResponse = function() {
-    var packet = new SmartBuffer();
-    packet.writeUInt8(S101_BOF);
-    packet.writeUInt8(SLOT);
-    packet.writeUInt8(MSG_EMBER);
-    packet.writeUInt8(CMD_KEEPALIVE_RESP);
-    packet.writeUInt8(VERSION);
-    return finalizeBuffer(packet);
-}
-
-var finalizeBuffer = function(smartbuf) {
-    var crc = (~calculateCRCCE(smartbuf.toBuffer().slice(1, smartbuf.length))) & 0xFFFF;
-    var crc_hi = crc >> 8;
-    var crc_lo = crc & 0xFF;
-
-    if(crc_lo < S101_INV) {
-        smartbuf.writeUInt8(crc_lo);
-    } else {
-        smartbuf.writeUInt8(S101_CE);
-        smartbuf.writeUInt8(crc_lo ^ S101_XOR);
-    }
-
-    if(crc_hi < S101_INV) {
-        smartbuf.writeUInt8(crc_hi);
-    } else {
-        smartbuf.writeUInt8(S101_CE);
-        smartbuf.writeUInt8(crc_hi ^ S101_XOR);
-    }
-
-    smartbuf.writeUInt8(S101_EOF);
-    return smartbuf.toBuffer();
-}
-
-var calculateCRC = function(buf) {
-    var crc = 0xFFFF;
-    for(var i=0; i < buf.length; i++) {
-        var b = buf.readUInt8(i);
-        crc = ((crc >> 8) ^ CRC_TABLE[(crc ^ b) & 0xFF]) & 0xFFFF;
-    }
-    return crc;
-}
-
-var calculateCRCCE = function(buf) {
-    var crc = 0xFFFF;
-    for(var i=0; i < buf.length; i++) {
-        var b = buf.readUInt8(i);
-        if(b == S101_CE) {
-            b = S101_XOR ^ buf.readUInt8(++i);
+    /**
+     * 
+     * @param {SmartBuffer} frame 
+     */
+    handleFrame (frame) {
+        if(!this.validateFrame(frame.toBuffer())) {
+            winston.error('dropping frame of length %d with invalid CRC',
+                frame.length);
+            return;
         }
-        crc = ((crc >> 8) ^ CRC_TABLE[(crc ^ b) & 0xFF]) & 0xFFFF;
+
+        const slot = frame.readUInt8();
+        var message = frame.readUInt8();
+        if(slot != SLOT || message != MSG_EMBER) {
+            winston.error('dropping frame of length %d (not an ember frame; slot=%d, msg=%d)',
+                frame.length, slot, message);
+            return;
+        }
+
+        const command = frame.readUInt8();
+        if(command === CMD_KEEPALIVE_REQ) {
+            winston.debug('received keepalive request');
+            this.emit('keepaliveReq');
+        } else if(command === CMD_KEEPALIVE_RESP) {
+            winston.debug('received keepalive response');
+            this.emit('keepaliveResp');
+        } else if(command === CMD_EMBER) {
+            this.handleEmberFrame(frame);
+        } else {
+            winston.error('dropping frame of length %d with unknown command %d',
+                frame.length, command);
+            return;
+        }
     }
-    return crc;
-}
 
-var validateFrame = function(buf) {
-    return calculateCRC(buf) == 0xF0B8;
-}
+    /**
+     * 
+     * @param {SmartBuffer} frame 
+     */
+    handleEmberFrame (frame) {
+        const version = frame.readUInt8();
+        const flags = frame.readUInt8();
+        const dtd = frame.readUInt8();
+        let appBytes = frame.readUInt8();
+    
+        if(version !== VERSION) {
+            winston.warn('Unknown ember frame version %d', version);
+        }
+    
+        if(dtd !== DTD_GLOW) {
+            winston.error('Dropping frame with non-Glow DTD');
+            return;
+        }
+    
+        let glowMinor = 0;
+        let glowMajor = 0;
+    
+        if(appBytes < 2) {
+            winston.warn('Frame missing Glow DTD version');
+            frame.skip(appBytes);
+        } else {
+            glowMinor = frame.readUInt8();
+            glowMajor = frame.readUInt8();
+            appBytes -= 2;
+            if(appBytes > 0) {
+                frame.skip(appBytes);
+                winston.warn('App bytes with unknown meaning left over');
+            }
+        }
 
-S101Codec.prototype.validateFrame = validateFrame;
+        let payload = frame.readBuffer();
+        payload = payload.slice(0, payload.length - 2);
+        if(flags & FLAG_FIRST_MULTI_PACKET) {
+            winston.debug('multi ember packet start');
+            this.emberbuf.clear();
+        }
+        if ((flags & FLAG_EMPTY_PACKET) === 0) {
+            // not empty, save the payload
+            this.emberbuf.writeBuffer(payload);
+        }
+        if(flags & FLAG_LAST_MULTI_PACKET) {
+            winston.debug('multi ember packet end');
+            this.emberbuf.moveTo(0);
+            this.handleEmberPacket(this.emberbuf);
+            this.emberbuf.clear();
+        }
+    }
+
+    /**
+     * 
+     * @param {SmartBuffer} packet 
+     */
+    handleEmberPacket (packet) {
+        winston.debug('ember packet');
+        this.emit('emberPacket', packet.toBuffer());
+    }
+
+    /**
+     * 
+     * @param {Buffer} data 
+     */
+    encodeBER (data) {
+        const frames = [];
+        const encbuf = new SmartBuffer();
+        for(let i=0; i<data.length; i++) {
+            const b = data.readUInt8(i);
+            if(b < S101_INV) {
+                encbuf.writeUInt8(b);
+            } else {
+                encbuf.writeUInt8(S101_CE);
+                encbuf.writeUInt8(b ^ S101_XOR);
+            }
+    
+            if(encbuf.length >= 1024 && i < data.length-1) {
+                if(frames.length === 0) {
+                    frames.push(this._makeBERFrame(FLAG_FIRST_MULTI_PACKET, encbuf.toBuffer()));
+                } else {
+                    frames.push(this._makeBERFrame(FLAG_MULTI_PACKET, encbuf.toBuffer()));
+                }
+                encbuf.clear();
+            }
+        }
+    
+        if(frames.length == 0) {
+            frames.push(this._makeBERFrame(FLAG_SINGLE_PACKET, encbuf.toBuffer()));
+        } else {
+            frames.push(this._makeBERFrame(FLAG_LAST_MULTI_PACKET, encbuf.toBuffer()));
+        }
+    
+        return frames;
+    }
+
+    keepAliveRequest () {
+        const packet = new SmartBuffer();
+        packet.writeUInt8(S101_BOF);
+        packet.writeUInt8(SLOT);
+        packet.writeUInt8(MSG_EMBER);
+        packet.writeUInt8(CMD_KEEPALIVE_REQ);
+        packet.writeUInt8(VERSION);
+        return this._finalizeBuffer(packet);
+    }
+
+    keepAliveResponse () {
+        const packet = new SmartBuffer();
+        packet.writeUInt8(S101_BOF);
+        packet.writeUInt8(SLOT);
+        packet.writeUInt8(MSG_EMBER);
+        packet.writeUInt8(CMD_KEEPALIVE_RESP);
+        packet.writeUInt8(VERSION);
+        return this._finalizeBuffer(packet);
+    }
+
+    /**
+     * 
+     * @param {Buffer} buf 
+     */
+    validateFrame (buf) {
+        return this._calculateCRC(buf) == 0xF0B8;
+    }
+
+    /**
+     * 
+     * @param {number} flags 
+     * @param {Buffer} data 
+     */
+    _makeBERFrame (flags, data) {
+        const frame = new SmartBuffer();
+        frame.writeUInt8(S101_BOF);
+        frame.writeUInt8(SLOT);
+        frame.writeUInt8(MSG_EMBER);
+        frame.writeUInt8(CMD_EMBER);
+        frame.writeUInt8(VERSION);
+        frame.writeUInt8(flags);
+        frame.writeUInt8(DTD_GLOW);
+        frame.writeUInt8(2); // number of app bytes
+        frame.writeUInt8(DTD_VERSION_MINOR);
+        frame.writeUInt8(DTD_VERSION_MAJOR);
+        frame.writeBuffer(data);
+        return this._finalizeBuffer(frame);
+    }
+    
+    /**
+     * 
+     * @param {SmartBuffer} smartbuf 
+     */
+    _finalizeBuffer (smartbuf) {
+        const crc = (~this._calculateCRCCE(smartbuf.toBuffer().slice(1, smartbuf.length))) & 0xFFFF;
+        const crc_hi = crc >> 8;
+        const crc_lo = crc & 0xFF;
+    
+        if(crc_lo < S101_INV) {
+            smartbuf.writeUInt8(crc_lo);
+        } else {
+            smartbuf.writeUInt8(S101_CE);
+            smartbuf.writeUInt8(crc_lo ^ S101_XOR);
+        }
+    
+        if(crc_hi < S101_INV) {
+            smartbuf.writeUInt8(crc_hi);
+        } else {
+            smartbuf.writeUInt8(S101_CE);
+            smartbuf.writeUInt8(crc_hi ^ S101_XOR);
+        }
+    
+        smartbuf.writeUInt8(S101_EOF);
+        return smartbuf.toBuffer();
+    }
+    
+    /**
+     * 
+     * @param {Buffer} buf 
+     */
+    _calculateCRC (buf) {
+        let crc = 0xFFFF;
+        for(let i=0; i < buf.length; i++) {
+            const b = buf.readUInt8(i);
+            crc = ((crc >> 8) ^ CRC_TABLE[(crc ^ b) & 0xFF]) & 0xFFFF;
+        }
+        return crc;
+    }
+
+    /**
+     * 
+     * @param {Buffer} buf 
+     */
+    _calculateCRCCE (buf) {
+        let crc = 0xFFFF;
+        for(let i=0; i < buf.length; i++) {
+            let b = buf.readUInt8(i);
+            if(b == S101_CE) {
+                b = S101_XOR ^ buf.readUInt8(++i);
+            }
+            crc = ((crc >> 8) ^ CRC_TABLE[(crc ^ b) & 0xFF]) & 0xFFFF;
+        }
+        return crc;
+    }
+}
 
 module.exports = S101Codec;
