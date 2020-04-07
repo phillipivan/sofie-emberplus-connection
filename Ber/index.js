@@ -5,7 +5,7 @@ const FUNCTIONS = require("./functions")
 
 module.exports = {
   Reader,
-  Writer,
+  Writer
 }
 
 for (const name in CONSTANTS) {

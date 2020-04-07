@@ -2,7 +2,7 @@
 
 const Element = require("./Element");
 const QualifiedParameter = require("./QualifiedParameter");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const ParameterContents = require("./ParameterContents");
 const Errors = require("../Errors");
 

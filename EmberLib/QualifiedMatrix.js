@@ -1,7 +1,7 @@
 "use strict";
 
 const Matrix = require("./Matrix");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Command = require("./Command");
 const MatrixContents = require("./MatrixContents");
 const MatrixConnection = require("./MatrixConnection");

@@ -4,7 +4,7 @@ const {ParameterType} = require("./ParameterType");
 const ParameterAccess = require("./ParameterAccess");
 const StringIntegerCollection = require("./StringIntegerCollection");
 const StreamDescription = require("./StreamDescription");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Errors = require("../Errors");
 
 class ParameterContents {

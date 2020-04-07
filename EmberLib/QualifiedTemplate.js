@@ -2,7 +2,7 @@
 const TemplateElement = require("./TemplateElement");
 const QualifiedElement = require("./QualifiedElement");
 const Template = require("./Template");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Errors = require("../Errors");
 
 class QualifiedTemplate extends QualifiedElement {

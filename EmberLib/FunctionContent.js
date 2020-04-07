@@ -1,5 +1,5 @@
 "use strict";
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const FunctionArgument = require("./FunctionArgument");
 const errors = require("../Errors");
 

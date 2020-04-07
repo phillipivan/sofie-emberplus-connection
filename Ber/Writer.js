@@ -1,7 +1,8 @@
 const Long = require('long');
 const { Writer } = require('asn1').Ber;
 
-const { UNIVERSAL } = require('./functions.js');
+const { CONTEXT, UNIVERSAL } = require('./functions.js');
+const { EMBER_BOOLEAN, EMBER_INTEGER, EMBER_REAL, EMBER_STRING } = require('./constants.js')
 
 
 class ExtendedWriter extends Writer {
@@ -76,7 +77,70 @@ class ExtendedWriter extends Writer {
       this.writeByte(significand.value.and(mask).shru(56).toNumber());
       significand.value = significand.value.shl(8);
     }
+  }
 
+  writeValue(value, tag) {
+    // accepts Ember.ParameterContents for enforcing real types
+    if (typeof value === 'object' && value.type && value.type.key && value.type.key.length && typeof value.type.key === 'string') {
+      if (value.type.key === 'real') {
+        this.writeReal(value.value, tag);
+        return
+      }
+    }
+
+    if (Number.isInteger(value)) {
+      if (tag === undefined) {
+        tag = EMBER_INTEGER;
+      }
+      this.writeInt(value, tag);
+      return;
+    }
+
+    if (typeof value == 'boolean') {
+      if (tag === undefined) {
+        tag = EMBER_BOOLEAN;
+      }
+      this.writeBoolean(value, tag);
+      return;
+    }
+
+    if (typeof value == 'number') {
+      if (tag === undefined) {
+        tag = EMBER_REAL;
+      }
+      this.writeReal(value, tag);
+      return;
+    }
+
+    if (Buffer.isBuffer(value)) {
+      this.writeBuffer(value, tag);
+      return;
+    }
+
+    if (tag === undefined) {
+      tag = EMBER_STRING;
+    }
+    this.writeString(value.toString(), tag);
+  }
+
+  writeIfDefined(property, writer, outer, inner) {
+    if (property != null) {
+      this.startSequence(CONTEXT(outer));
+      writer.call(this, property, inner);
+      this.endSequence();
+    }
+  }
+
+  writeIfDefinedEnum(property, type, writer, outer, inner) {
+    if (property != null) {
+      this.startSequence(CONTEXT(outer));
+      if (property.value != null) {
+        writer.call(this, property.value, inner);
+      } else {
+        writer.call(this, type.get(property), inner);
+      }
+      this.endSequence();
+    }
   }
 }
 

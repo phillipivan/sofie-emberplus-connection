@@ -2,7 +2,7 @@
 
 const MatrixType = require("./MatrixType");
 const MatrixMode = require("./MatrixMode");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Label = require("./Label");
 const errors = require("../Errors");
 

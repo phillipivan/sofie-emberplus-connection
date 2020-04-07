@@ -1,5 +1,5 @@
 "use strict";
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const {ParameterType} = require("./ParameterType");
 const Errors = require("../Errors");
 

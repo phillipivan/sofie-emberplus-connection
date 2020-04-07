@@ -1,5 +1,5 @@
 const Enum = require('enum');
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Errors = require("../Errors");
 
 function ParameterTypetoBERTAG(type) {

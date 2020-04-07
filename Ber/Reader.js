@@ -1,6 +1,6 @@
 const { Reader } = require('asn1').Ber;
-const errors = require('./Errors.js');
 const Long = require('long');
+const errors = require('../Errors.js');
 
 const { EMBER_BOOLEAN, EMBER_INTEGER, EMBER_OCTETSTRING, EMBER_REAL, EMBER_RELATIVE_OID, EMBER_STRING } = require('./constants')
 const { UNIVERSAL } = require('./functions.js');

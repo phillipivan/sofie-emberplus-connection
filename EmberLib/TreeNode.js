@@ -1,5 +1,5 @@
 "use strict";
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const ElementInterface = require("./ElementInterface");
 const Invocation = require("./Invocation");
 const Command = require("./Command");
