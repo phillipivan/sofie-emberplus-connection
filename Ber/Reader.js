@@ -37,25 +37,25 @@ class ExtendedReader extends Reader {
   }
 
   readReal(tag) {
-    if(tag !== null) {
+    if (tag !== null) {
       tag = UNIVERSAL(9);
     }
 
     const b = this.peek()
-    if(b === null) {
+    if (b === null) {
       return null
     }
 
     const buf = this.readString(b, true)
-    if(buf.length === 0) {
+    if (buf.length === 0) {
       return 0;
     }
 
     const preamble = buf.readUInt8(0)
     let o = 1;
 
-    if(buf.length === 1) {
-      switch(preamble) {
+    if (buf.length === 1) {
+      switch (preamble) {
         case 0x40:
           return Infinity
         case 0x41:
@@ -71,23 +71,30 @@ class ExtendedReader extends Reader {
 
     let exponent = 0;
 
-    if(buf.readUInt8(o) & 0x80) {
+    if (buf.readUInt8(o) & 0x80) {
       exponent = -1;
     }
 
-    if(buf.length - o < exponentLength) {
+    if (buf.length - o < exponentLength) {
       throw new errors.ASN1Error('Invalid ASN.1; not enough length to contain exponent');
     }
 
+    for (var i = 0; i < exponentLength; i++) {
+      exponent = (exponent << 8) | buf.readUInt8(o++);
+    }
+
     let significand = new Long(0, 0, true)
-    while(o < buf.length) {
+    while (o < buf.length) {
       significand = significand.shl(8).or(buf.readUInt8(o++))
     }
 
     significand = significand.shl(significandShift)
 
-    const mask = Long.fromBits(0x00000000, 0x7ffff000, true);
-    while(significand.and(mask).eq(0)) {
+    while (significand.and(Long.fromBits(0x00000000, 0x7ffff000, true)).eq(0)) {
+      significand = significand.shl(8);
+    }
+
+    while (significand.and(Long.fromBits(0x00000000, 0x7ff00000, true)).eq(0)) {
       significand = significand.shl(1);
     }
 
@@ -95,7 +102,7 @@ class ExtendedReader extends Reader {
 
     exponent = Long.fromNumber(exponent)
     let bits = exponent.add(1023).shl(52).or(significand);
-    if(sign < 0) {
+    if (sign < 0) {
       bits = bits.or(Long.fromBits(0x00000000, 0x80000000, true))
     }
 
