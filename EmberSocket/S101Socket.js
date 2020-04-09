@@ -1,7 +1,7 @@
 "use strict";
 
 const EventEmitter = require('events').EventEmitter;
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const ember = require('../EmberLib');
 const S101Codec = require('../s101.js');
 

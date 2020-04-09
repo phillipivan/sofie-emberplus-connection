@@ -1,6 +1,6 @@
 "use strict";
 const {ParameterTypefromBERTAG, ParameterTypetoBERTAG} = require("./ParameterType");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const FunctionArgument = require("./FunctionArgument");
 const errors = require("../Errors");
 

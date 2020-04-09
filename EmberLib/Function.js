@@ -1,7 +1,7 @@
 "use strict";
 const Element = require("./Element");
 const QualifiedFunction = require("./QualifiedFunction");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Command = require("./Command");
 const {COMMAND_INVOKE} = require("./constants");
 const FunctionContent = require("./FunctionContent");

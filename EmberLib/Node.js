@@ -3,7 +3,7 @@
 const Element = require("./Element");
 const QualifiedNode = require("./QualifiedNode");
 const NodeContents = require("./NodeContents");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Errors = require("../Errors");
 
 class Node extends Element {

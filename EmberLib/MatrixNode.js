@@ -3,7 +3,7 @@
 const Matrix = require("./Matrix");
 const MatrixContents = require("./MatrixContents");
 const QualifiedMatrix = require("./QualifiedMatrix");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const errors = require("../Errors");
 
 class MatrixNode extends Matrix {

@@ -1,6 +1,6 @@
 const {Subscribe,COMMAND_SUBSCRIBE,Unsubscribe,COMMAND_UNSUBSCRIBE,
     GetDirectory,COMMAND_GETDIRECTORY,Invoke,COMMAND_INVOKE, COMMAND_STRINGS} = require("./constants");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Errors = require("../Errors");
 const TreeNode = require("./TreeNode");    
 const Command = require("./Command");

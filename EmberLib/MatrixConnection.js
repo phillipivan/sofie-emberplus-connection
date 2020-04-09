@@ -1,5 +1,5 @@
 "use strict";
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const MatrixOperation = require("./MatrixOperation");
 const MatrixDisposition = require("./MatrixDisposition");
 const Errors = require("../Errors");

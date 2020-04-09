@@ -1,7 +1,7 @@
 const EventEmitter = require('events').EventEmitter;
 const S101Client = require('../EmberSocket').S101Client;
 const ember = require('../EmberLib');
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Errors = require('../Errors.js');
 const winston = require("winston");
 

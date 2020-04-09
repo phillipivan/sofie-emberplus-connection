@@ -2,7 +2,7 @@
 
 const Element = require("./Element");
 const QualifiedTemplate = require("./QualifiedTemplate");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const TemplateElement = require("./TemplateElement");
 const Errors = require("../Errors");
 
