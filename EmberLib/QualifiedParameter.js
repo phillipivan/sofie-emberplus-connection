@@ -2,7 +2,7 @@
 
 const QualifiedElement = require("./QualifiedElement");
 const ParameterContents = require("./ParameterContents");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Errors = require("../Errors");
 
 class QualifiedParameter extends QualifiedElement {

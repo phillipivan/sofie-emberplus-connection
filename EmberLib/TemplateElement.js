@@ -1,6 +1,6 @@
 "use strict";
 
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Parameter = require("./Parameter");
 const Node = require("./Node");
 const MatrixNode = require("./MatrixNode");

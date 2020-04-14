@@ -1,5 +1,5 @@
 "use strict";
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const StringIntegerPair = require("./StringIntegerPair");
 const Errors = require("../Errors");
 

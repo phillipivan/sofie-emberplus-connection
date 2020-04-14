@@ -1,6 +1,6 @@
 "use strict";
 const TreeNode = require("./TreeNode");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Command = require("./Command");
 const {COMMAND_GETDIRECTORY} = require("./constants");
 

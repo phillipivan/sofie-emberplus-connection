@@ -1,6 +1,6 @@
 "user strict";
 const QualifiedElement = require("./QualifiedElement");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const NodeContents = require("./NodeContents");
 const Errors = require("../Errors");
 

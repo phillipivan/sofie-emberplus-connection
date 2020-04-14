@@ -1,7 +1,7 @@
 "use strict";
 const Enum = require('enum');
 const {COMMAND_GETDIRECTORY, COMMAND_INVOKE} = require("./constants");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const Invocation = require("./Invocation");
 const errors = require("../Errors");
 const ElementInterface = require("./ElementInterface");

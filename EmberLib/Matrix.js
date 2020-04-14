@@ -1,7 +1,7 @@
 "use strict";
 const MatrixConnection = require("./MatrixConnection");
 const TreeNode = require("./TreeNode");
-const BER = require('../ber.js');
+const BER = require('../Ber/index.js');
 const MatrixMode = require("./MatrixMode");
 const MatrixOperation = require("./MatrixOperation");
 const MatrixType = require("./MatrixType");
