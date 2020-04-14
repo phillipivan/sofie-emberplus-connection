@@ -4,7 +4,7 @@
 	"rules": {
 		"prettier/prettier": "error"
 	},
-	"env": { "es2017": true },
+	"env": { "es2018": true },
 	"parserOptions": { "sourceType": "module" },
 	"overrides": [
 		{
@@ -20,9 +20,9 @@
 			]
 		},
 		{
-			"files": ["*-test.ts"],
+			"files": ["/test/**/*.ts"],
 			"env": {
-				"mocha": true
+				"jest": true
 			}
 		}
 	]

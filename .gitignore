@@ -2,6 +2,7 @@
 .vscode
 node_modules
 .*.swp
-coverage
+/coverage
 package-lock.json
 yarn-error.log
+/lib
