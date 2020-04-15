@@ -1,6 +1,6 @@
 interface Tree<T> {
 	value: T
-	children?: Array<T>
+	children?: Array<Tree<T>>
 }
 
 interface EmberElement {
@@ -9,7 +9,7 @@ interface EmberElement {
 }
 
 interface Qualified<T extends EmberElement> {
-	value: T
+	value: T // Or is this Tree<T>
 	path: string
 	getRelativeOID(): RelativeOID<T>
 }
