@@ -1,8 +1,3 @@
-/* Questions:
- *
- * -
- */
-
 interface Tree<T> {
 	value: T
 	children?: Array<T>
@@ -16,6 +11,7 @@ interface EmberElement {
 interface Qualified<T extends EmberElement> {
 	value: T
 	path: string
+	getRelativeOID(): RelativeOID<T>
 }
 
 interface RelativeOID<T extends EmberElement> {
@@ -23,13 +19,11 @@ interface RelativeOID<T extends EmberElement> {
 }
 
 enum ElementType {
-	Command = 'COMMAND',
-	Node = 'NODE',
-	Matrix = 'MATRIX',
 	Parameter = 'PARAMETER',
+	Node = 'NODE',
+	Command = 'COMMAND',
+	Matrix = 'MATRIX',
 	Function = 'FUNCTION',
-	Root = 'ROOT',
-	StreamCollection = 'STREAM_COLLECTION',
 	Template = 'TEMPLATE'
 }
 
@@ -120,18 +114,13 @@ type MinMax = number | null
 
 type StringIntegerCollection = Map<string, number>
 
-interface StringIntegerPair {
-	key: string
-	value: number // Integer32
-}
-
 interface StreamDescription {
 	format: StreamFormat
 	offset: number // Integer32
 }
 
 interface StreamEntry {
-	identifier: number
+	identifier: number // Integer32
 	value: EmberValue // not null
 }
 
@@ -148,7 +137,7 @@ interface Invocation {
 interface InvocationResult {
 	id: number
 	success?: boolean
-	result: Array<EmberValue>
+	result?: Array<EmberValue>
 }
 
 interface Label {
@@ -182,7 +171,7 @@ interface GetDirectory extends Command {
 
 interface Invoke extends Command {
 	number: CommandType.Invoke
-	invocation: Invocation
+	invocation?: Invocation
 }
 
 interface Node extends EmberElement {
@@ -248,20 +237,17 @@ interface Function extends EmberElement {
 	templateReference?: RelativeOID<Template>
 }
 
-interface Root extends EmberElement {
-	type: ElementType.Root
-}
-
-interface StreamCollection extends EmberElement {
-	type: ElementType.StreamCollection
-	collection: Map<number, StreamEntry>
-}
-
 interface Template extends EmberElement {
 	type: ElementType.Template
+	element?: Parameter | Node | Matrix | Function
+	description?: string
 }
 
 type EmberTreeNode = Tree<EmberElement>
+
+type RootElement = EmberTreeNode | Qualified<Parameter> | Qualified<Node> | Qualified<Matrix> | Qualified<Function> | Qualified<Template>
+
+type Root = Array<RootElement> | Array<StreamEntry> | InvocationResult
 
 function berEncode(el: EmberTreeNode): Buffer { return Buffer.alloc(0) }
 
