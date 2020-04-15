@@ -1,6 +1,11 @@
+/* Questions:
+ *
+ * -
+ */
+
 interface Tree<T> {
 	value: T
-	children: Array<T>
+	children?: Array<T>
 }
 
 interface EmberElement {
@@ -11,6 +16,10 @@ interface EmberElement {
 interface Qualified<T extends EmberElement> {
 	value: T
 	path: string
+}
+
+interface RelativeOID<T extends EmberElement> {
+	resolve(): T
 }
 
 enum ElementType {
@@ -25,6 +34,7 @@ enum ElementType {
 }
 
 enum ParameterType {
+	Null = 'NULL',
 	Integer = 'INTEGER',
 	Real = 'REAL',
 	String = 'STRING',
@@ -74,10 +84,10 @@ enum FieldFlags {
 }
 
 enum CommandType {
-	Subscribe = 'SUBSCRIBE',
-	Unsubscribe = 'UNSUBSCRIBE',
-	GetDirectory = 'GET_DIRECTORY',
-	Invoke = 'INVOKE'
+	Subscribe = 30,
+	Unsubscribe = 31,
+	GetDirectory = 32,
+	Invoke = 33
 }
 
 enum MatrixType {
@@ -86,85 +96,122 @@ enum MatrixType {
 	NToN = 'N_TO_N'
 }
 
-enum MatrixMode {
+enum MatrixAddressingMode {
 	Linear = 'LINEAR',
 	NonLinear = 'NON_LINEAR'
 }
 
-enum MatrixDisposition {
+enum ConnectionOperation {
+	Absolute = 'ABSOLUTE', // default. sources contains absolute information
+	Connect = 'CONNECT', // nToN only. sources contains sources to add to connection
+	disconnect = 'DISCONNECT' // nToN only. sources contains sources to remove from connection
+}
+
+enum ConnectionDisposition {
 	Tally = 'TALLY',
 	Modified = 'MODIFIED',
 	Pending = 'PENDING',
 	Locked = 'LOCKED'
 }
 
+// number is either Integer64 or REAL
+type EmberValue = number | string | boolean | Buffer | null
+type MinMax = number | null
+
 type StringIntegerCollection = Map<string, number>
 
 interface StringIntegerPair {
 	key: string
-	value: number // integer
+	value: number // Integer32
 }
 
 interface StreamDescription {
 	format: StreamFormat
-	offset: number // BER readInt
+	offset: number // Integer32
 }
 
 interface StreamEntry {
 	identifier: number
-	value: string | number | boolean | Buffer
+	value: EmberValue // not null
 }
 
 interface FunctionArgument {
 	type: ParameterType
 	name: string
-	value?: any
 }
 
-interface Innvocation {
-	id: number // BER readInt
-	args: Array<FunctionArgument>
+interface Invocation {
+	id?: number // BER readInt
+	args: Array<EmberValue>
 }
 
-interface InnvocationResult {
-	id?: number
-	result: Array<FunctionArgument>
+interface InvocationResult {
+	id: number
+	success?: boolean
+	result: Array<EmberValue>
 }
 
 interface Label {
-	basePath: string
+	basePath: string // might be RelativeOID<?>
 	description: string
+}
+
+interface Connection {
+	target: number // Integer32
+	sources?: Array<number> // Integer32s
+	operation?: ConnectionOperation
+	disposition?: ConnectionDisposition
 }
 
 interface Command extends EmberElement {
 	type: ElementType.Command
-	fieldFlags: FieldFlags
-	innvocation: Innvocation
+}
+
+interface Subscribe extends Command {
+	number: CommandType.Subscribe
+}
+
+interface Unsubscribe extends Command {
+	number: CommandType.Unsubscribe
+}
+
+interface GetDirectory extends Command {
+  number: CommandType.GetDirectory
+	dirFieldMask?: FieldFlags
+}
+
+interface Invoke extends Command {
+	number: CommandType.Invoke
+	invocation: Invocation
 }
 
 interface Node extends EmberElement {
 	type: ElementType.Node
-	identifier: string
-	description: string
-	isRoot: boolean
-	isOnline: boolean
-	schemaIdentifiers: string
+	identifier?: string
+	description?: string
+	isRoot?: boolean
+	isOnline?: boolean
+	schemaIdentifiers?: string
+	templateReference: RelativeOID<Template>
 }
 
 interface Matrix extends EmberElement {
 	type: ElementType.Matrix
+	targets?: Array<number> // Integer32
+	sources?: Array<number> // Integer32
+	connections?: Array<Connection> // Integer32
 	identifier: string
-	description: string
-	matrixType: MatrixType
-	mode: MatrixMode
-	targetCount: number // BER readInt
-	sourceCount: number // BER readInt
-	maximumTotalConnects: number // BER readInt
-	maximumConnectsPerTarget: number // BER readInt
-	parametersLocation: RelativeOID<Parameter> | number
-	gainParameterNumber: number // BER readInt
-	labels: Array<Label>
-	schemaIdentifiers: string
+	description?: string
+	matrixType?: MatrixType
+	addressingMode?: MatrixAddressingMode
+	targetCount?: number // Integer32 - linear: matrix X size, nonlinear - number of targets
+	sourceCount?: number // Integer32 - linear: matrix Y size, nonLinear - number of sources
+	maximumTotalConnects?: number // Integer32 - nToN: max number of set connections
+	maximumConnectsPerTarget?: number // Integer32 - max number of connects per target
+	parametersLocation?: RelativeOID<Node> | number // absolute of index reference to parameters - details tbc
+	gainParameterNumber?: number // Integer32 - nToN: number of connection gain parameter
+	labels?: Array<Label>
+	schemaIdentifiers?: string
 	templateReference: RelativeOID<Template>
 }
 
@@ -172,32 +219,33 @@ interface Matrix extends EmberElement {
 interface Parameter extends EmberElement {
 	type: ElementType.Parameter
 	paramterType: ParameterType
-	identifier: string
-	description: string
-	value: any
-	maximum: any
-	minimum: any
-	access: ParameterAccess
-	format: string
-	enumeration: string
-	factor: number // BER readInt
-	isOnline: boolean
-	formula: string
-	step: number // BER readInt
-	default: any
-	streamIdentifier: number // BER readInt
-	enumMap: StringIntegerCollection
-	streamDescriptor: StreamDescription
-	schemaIdentifiers: string
+	identifier?: string
+	description?: string
+	value?: EmberValue
+	maximum?: MinMax
+	minimum?: MinMax
+	access?: ParameterAccess
+	format?: string
+	enumeration?: string
+	factor?: number // Integer32
+	isOnline?: boolean
+	formula?: string
+	step?: number // Integer32
+	default?: any
+	streamIdentifier?: number // BER readInt
+	enumMap?: StringIntegerCollection
+	streamDescriptor?: StreamDescription
+	schemaIdentifiers?: string
+	templateReference: RelativeOID<Template>
 }
 
 interface Function extends EmberElement {
 	type: ElementType.Function
-	identifier: string
-	description: string
-	args: Array<FunctionArgument>
-	result: FunctionArgument
-	templateReference: RelativeOID<Template>
+	identifier?: string
+	description?: string
+	args?: Array<FunctionArgument>
+	result?: Array<FunctionArgument>
+	templateReference?: RelativeOID<Template>
 }
 
 interface Root extends EmberElement {
