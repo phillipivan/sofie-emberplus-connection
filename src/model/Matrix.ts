@@ -1,4 +1,5 @@
-import { EmberElement, ElementType, RelativeOID } from './EmberElement'
+import { EmberElement, ElementType } from './EmberElement'
+import { RelativeOID } from './RelativeOID'
 import { Template } from './Template'
 import { Connection } from './Connection'
 import { Node } from './Node'
