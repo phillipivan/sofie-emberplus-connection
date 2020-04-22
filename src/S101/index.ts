@@ -1,1 +1,3 @@
-export default {}
+const S101 = {}
+
+export { S101 }

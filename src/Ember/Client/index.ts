@@ -1,1 +1,3 @@
-export default class EmberClient {}
+class EmberClient {}
+
+export { EmberClient }
