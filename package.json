@@ -33,7 +33,7 @@
 	},
 	"license": "MIT",
 	"dependencies": {
-		"asn1": "github:evs-broadcast/node-asn1",
+		"asn1": "evs-broadcast/node-asn1",
 		"enum": "^2.4.0",
 		"long": "^3.2.0",
 		"smart-buffer": "^3.0.3",
