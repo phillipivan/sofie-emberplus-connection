@@ -20,7 +20,7 @@
 			]
 		},
 		{
-			"files": ["/test/**/*.ts"],
+			"files": ["/test/**/*.{js|ts}", "src/**/__tests__/*.test.ts"],
 			"env": {
 				"jest": true
 			}
