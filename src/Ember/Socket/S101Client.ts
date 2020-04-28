@@ -18,37 +18,36 @@ export default class S101Client extends S101Socket {
 		this.port = port
 	}
 
-	connect(timeout = 2) {
-		if (this.status !== 'disconnected') {
-			return
-		}
-		this.emit('connecting')
-		const connectTimeoutListener = () => {
-			if (this.socket) this.socket.destroy()
-			this.emit(
-				'error',
-				new Error(
+	connect(timeout = 2): Promise<void> {
+		return new Promise((resolve, reject) => {
+			if (this.status !== 'disconnected') {
+				resolve() // Already connected (is it the right address though?)
+				return
+			}
+			this.emit('connecting')
+			const connectTimeoutListener = () => {
+				if (this.socket) this.socket.destroy()
+				const reason = new Error(
 					`Could not connect to ${this.address}:${this.port} after a timeout of ${timeout} seconds`
 				)
-			)
-		}
+				reject(reason)
+			}
 
-		this.socket = net
-			.createConnection(
+			const timer = setTimeout(() => connectTimeoutListener, timeout * 1000)
+			this.socket = net.createConnection(
 				{
 					port: this.port,
 					host: this.address
-					// timeout: 1000 * timeout
 				},
 				() => {
-					// Disable connect timeout to hand-over to keepalive mechanism
-					if (this.socket) this.socket.removeListener('timeout', connectTimeoutListener)
+					clearTimeout(timer)
 					if (this.socket) this.socket.setTimeout(0)
 					this.startKeepAlive()
 					this.emit('connected')
+					resolve()
 				}
 			)
-			.once('timeout', connectTimeoutListener)
-		this._initSocket()
+			this._initSocket()
+		})
 	}
 }

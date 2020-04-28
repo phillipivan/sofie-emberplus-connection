@@ -1,7 +1,7 @@
 import { ElementType, EmberElement } from './EmberElement'
 import { Invocation } from './Invocation'
 
-export { Command, Subscribe, Unsubscribe, GetDirectory, Invoke }
+export { Command, CommandType, FieldFlags, Subscribe, Unsubscribe, GetDirectory, Invoke }
 
 enum CommandType {
 	Subscribe = 30,

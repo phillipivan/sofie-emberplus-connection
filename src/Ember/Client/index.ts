@@ -1,36 +1,34 @@
-import {
-	EmberTreeNode,
-	EmberValue,
-	Function,
-	Invocation,
-	InvocationResult,
-	Matrix,
-	RootElement,
-	Qualified,
-	EmberElement,
-	Command,
-	GetDirectory,
-	CommandType,
-	FieldFlags,
-	ElementType,
-	Subscribe,
-	Unsubscribe,
-	Invoke,
-	Parameter,
-	Tree,
-	ParameterType,
-	Connection,
-	ConnectionOperation,
-	Root
-} from '../../model'
-import { EventEmitter } from 'events'
+import { EmberTreeNode, EmberValue, RootElement } from '../../types/types'
+import { Function } from '../../model/Function'
+import { Invocation } from '../../model/Invocation'
+import { InvocationResult } from '../../model/InvocationResult'
+import { Matrix } from '../../model/Matrix'
+import { Qualified } from '../../model/Qualified'
+import { EmberElement } from '../../model/EmberElement'
+import { Command } from '../../model/Command'
+import { GetDirectory, CommandType, FieldFlags } from '../../model/Command'
+import { ElementType } from '../../model/EmberElement'
+import { Subscribe } from '../../model/Command'
+import { Unsubscribe } from '../../model/Command'
+import { Invoke } from '../../model/Command'
+import { Parameter } from '../../model/Parameter'
+import { Tree } from '../../model/Tree'
+import { Connection } from '../../model/Connection'
+import { ConnectionOperation } from '../../model/Connection'
+import { Root } from '../../types/types'
+import { Node } from '../../model/Node'
 
-export type RequestPromise<T> = Promise<{
+import { EventEmitter } from 'events'
+import { S101Client } from '../Socket'
+import { StreamEntry } from '../../model/StreamEntry'
+
+export type RequestPromise<T> = Promise<RequestPromiseArguments<T>>
+export interface RequestPromiseArguments<T> {
 	sentOk: boolean
 	reqId?: string
 	cancel?: () => void
 	response?: Promise<T>
-}>
+}
 
 export interface IRequest {
 	reqId: string
@@ -103,40 +101,45 @@ export interface IEmberClient {
 }
 
 export default class EmberClient extends EventEmitter implements IEmberClient {
-	host?: string
+	host: string
 	port: number
 
 	private _requests = new Map<string, IRequest>()
 	private _lastInvocation = 0
-	private _tree: Root // TODO - why not public?
+	private _tree: Array<EmberTreeNode> = [] // TODO - why not public?
+	private _client: S101Client
 
-	constructor(host?: string, port = 9000) {
+	constructor(host: string, port = 9000) {
 		super()
 
-		if (host) this.host = host
+		this.host = host
 		this.port = port
+
+		this._client = new S101Client(this.host, this.port)
 	}
 
 	/**
 	 * Opens an s101 socket to the provider.
-	 * TODO - implement
 	 * @param host The host of the emberplus provider
 	 * @param port Port of the provider
 	 */
-	connect(host?, port?) {
+	connect(host?: string, port?: number) {
 		if (host) this.host = host
 		if (port) this.port = port
 
 		if (!this.host) return Promise.reject('No host specified')
 
-		return Promise.resolve()
+		this._client.address = this.host
+		this._client.port = this.port
+
+		return this._client.connect()
 	}
 
 	/**
 	 * Closes the s101 socket to the provider
 	 */
 	disconnect() {
-		return Promise.resolve()
+		return this._client.disconnect()
 	}
 
 	/** Ember+ commands: */
@@ -304,39 +307,107 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 		hasResponse = true
 	): RequestPromise<T> {
 		const reqId = Math.random().toString(24).substr(-4)
-		let resolve: IRequest['resolve']
-		let reject: IRequest['reject']
-		const promise = new Promise<T>((resolve, reject) => {
-			resolve = resolve
-			reject = reject
-		})
-
-		if (hasResponse) {
-			const request: IRequest = {
-				reqId,
-				node,
-				resolve,
-				reject
-			}
-			this._requests.set(reqId, request)
+		const requestPromise: RequestPromiseArguments<T> = {
+			reqId,
+			sentOk: false
 		}
 
-		const requestPromise = {
-			reqId,
-			sentOk: false,
-			...(hasResponse && {
-				cancel: () => {
+		if (hasResponse) {
+			const p = new Promise<T>((resolve, reject) => {
+				const request: IRequest = {
+					reqId,
+					node,
+					resolve,
+					reject
+				}
+				this._requests.set(reqId, request)
+
+				requestPromise.cancel = () => {
 					reject(new Error('Request cancelled'))
 					this._requests.delete(reqId)
-				},
-				promise
+				}
 			})
+			requestPromise.response = p
 		}
 
 		const message = berEncode(node)
-		await this._socket.sendMessage(message)
+		const sentOk = await this._client.sendBER(message) // TODO - if sending multiple values to same path, should we do synchronous requests?
 
-		return requestPromise
+		return {
+			...requestPromise,
+			sentOk
+		}
+	}
+
+	private _handleIncoming(node: Root) {
+		// update tree:
+		this._applyToTree(node)
+
+		// check for subscriptiions:
+		// use qualifiedNode.path
+		// call subscriber
+
+		// check for any outstanding requests and resolve them
+		// iterate over requests, check path, if Invocation check id
+		// resolve requests
+	}
+
+	private _applyToTree(node: Root) {
+		if ((node as InvocationResult).id === undefined) {
+			// node is not an InvocationResult
+
+			// walk tree
+			for (const rootElement of node as Array<RootElement>) {
+				// TODO - these can also be StreamElements - how to figure out what is what?
+				if ((rootElement as Qualified<EmberElement>).path) {
+					// element is qualified
+				} else {
+					this._updateTree(
+						rootElement as EmberTreeNode,
+						this._tree[(rootElement as EmberTreeNode).value.number]
+					)
+				}
+			}
+		}
+	}
+
+	private _updateTree(update: EmberTreeNode, tree: EmberTreeNode) {
+		if (update.value.type === tree.value.type) {
+			switch (tree.value.type) {
+				case ElementType.Node:
+					this._updateNode(update.value as Node, tree.value as Node)
+					break
+				case ElementType.Parameter:
+					this._updateParameter(update.value as Parameter, tree.value as Parameter)
+					break
+				case ElementType.Matrix:
+					this._updateMatrix(update.value as Matrix, tree.value as Matrix)
+					break
+			}
+		}
+		if (update.children && tree.children) {
+			// Update children
+			for (const child of update.children) {
+				const i = child.value.number
+				const oldChild = tree.children[i] // TODO - check that this is safe
+				this._updateTree(child, oldChild)
+			}
+		} else if (update.children) {
+			tree.children = update.children
+		}
+	}
+
+	private _updateNode(update: Node, node: Node) {
+		updateProps<Node>(node, update, ['isOnline'])
+	}
+
+	private _updateParameter(update: Parameter, parameter: Parameter) {
+		updateProps<Parameter>(parameter, update, ['value', 'isOnline', 'access'])
+	}
+
+	private _updateMatrix(update: Matrix, matrix: Matrix) {
+		updateProps<Matrix>(matrix, update, ['targets', 'targetCount', 'sources', 'sourceCount'])
+		// TODO - update connections
 	}
 }
 
@@ -351,10 +422,11 @@ export function assertQualifiedNode(node: RootElement): Qualified<EmberElement> 
 
 // TODO - what to do with any children. Do they keep their object pointers / references?
 export function toQualifiedNode(node: EmberTreeNode): Qualified<EmberElement> {
-	const findPath = (node: EmberTreeNode) => {
+	const findPath = (node: EmberTreeNode): string => {
 		if (node.parent) {
 			return findPath(node.parent) + '.' + node.index
 		}
+		return ''
 	}
 	const path = findPath(node)
 
@@ -384,4 +456,14 @@ export function insertCommand(
 		]
 	}
 	return node
+}
+
+export function updateProps<T>(oldProps: T, newProps: T, props?: Array<keyof T>) {
+	if (!props) props = Object.keys(newProps) as Array<keyof T>
+
+	for (let key of props) {
+		if (newProps[key] !== oldProps[key]) {
+			oldProps[key] = newProps[key]
+		}
+	}
 }
