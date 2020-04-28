@@ -1,10 +1,10 @@
-import { EmberElement, ElementType } from './EmberElement'
+import { EmberElement, ElementType, isEmberElement } from './EmberElement'
 import { RelativeOID } from './RelativeOID'
 import { Template } from './Template'
 import { EmberValue, MinMax, StringIntegerCollection } from '../types/types'
 import { StreamDescription } from './StreamDescription'
 
-export { Parameter, ParameterType }
+export { Parameter, ParameterType, isParameter }
 
 enum ParameterType {
 	Null = 'NULL',
@@ -27,7 +27,7 @@ enum ParameterAccess {
 // TODO break down further by ParamterType?
 interface Parameter extends EmberElement {
 	type: ElementType.Parameter
-	paramterType: ParameterType
+	parameterType: ParameterType
 	identifier?: string
 	description?: string
 	value?: EmberValue
@@ -46,4 +46,28 @@ interface Parameter extends EmberElement {
 	streamDescriptor?: StreamDescription
 	schemaIdentifiers?: string
 	templateReference: RelativeOID<Template>
+}
+
+/**
+ * Type predicate for Parameter interface.
+ * TODO: write tests for actual values and optional properties
+ *
+ * @param obj - object to check
+ * @returns true if object is a valid Parameter, false if not
+ */
+function isParameter(obj: any): obj is Parameter {
+	if (!isEmberElement(obj)) {
+		return false
+	}
+
+	const { type, parameterType, templateReference } = obj as any
+	if (type !== ElementType.Parameter) {
+		return false
+	}
+
+	if (!parameterType || !templateReference) {
+		return false
+	}
+
+	return true
 }
