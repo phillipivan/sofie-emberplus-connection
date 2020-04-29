@@ -1,15 +1,9 @@
 import { Reader } from 'asn1'
 import Long from 'long'
 import { ASN1Error, UnimplementedEmberTypeError } from '../Errors'
-import {
-	EMBER_BOOLEAN,
-	EMBER_INTEGER,
-	EMBER_OCTETSTRING,
-	EMBER_REAL,
-	EMBER_RELATIVE_OID,
-	EMBER_STRING
-} from './constants'
+import { BERDataTypes } from './BERDataTypes'
 import { UNIVERSAL } from './functions.js'
+import { EmberValue } from '../types/types'
 
 export { ExtendedReader as Reader }
 
@@ -23,31 +17,31 @@ class ExtendedReader extends Reader {
 		return new ExtendedReader(buf)
 	}
 
-	readValue() {
+	readValue(): EmberValue {
 		const tag = this.peek()
 		if (!tag) {
 			throw new Error('No tag available')
 		}
 
 		switch (tag) {
-			case EMBER_STRING:
-				return this.readString(EMBER_STRING)
-			case EMBER_INTEGER:
+			case BERDataTypes.STRING:
+				return this.readString(BERDataTypes.STRING)
+			case BERDataTypes.INTEGER:
 				return this.readInt()
-			case EMBER_REAL:
+			case BERDataTypes.REAL:
 				return this.readReal()
-			case EMBER_BOOLEAN:
+			case BERDataTypes.BOOLEAN:
 				return this.readBoolean()
-			case EMBER_OCTETSTRING:
+			case BERDataTypes.OCTETSTRING:
 				return this.readString(UNIVERSAL(4), true)
-			case EMBER_RELATIVE_OID:
-				return this.readOID(EMBER_RELATIVE_OID)
+			case BERDataTypes.RELATIVE_OID:
+				return this.readOID(BERDataTypes.RELATIVE_OID)
 			default:
 				throw new UnimplementedEmberTypeError(tag)
 		}
 	}
 
-	readReal(tag?: number) {
+	readReal(tag?: number): number | null {
 		if (tag !== null) {
 			tag = UNIVERSAL(9)
 		}
