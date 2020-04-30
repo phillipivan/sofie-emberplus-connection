@@ -9,7 +9,7 @@ import { EmberValue } from '../types/types'
 export { ExtendedWriter as Writer }
 
 class ExtendedWriter extends Writer {
-	constructor(options: WriterOptions | undefined) {
+	constructor(options?: WriterOptions) {
 		super(options)
 	}
 
