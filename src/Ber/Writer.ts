@@ -84,19 +84,11 @@ class ExtendedWriter extends Writer {
 		}
 	}
 
-	writeValue(value: Parameter | EmberValue, tag: number) {
+	writeValue(value: EmberValue, tag?: number) {
 		// this is inconsistent with the original behavior, which would have thrown a TypeError if value was null or undef
 		// TypeScript won't allow doing a value.toString() if value can be null, not sure what to do here
 		if (value === null || value === undefined) {
 			return
-		}
-
-		if (isParameter(value)) {
-			// again consistent with the original behavior, but are all other parameters just to be discarded?
-			if (value.parameterType === ParameterType.Real) {
-				this.writeReal(value.value as number, tag)
-				return
-			}
 		}
 
 		if (typeof value == 'number') {
@@ -123,7 +115,7 @@ class ExtendedWriter extends Writer {
 			return
 		}
 
-		if (Buffer.isBuffer(value)) {
+		if (Buffer.isBuffer(value) && tag) {
 			this.writeBuffer(value, tag)
 			return
 		}
@@ -132,6 +124,34 @@ class ExtendedWriter extends Writer {
 			tag = BERDataTypes.STRING
 		}
 		this.writeString(value.toString(), tag)
+	}
+
+	writeEmberParameter(value: Parameter) {
+		if (isParameter(value)) {
+			switch (value.parameterType) {
+				case ParameterType.Real:
+					this.writeReal(value.value as number, BERDataTypes.REAL)
+					break
+				case ParameterType.Integer:
+					this.writeInt(value.value as number, BERDataTypes.INTEGER)
+					break
+				case ParameterType.Boolean:
+					this.writeBoolean(value.value as boolean, BERDataTypes.BOOLEAN)
+					break
+				case ParameterType.Octets:
+					this.writeBuffer(value.value as Buffer, BERDataTypes.OCTETSTRING)
+					break
+				default:
+					this.writeString(value.value as string, BERDataTypes.STRING)
+			}
+			if (value.parameterType === ParameterType.Real) {
+				const tag = BERDataTypes.REAL
+				this.writeReal(value.value as number, tag)
+				return
+			}
+		} else {
+			this.writeValue(value as any, undefined)
+		}
 	}
 
 	writeIfDefined(
