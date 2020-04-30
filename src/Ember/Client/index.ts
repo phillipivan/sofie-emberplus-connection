@@ -13,14 +13,13 @@ import { Unsubscribe } from '../../model/Command'
 import { Invoke } from '../../model/Command'
 import { Parameter } from '../../model/Parameter'
 import { Tree } from '../../model/Tree'
-import { Connection } from '../../model/Connection'
+import { Connection, ConnectionDisposition } from '../../model/Connection'
 import { ConnectionOperation } from '../../model/Connection'
 import { Root } from '../../types/types'
 import { Node } from '../../model/Node'
 
 import { EventEmitter } from 'events'
 import { S101Client } from '../Socket'
-import { StreamEntry } from '../../model/StreamEntry'
 
 export type RequestPromise<T> = Promise<RequestPromiseArguments<T>>
 export interface RequestPromiseArguments<T> {
@@ -35,6 +34,16 @@ export interface IRequest {
 	node: Qualified<EmberElement>
 	resolve: (res: any) => void
 	reject: (err: Error) => void
+}
+
+export interface ISubscription {
+	path: string
+	cb: (node: EmberTreeNode) => void
+}
+
+export interface IChange {
+	path: string
+	node: EmberTreeNode
 }
 
 export enum ConnectionStatus {
@@ -100,7 +109,7 @@ export interface IEmberClient {
 	) => RequestPromise<EmberTreeNode>
 }
 
-export default class EmberClient extends EventEmitter implements IEmberClient {
+export class EmberClient extends EventEmitter {
 	host: string
 	port: number
 
@@ -108,6 +117,7 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 	private _lastInvocation = 0
 	private _tree: Array<EmberTreeNode> = [] // TODO - why not public?
 	private _client: S101Client
+	private _subscriptions: Array<ISubscription> = []
 
 	constructor(host: string, port = 9000) {
 		super()
@@ -143,12 +153,19 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 	}
 
 	/** Ember+ commands: */
-	getDirectory(node: RootElement, dirFieldMask?: FieldFlags, cb?: (node: EmberTreeNode) => void) {
+	getDirectory(node: EmberTreeNode, dirFieldMask?: FieldFlags, cb?: (node: EmberTreeNode) => void) {
 		const command: GetDirectory = {
 			type: ElementType.Command,
 			number: CommandType.GetDirectory,
 			dirFieldMask
 		}
+
+		if (cb)
+			this._subscriptions.push({
+				path: getPath(node), // TODO
+				cb
+			})
+
 		return this._sendCommand<RootElement>(node, command)
 	}
 	subscribe(node: EmberTreeNode, cb?: (node: EmberTreeNode) => void) {
@@ -156,6 +173,13 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 			type: ElementType.Command,
 			number: CommandType.Subscribe
 		}
+
+		if (cb)
+			this._subscriptions.push({
+				path: getPath(node), // TODO
+				cb
+			})
+
 		return this._sendCommand<void>(node, command, false)
 	}
 	unsubscribe(node: EmberTreeNode) {
@@ -163,6 +187,14 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 			type: ElementType.Command,
 			number: CommandType.Unsubscribe
 		}
+
+		const path = getPath(node)
+		for (let i in this._subscriptions) {
+			if (this._subscriptions[i].path === path) {
+				this._subscriptions.splice(Number(i), 1)
+			}
+		}
+
 		return this._sendCommand<void>(node, command, false)
 	}
 	invoke(node: EmberTreeNode, ...args: Array<EmberValue>) {
@@ -200,7 +232,7 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 		target: number,
 		sources: Array<number>
 	): RequestPromise<Tree<Matrix>> {
-		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Disconnect)
+		return this._matrixMutation(matrix, target, sources, ConnectionOperation.disconnect)
 	}
 	matrixSetConnection(
 		matrix: Tree<Matrix>,
@@ -228,6 +260,7 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 							const res = (await req.response) as Tree<EmberElement>
 							return res.children?.map((c) => this.expand(c))
 						}
+						return
 					})
 				)
 			}
@@ -248,20 +281,28 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 		cb?: (node: EmberTreeNode) => void
 	): RequestPromise<EmberTreeNode> {
 		const pathArr = path.split('.') // TODO - should we remain backward compatible and accept "/"?
-		let tree: EmberTreeNode = this._tree[pathArr.shift()]
+		let tree: EmberTreeNode = this._tree[(pathArr.shift() as unknown) as number]
 
 		for (let i = pathArr.shift(); pathArr.length; i = pathArr.shift()) {
-			if (tree.children && tree.children[i]) {
-				tree = tree.children[i]
+			let index = (i as unknown) as number
+			if (tree.children && tree.children[index]) {
+				tree = tree.children[index]
 			} else {
 				const req = await this.getDirectory(tree)
 				tree = (await req.response) as EmberTreeNode
-				if (tree.children && tree.children[i]) {
-					tree = tree.children[i]
+				if (tree.children && tree.children[index]) {
+					tree = tree.children[index]
 				} else {
 					throw new Error('Child not found')
 				}
 			}
+		}
+
+		if (cb) {
+			this._subscriptions.push({
+				path,
+				cb
+			})
 		}
 
 		return {
@@ -341,38 +382,65 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 
 	private _handleIncoming(node: Root) {
 		// update tree:
-		this._applyToTree(node)
+		const changes = this._applyRootToTree(node)
 
 		// check for subscriptiions:
-		// use qualifiedNode.path
-		// call subscriber
+		for (const change of changes) {
+			const subscription = this._subscriptions.find((s) => s.path === change.path)
+			if (subscription) subscription.cb(change.node)
+		}
 
 		// check for any outstanding requests and resolve them
 		// iterate over requests, check path, if Invocation check id
 		// resolve requests
+		for (const change of changes) {
+			const req = this._requests.values().find((s) => s.path === change.path)
+			if (req) req.cb(change.node)
+		}
 	}
 
-	private _applyToTree(node: Root) {
+	private _applyRootToTree(node: Root): Array<IChange> {
+		let changes: Array<IChange> = []
+
 		if ((node as InvocationResult).id === undefined) {
 			// node is not an InvocationResult
 
 			// walk tree
 			for (const rootElement of node as Array<RootElement>) {
-				// TODO - these can also be StreamElements - how to figure out what is what?
+				// TODO - these can also be StreamElements - how to figure out what is what? (if it is, then update parameters)
 				if ((rootElement as Qualified<EmberElement>).path) {
 					// element is qualified
+					const path: Array<string> = (rootElement as Qualified<EmberElement>).path.split('.')
+					let tree = this._tree[Number(path.shift())]
+
+					for (const number of path) {
+						tree = tree.children![Number(number)]
+					}
+
+					changes = {
+						...changes,
+						...this._updateTree(rootElement.value as Qualified<EmberElement>['value'], tree)
+					}
 				} else {
-					this._updateTree(
-						rootElement as EmberTreeNode,
-						this._tree[(rootElement as EmberTreeNode).value.number]
-					)
+					changes = {
+						...changes,
+						...this._updateTree(
+							rootElement as EmberTreeNode,
+							this._tree[(rootElement as EmberTreeNode).value.number]
+						)
+					}
 				}
 			}
 		}
+
+		return changes
 	}
 
-	private _updateTree(update: EmberTreeNode, tree: EmberTreeNode) {
+	private _updateTree(update: EmberTreeNode, tree: EmberTreeNode): Array<IChange> {
+		let changes: Array<IChange> = []
+
 		if (update.value.type === tree.value.type) {
+			changes.push({ path: getPath(tree), node: tree })
 			switch (tree.value.type) {
 				case ElementType.Node:
 					this._updateNode(update.value as Node, tree.value as Node)
@@ -390,11 +458,17 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 			for (const child of update.children) {
 				const i = child.value.number
 				const oldChild = tree.children[i] // TODO - check that this is safe
-				this._updateTree(child, oldChild)
+				changes = {
+					...changes,
+					...this._updateTree(child, oldChild)
+				}
 			}
 		} else if (update.children) {
+			changes.push({ path: getPath(tree), node: tree })
 			tree.children = update.children
 		}
+
+		return changes
 	}
 
 	private _updateNode(update: Node, node: Node) {
@@ -406,8 +480,50 @@ export default class EmberClient extends EventEmitter implements IEmberClient {
 	}
 
 	private _updateMatrix(update: Matrix, matrix: Matrix) {
-		updateProps<Matrix>(matrix, update, ['targets', 'targetCount', 'sources', 'sourceCount'])
-		// TODO - update connections
+		updateProps<Matrix>(matrix, update, [
+			'targets',
+			'targetCount',
+			'sources',
+			'sourceCount',
+			'connections'
+		])
+
+		// update connections
+		if (update.connections) {
+			if (matrix.connections) {
+				// matrix already has connections
+				for (const connection of update.connections) {
+					if (
+						!connection.disposition ||
+						!(
+							connection.disposition === ConnectionDisposition.Locked ||
+							connection.disposition === ConnectionDisposition.Pending
+						)
+					) {
+						// update is either generic, tally or modification
+						let exists = false
+						for (let i in matrix.connections) {
+							if (matrix.connections[i].target === connection.target) {
+								// found connection to update
+								exists = true
+								matrix.connections[i].sources = connection.sources
+							}
+						}
+
+						if (!exists) {
+							// connection to target does not exist yet
+							matrix.connections.push({
+								target: connection.target,
+								sources: connection.sources
+							})
+						}
+					}
+				}
+			} else {
+				// connections have not been set yet
+				matrix.connections = update.connections
+			}
+		}
 	}
 }
 
@@ -420,24 +536,30 @@ export function assertQualifiedNode(node: RootElement): Qualified<EmberElement> 
 	}
 }
 
-// TODO - what to do with any children. Do they keep their object pointers / references?
-export function toQualifiedNode(node: EmberTreeNode): Qualified<EmberElement> {
+export function getPath(node: EmberTreeNode): string {
 	const findPath = (node: EmberTreeNode): string => {
 		if (node.parent) {
-			return findPath(node.parent) + '.' + node.index
+			return findPath(node.parent) + '.' + node.value.number
 		}
 		return ''
 	}
-	const path = findPath(node)
+
+	return findPath(node)
+}
+
+// TODO - what to do with any children. Do they keep their object pointers / references?
+export function toQualifiedNode(node: EmberTreeNode): Qualified<EmberElement> {
+	const path = getPath(node)
 
 	// TODO - use actual class!
 	return {
 		value: {
 			value: node.value,
-			children: node.children, // TODO - do we want the children?
-			index: 1
+			index: 1,
+			children: node.children // TODO - do we want the children?
 		},
-		path
+		path,
+		getRelativeOID(): RelativeOID<T>
 	}
 }
 
@@ -462,7 +584,7 @@ export function updateProps<T>(oldProps: T, newProps: T, props?: Array<keyof T>)
 	if (!props) props = Object.keys(newProps) as Array<keyof T>
 
 	for (let key of props) {
-		if (newProps[key] !== oldProps[key]) {
+		if (newProps[key] !== undefined && newProps[key] !== oldProps[key]) {
 			oldProps[key] = newProps[key]
 		}
 	}

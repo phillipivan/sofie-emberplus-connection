@@ -5,4 +5,5 @@ interface Tree<T> {
 	parent?: Tree<T>
 	children?: Array<Tree<T>>
 	// TODO: insert all the usual tree manipulation methods
+	index: number
 }
