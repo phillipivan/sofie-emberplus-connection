@@ -42,3 +42,42 @@ interface Invoke extends Command {
 	number: CommandType.Invoke
 	invocation?: Invocation
 }
+
+export function isInvoke(command: Command | null): command is Invoke {
+	return command !== null && command.number === CommandType.Invoke
+}
+
+export function isGetDirectory(command: Command | null): command is GetDirectory {
+	return command !== null && command.number === CommandType.GetDirectory
+}
+
+abstract class CommandImpl implements Command {
+  public abstract number: number
+	public type: ElementType.Command = ElementType.Command
+	constructor() { }
+}
+
+export class SubscribeImpl extends CommandImpl implements Subscribe {
+	public readonly number: CommandType.Subscribe = CommandType.Subscribe
+	constructor() { super() }
+}
+
+export class UnsubscribeImpl extends CommandImpl implements Unsubscribe {
+	public readonly number: CommandType.Unsubscribe = CommandType.Unsubscribe
+	constructor() { super() }
+}
+
+export class GetDirectoryImpl extends CommandImpl implements GetDirectory {
+	public readonly number: CommandType.GetDirectory = CommandType.GetDirectory
+
+	constructor(public dirFieldMask?: FieldFlags) {
+		super()
+	}
+}
+
+export class InvokeImpl extends CommandImpl implements Invoke {
+	public readonly number: CommandType.Invoke = CommandType.Invoke
+	constructor(public invocation?: Invocation) {
+		super()
+	}
+}

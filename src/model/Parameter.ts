@@ -40,7 +40,7 @@ interface Parameter extends EmberElement {
 	isOnline?: boolean
 	formula?: string
 	step?: number // Integer32
-	default?: any
+	default?: EmberValue
 	streamIdentifier?: number // BER readInt
 	enumMap?: StringIntegerCollection
 	streamDescriptor?: StreamDescription
@@ -70,4 +70,28 @@ function isParameter(obj: any): obj is Parameter {
 	}
 
 	return true
+}
+
+export class ParamterImpl implements Parameter {
+	type: ElementType.Parameter
+	parameterType: ParameterType
+	identifier?: string
+	description?: string
+	value?: EmberValue
+	maximum?: MinMax
+	minimum?: MinMax
+	access?: ParameterAccess
+	format?: string
+	enumeration?: string
+	factor?: number // Integer32
+	isOnline?: boolean
+	formula?: string
+	step?: number // Integer32
+	default?: EmberValue
+	streamIdentifier?: number // BER readInt
+	enumMap?: StringIntegerCollection
+	streamDescriptor?: StreamDescription
+	schemaIdentifiers?: string
+	templateReference: RelativeOID<Template>
+	constructor() { }
 }

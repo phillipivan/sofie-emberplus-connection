@@ -3,7 +3,8 @@ import Long from 'long'
 import { ASN1Error, UnimplementedEmberTypeError } from '../Errors'
 import { BERDataTypes } from './BERDataTypes'
 import { UNIVERSAL } from './functions.js'
-import { EmberValue } from '../types/types'
+import { EmberValue, EmberTypedValue } from '../types/types'
+import { ParameterType } from '../model/Parameter'
 
 export { ExtendedReader as Reader }
 
@@ -17,7 +18,7 @@ class ExtendedReader extends Reader {
 		return new ExtendedReader(buf)
 	}
 
-	readValue(): EmberValue {
+	readValue(): EmberTypedValue {
 		const tag = this.peek()
 		if (!tag) {
 			throw new Error('No tag available')
@@ -25,17 +26,19 @@ class ExtendedReader extends Reader {
 
 		switch (tag) {
 			case BERDataTypes.STRING:
-				return this.readString(BERDataTypes.STRING)
+				return { type: ParameterType.String, value: this.readString(BERDataTypes.STRING) }
 			case BERDataTypes.INTEGER:
-				return this.readInt()
+				return { type: ParameterType.Integer, value: this.readInt() }
 			case BERDataTypes.REAL:
-				return this.readReal()
+				return { type: ParameterType.Real, value: this.readReal() }
 			case BERDataTypes.BOOLEAN:
-				return this.readBoolean()
+				return { type: ParameterType.Boolean, value: this.readBoolean() }
 			case BERDataTypes.OCTETSTRING:
-				return this.readString(UNIVERSAL(4), true)
+				return { type: ParameterType.Octets, value: this.readString(UNIVERSAL(4), true) }
 			case BERDataTypes.RELATIVE_OID:
-				return this.readOID(BERDataTypes.RELATIVE_OID)
+				return { type: ParameterType.String, value: this.readOID(BERDataTypes.RELATIVE_OID) }
+			case BERDataTypes.NULL:
+				return { type: ParameterType.Null, value: null } // TODO should you read something
 			default:
 				throw new UnimplementedEmberTypeError(tag)
 		}

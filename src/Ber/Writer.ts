@@ -4,7 +4,7 @@ import { Writer, WriterOptions } from 'asn1'
 import { CONTEXT, UNIVERSAL } from './functions'
 import { BERDataTypes } from './BERDataTypes'
 import { Parameter, ParameterType, isParameter } from '../model/Parameter'
-import { EmberValue } from '../types/types'
+import { EmberValue, EmberTypedValue } from '../types/types'
 
 export { ExtendedWriter as Writer }
 
@@ -84,14 +84,23 @@ class ExtendedWriter extends Writer {
 		}
 	}
 
-	writeValue(value: EmberValue, tag?: number) {
+	writeValue(value: EmberValue, tag?: number): void
+	writeValue(typedValue: EmberTypedValue): void
+	writeValue(arg1: EmberValue | EmberTypedValue, tag?: number): void {
+		let value: EmberValue
+		if (arg1 && typeof arg1 === 'object' && arg1.hasOwnProperty('type')) {
+			value = (arg1 as EmberTypedValue).value
+			tag = ParameterTypetoBERTAG((arg1 as EmberTypedValue).type)
+		} else {
+			value = arg1 as EmberValue
+		}
 		// this is inconsistent with the original behavior, which would have thrown a TypeError if value was null or undef
 		// TypeScript won't allow doing a value.toString() if value can be null, not sure what to do here
 		if (value === null || value === undefined) {
 			return
 		}
 
-		if (typeof value == 'number') {
+		if (typeof value === 'number') {
 			if (Number.isInteger(value)) {
 				if (tag === undefined) {
 					tag = BERDataTypes.INTEGER

@@ -35,14 +35,14 @@ function isGetDirectory(command: Command): command is GetDirectory {
 
 function writeDirFieldMask(fieldMask: FieldFlags, writer: Ber.Writer) {
 	const maskToInt: { [flag: string]: number } = {
-		[FieldFlags.Sparse]: 0,
-		[FieldFlags.All]: 1,
-		[FieldFlags.Default]: 2,
-		[FieldFlags.Identifier]: 3,
-		[FieldFlags.Description]: 4,
-		[FieldFlags.Tree]: 5,
-		[FieldFlags.Value]: 6,
-		[FieldFlags.Connections]: 7
+		[FieldFlags.Sparse]: -2,
+		[FieldFlags.All]: -1,
+		[FieldFlags.Default]: 0,
+		[FieldFlags.Identifier]: 1,
+		[FieldFlags.Description]: 2,
+		[FieldFlags.Tree]: 3,
+		[FieldFlags.Value]: 4,
+		[FieldFlags.Connections]: 5
 	}
 
 	writer.writeInt(maskToInt[fieldMask])
@@ -57,9 +57,9 @@ function encodeInvocation(invocation: Invocation, writer: Ber.Writer) {
 	}
 	writer.startSequence(Ber.CONTEXT(1))
 	writer.startSequence(Ber.BERDataTypes.SEQUENCE)
-	for (var i = 0; i < invocation.arguments.length; i++) {
+	for (var i = 0; i < invocation.args.length; i++) {
 		writer.startSequence(Ber.CONTEXT(0))
-		writer.writeValue(invocation.arguments[i]) // TODO - figure out what kind of value to write
+		writer.writeValue(invocation.args[i])
 		writer.endSequence()
 	}
 	writer.endSequence()
