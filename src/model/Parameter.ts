@@ -4,7 +4,7 @@ import { Template } from './Template'
 import { EmberValue, MinMax, StringIntegerCollection } from '../types/types'
 import { StreamDescription } from './StreamDescription'
 
-export { Parameter, ParameterType, isParameter }
+export { Parameter, ParameterType, ParameterAccess, isParameter }
 
 enum ParameterType {
 	Null = 'NULL',

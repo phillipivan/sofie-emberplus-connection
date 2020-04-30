@@ -1,4 +1,4 @@
-export { StreamDescription }
+export { StreamDescription, StreamFormat }
 
 enum StreamFormat {
 	UInt8 = 'UInt8',

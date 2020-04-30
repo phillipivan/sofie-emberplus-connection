@@ -153,19 +153,14 @@ class ExtendedWriter extends Writer {
 				default:
 					this.writeString(value.value as string, BERDataTypes.STRING)
 			}
-			if (value.parameterType === ParameterType.Real) {
-				const tag = BERDataTypes.REAL
-				this.writeReal(value.value as number, tag)
-				return
-			}
 		} else {
-			this.writeValue(value as any, undefined)
+			this.writeValue((value as any).value, undefined)
 		}
 	}
 
-	writeIfDefined(
-		property: any,
-		writer: (value: number, tag: number) => {},
+	writeIfDefined<T>(
+		property: T | undefined,
+		writer: (value: T, tag: number) => void,
 		outer: number,
 		inner: number
 	): void {

@@ -1,6 +1,8 @@
 import { ElementType, EmberElement } from './EmberElement'
 import { Parameter } from './Parameter'
 import { Matrix } from './Matrix'
+import { Function } from './Function'
+import { Node } from './Node'
 
 export { Template }
 
