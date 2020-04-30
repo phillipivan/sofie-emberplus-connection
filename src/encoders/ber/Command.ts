@@ -1,6 +1,6 @@
 import * as Ber from '../../Ber'
 import { Command, CommandType, GetDirectory, FieldFlags, Invoke } from '../../model/Command'
-import { Invocation } from '../../model/Invocation'
+import { encodeInvocation } from './Invocation'
 
 export function encodeCommand(el: Command, writer: Ber.Writer) {
 	writer.startSequence(Ber.APPLICATION(2)) // TODO - make non magic number?
@@ -46,24 +46,4 @@ function writeDirFieldMask(fieldMask: FieldFlags, writer: Ber.Writer) {
 	}
 
 	writer.writeInt(maskToInt[fieldMask])
-}
-
-function encodeInvocation(invocation: Invocation, writer: Ber.Writer) {
-	writer.startSequence(Ber.APPLICATION(22))
-	if (invocation.id != null) {
-		writer.startSequence(Ber.CONTEXT(0))
-		writer.writeInt(invocation.id)
-		writer.endSequence()
-	}
-	writer.startSequence(Ber.CONTEXT(1))
-	writer.startSequence(Ber.BERDataTypes.SEQUENCE)
-	for (var i = 0; i < invocation.arguments.length; i++) {
-		writer.startSequence(Ber.CONTEXT(0))
-		writer.writeValue(invocation.arguments[i]) // TODO - figure out what kind of value to write
-		writer.endSequence()
-	}
-	writer.endSequence()
-	writer.endSequence()
-
-	writer.endSequence() // BER.APPLICATION(22)
 }
