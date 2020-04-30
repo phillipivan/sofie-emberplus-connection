@@ -2,7 +2,8 @@
 	"extends": ["eslint:recommended", "plugin:prettier/recommended"],
 	"plugins": ["prettier"],
 	"rules": {
-		"prettier/prettier": "error"
+		"prettier/prettier": "error",
+		"no-use-before-define": "off"
 	},
 	"env": { "es2017": true },
 	"parserOptions": { "sourceType": "module", "ecmaVersion": 2018 },
@@ -17,7 +18,11 @@
 				"plugin:@typescript-eslint/eslint-recommended",
 				"plugin:@typescript-eslint/recommended",
 				"prettier/@typescript-eslint"
-			]
+			],
+			"rules": {
+				"no-use-before-define": "off",
+				"@typescript-eslint/no-use-before-define": "off"
+			}
 		},
 		{
 			"files": ["test/**/*.{js|ts}", "src/**/__tests__/*.test.ts"],
