@@ -1,6 +1,7 @@
 import * as Ber from '../../Ber'
 import { Function } from '../../model/Function'
 import { encodeFunctionArgument } from './FunctionArgument'
+import { encodeRelativeOID } from './RelativeOID'
 
 export function encodeFunction(el: Function, writer: Ber.Writer) {
 	// The function itself is a node, and then the contents are another node I think. This just encodes the contents:
@@ -42,12 +43,12 @@ export function encodeFunction(el: Function, writer: Ber.Writer) {
 		writer.endSequence() // Ber.CONTEXT(3)
 	}
 
-	// TODO - get a string from a templateReference / rel OID:
-	// if (el.templateReference != null) {
-	// 	writer.startSequence(Ber.CONTEXT(4))
-	// 	writer.writeRelativeOID(el.templateReference, Ber.BERDataTypes.RELATIVE_OID)
-	// 	writer.endSequence() // Ber.CONTEXT(3)
-	// }
+	if (el.templateReference != null) {
+		// writer.startSequence(Ber.CONTEXT(4))
+		// writer.writeRelativeOID(el.templateReference, Ber.BERDataTypes.RELATIVE_OID)
+		// writer.endSequence() // Ber.CONTEXT(3)
+		encodeRelativeOID(el.templateReference, writer)
+	}
 
 	writer.endSequence() // Ber.EMBER_SET
 }

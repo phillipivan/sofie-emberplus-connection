@@ -11,5 +11,5 @@ interface Node extends EmberElement {
 	isRoot?: boolean
 	isOnline?: boolean
 	schemaIdentifiers?: string
-	templateReference: RelativeOID<Template>
+	templateReference?: RelativeOID<Template>
 }

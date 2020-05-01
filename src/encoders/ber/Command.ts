@@ -9,9 +9,9 @@ export function encodeCommand(el: Command, writer: Ber.Writer) {
 	writer.writeInt(el.number)
 	writer.endSequence() // BER.CONTEXT(0)
 
-	if (isGetDirectory(el) && (el as GetDirectory).dirFieldMask) {
+	if (isGetDirectory(el) && el.dirFieldMask) {
 		writer.startSequence(Ber.CONTEXT(1))
-		writeDirFieldMask((el as GetDirectory).dirFieldMask!, writer)
+		writeDirFieldMask(el.dirFieldMask, writer)
 		writer.endSequence()
 	}
 
@@ -20,7 +20,6 @@ export function encodeCommand(el: Command, writer: Ber.Writer) {
 		encodeInvocation(el.invocation, writer)
 		writer.endSequence()
 	}
-	// TODO: options
 
 	writer.endSequence() // BER.APPLICATION(2)
 }

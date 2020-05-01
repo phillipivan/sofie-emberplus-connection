@@ -18,7 +18,6 @@ export function encodeInvocationResult(result: InvocationResult, writer: Ber.Wri
 		writer.startSequence(Ber.BERDataTypes.SEQUENCE)
 		for (let i = 0; i < result.result.length; i++) {
 			writer.startSequence(Ber.CONTEXT(0))
-			// TODO - Need the function to be able to know the actual value type
 			writer.writeValue(result.result[i])
 			writer.endSequence()
 		}

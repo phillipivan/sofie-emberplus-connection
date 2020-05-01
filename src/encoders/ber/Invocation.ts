@@ -12,7 +12,7 @@ export function encodeInvocation(invocation: Invocation, writer: Ber.Writer) {
 	writer.startSequence(Ber.BERDataTypes.SEQUENCE)
 	for (var i = 0; i < invocation.args.length; i++) {
 		writer.startSequence(Ber.CONTEXT(0))
-		writer.writeValue(invocation.args[i]) // TODO - figure out what type of value to write
+		writer.writeValue(invocation.args[i])
 		writer.endSequence()
 	}
 	writer.endSequence()

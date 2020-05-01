@@ -9,8 +9,16 @@ import { Tree } from '../model/Tree'
 import { StreamEntry } from '../model/StreamEntry'
 import { InvocationResult } from '../model/InvocationResult'
 
-export { EmberTreeNode, EmberValue, EmberTypedValue, Root, RootElement, MinMax, 
-	StringIntegerCollection }
+export {
+	EmberTreeNode,
+	EmberValue,
+	EmberTypedValue,
+	Root,
+	RootElement,
+	MinMax,
+	StringIntegerCollection,
+	RootType
+}
 
 type EmberTreeNode = Tree<EmberElement>
 type RootElement =
@@ -21,6 +29,12 @@ type RootElement =
 	| Qualified<Function>
 	| Qualified<Template>
 type Root = Array<RootElement> | Array<StreamEntry> | InvocationResult
+
+enum RootType {
+	Elements,
+	Streams,
+	InvocationResult
+}
 
 // number is either Integer64 or REAL
 type EmberValue = number | string | boolean | Buffer | null

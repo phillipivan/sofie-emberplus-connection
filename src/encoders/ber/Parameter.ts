@@ -91,9 +91,9 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer) {
 function parameterAccessToInt(parameter: ParameterAccess) {
 	const paramToInt = {
 		[ParameterAccess.None]: 0,
-		[ParameterAccess.Read]: 0,
-		[ParameterAccess.Write]: 0,
-		[ParameterAccess.ReadWrite]: 0
+		[ParameterAccess.Read]: 1,
+		[ParameterAccess.Write]: 2,
+		[ParameterAccess.ReadWrite]: 3
 	}
 
 	return paramToInt[parameter]

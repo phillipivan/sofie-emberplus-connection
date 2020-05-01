@@ -3,20 +3,49 @@ import { EmberLib } from './Ember/Lib/index'
 import { EmberServer, ServerEvents } from './Ember/Server/index'
 import { S101 } from './S101/index'
 import { S101Client } from './Ember/Socket/index'
-import { EmberTreeNode } from './types/types'
+import { EmberTreeNode, Root, RootType, RootElement } from './types/types'
 import * as Ber from './Ber'
+import { encodeInvocationResult } from './encoders/ber/InvocationResult'
+import { InvocationResult } from './model/InvocationResult'
+import { encodeRootElement } from './encoders/ber/RootElement'
+import { StreamEntry } from './model/StreamEntry'
+import { encodeStreamEntry } from './encoders/ber/StreamEntry'
 
 const Decoder = EmberLib.DecodeBuffer
 
-function berEncode(el: EmberTreeNode): Buffer {
+function berEncode(el: Root, rootType: RootType): Buffer {
 	const writer = new Ber.Writer()
-	writer.startSequence(Ber.APPLICATION(0))
-	if (el.children) {
-		writer.startSequence(Ber.APPLICATION(11))
-		el.children.forEach((child) => writeToBer(child, writer)) // TODO - iterate over tree and call the correct functions
-		writer.endSequence()
+	writer.startSequence(Ber.APPLICATION(0)) // Start ROOT
+
+	switch (rootType) {
+		case RootType.Elements:
+			writer.startSequence(Ber.APPLICATION(11)) // Start RootElementCollection
+			writer.startSequence(Ber.BERDataTypes.SEQUENCE)
+			for (const rootEl of el as RootElement[]) {
+				writer.startSequence(Ber.CONTEXT(0))
+				encodeRootElement(rootEl, writer)
+				writer.endSequence()
+			}
+			writer.endSequence()
+			writer.endSequence() // End RootElementCollection
+			break
+		case RootType.Streams:
+			writer.startSequence(Ber.APPLICATION(6)) // Start StreamCollection
+			writer.startSequence(Ber.BERDataTypes.SEQUENCE)
+			for (const entry of el as StreamEntry[]) {
+				writer.startSequence(Ber.CONTEXT(0))
+				encodeStreamEntry(entry, writer)
+				writer.endSequence()
+			}
+			writer.endSequence()
+			writer.endSequence() // End StreamCollection
+			break
+		case RootType.InvocationResult:
+			encodeInvocationResult(el as InvocationResult, writer)
+			break
 	}
-	writer.endSequence()
+
+	writer.endSequence() // End ROOT
 	return writer.buffer
 }
 

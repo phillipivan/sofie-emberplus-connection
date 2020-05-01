@@ -22,13 +22,13 @@ export function encodeFunctionArgument(arg: FunctionArgument, writer: Ber.Writer
 function writeParameterType(type: ParameterType, writer: Ber.Writer) {
 	const typeToInt: { [flag: string]: number } = {
 		[ParameterType.Null]: 0,
-		[ParameterType.Integer]: 0,
-		[ParameterType.Real]: 0,
-		[ParameterType.String]: 0,
-		[ParameterType.Boolean]: 0,
-		[ParameterType.Trigger]: 0,
-		[ParameterType.Enum]: 0,
-		[ParameterType.Octets]: 0
+		[ParameterType.Integer]: 1,
+		[ParameterType.Real]: 2,
+		[ParameterType.String]: 3,
+		[ParameterType.Boolean]: 4,
+		[ParameterType.Trigger]: 5,
+		[ParameterType.Enum]: 6,
+		[ParameterType.Octets]: 7
 	}
 
 	writer.writeInt(typeToInt[type])
