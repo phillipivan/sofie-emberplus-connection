@@ -20,9 +20,9 @@ export {
 	RootType
 }
 
-type EmberTreeNode = Tree<EmberElement>
+type EmberTreeNode<T extends EmberElement> = Tree<EmberElement, T>
 type RootElement =
-	| EmberTreeNode
+	| EmberTreeNode<EmberElement>
 	| Qualified<Parameter>
 	| Qualified<Node>
 	| Qualified<Matrix>

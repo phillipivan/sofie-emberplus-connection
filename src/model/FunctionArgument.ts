@@ -4,12 +4,12 @@ export { FunctionArgument }
 
 interface FunctionArgument {
 	type: ParameterType
-	name: string
+	name?: string
 }
 
 export class FunctionArgumentImpl implements FunctionArgument {
 	constructor(
 		public type: ParameterType,
-		public name: string
+		public name?: string
 	) { }
 }

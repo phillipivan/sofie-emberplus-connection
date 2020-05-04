@@ -35,5 +35,28 @@ interface Matrix extends EmberElement {
 	gainParameterNumber?: number // Integer32 - nToN: number of connection gain parameter
 	labels?: Array<Label>
 	schemaIdentifiers?: string
-	templateReference: RelativeOID<Template>
+	templateReference?: RelativeOID<Template>
+}
+
+export class MatrixImpl implements Matrix {
+	public readonly type: ElementType.Matrix = ElementType.Matrix
+	constructor(
+		public number: number,
+		public identifier: string,
+		public targets?: Array<number>,
+		public sources?: Array<number>,
+		public connections?: Array<Connection>,
+		public description?: string,
+		public matrixType?: MatrixType,
+		public addressingMode?: MatrixAddressingMode,
+		public targetCount?: number,
+		public sourceCount?: number,
+		public maximumTotalConnects?: number,
+		public maximumConnectsPerTarget?: number,
+		public parametersLocation?: RelativeOID<Node> | number,
+		public gainParameterNumber?: number,
+		public labels?: Array<Label>,
+		public schemaIdentifiers?: string,
+		public templateReference?: RelativeOID<Template>
+	) { }
 }

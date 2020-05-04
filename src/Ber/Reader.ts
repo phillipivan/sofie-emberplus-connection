@@ -3,7 +3,7 @@ import Long from 'long'
 import { ASN1Error, UnimplementedEmberTypeError } from '../Errors'
 import { BERDataTypes } from './BERDataTypes'
 import { UNIVERSAL } from './functions.js'
-import { EmberValue, EmberTypedValue } from '../types/types'
+import { EmberTypedValue } from '../types/types'
 import { ParameterType } from '../model/Parameter'
 
 export { ExtendedReader as Reader }

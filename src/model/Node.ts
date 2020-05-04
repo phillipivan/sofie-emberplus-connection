@@ -13,3 +13,16 @@ interface Node extends EmberElement {
 	schemaIdentifiers?: string
 	templateReference?: RelativeOID<Template>
 }
+
+export class NodeImpl implements Node {
+	public readonly type: ElementType.Node = ElementType.Node
+	constructor(
+		public number: number,
+		public identifier?: string,
+		public description?: string,
+		public isRoot?: boolean,
+		public isOnline?: boolean,
+		public schemaIdentifiers?: string,
+		public templateReference?: RelativeOID<Template>
+	) { }
+}

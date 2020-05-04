@@ -8,11 +8,11 @@ import { decodeChildren } from './Tree';
 
 const ParameterBERID = Ber.APPLICATION(1)
 
-export function decodeParameter (reader: Ber.Reader): EmberTreeNode {
+export function decodeParameter (reader: Ber.Reader): EmberTreeNode<Parameter> {
 	const ber = reader.getSequence(ParameterBERID)
 	let num: number | undefined = undefined
 	let param: Parameter | undefined = undefined
-	let kids: Array<EmberTreeNode> = []
+	let kids: Array<EmberTreeNode<EmberElement>> = []
 	while (ber.remain > 0) {
 		const tag = ber.peek()
 		const seq = ber.getSequence(tag!)
@@ -33,7 +33,7 @@ export function decodeParameter (reader: Ber.Reader): EmberTreeNode {
 		throw new Error('Decode parameter: failed to decode parameter')
 	}
 	param.number = typeof num === 'number' ? num : -1
-	return new TreeImpl<EmberElement>(param, undefined, kids)
+	return new TreeImpl(param, undefined, kids)
 }
 
 function decodeParameterContents (reader: Ber.Reader): Parameter {

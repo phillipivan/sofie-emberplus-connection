@@ -7,3 +7,11 @@ interface InvocationResult {
 	success?: boolean
 	result?: Array<EmberTypedValue>
 }
+
+export class InvocationResultImpl implements InvocationResult {
+	constructor(
+		public id: number,
+		public success?: boolean,
+		public result?: Array<EmberTypedValue>
+	) { }
+}

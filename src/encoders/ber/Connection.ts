@@ -30,7 +30,7 @@ function writeConnectionOperation(operation: ConnectionOperation, writer: Ber.Wr
 	const operationToInt: { [flag: string]: number } = {
 		[ConnectionOperation.Absolute]: 0,
 		[ConnectionOperation.Connect]: 1,
-		[ConnectionOperation.disconnect]: 2
+		[ConnectionOperation.Disconnect]: 2
 	}
 
 	writer.writeInt(operationToInt[operation])

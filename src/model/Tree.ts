@@ -1,16 +1,16 @@
 export { Tree }
 
-interface Tree<T> {
+interface Tree<S, T extends S> {
 	value: T
-	parent?: Tree<T>
-	children?: Array<Tree<T>>
+	parent?: Tree<S, S>
+	children?: Array<Tree<S, S>>
 	// TODO: insert all the usual tree manipulation methods
 }
 
-export class TreeImpl<T> implements Tree<T> {
+export class TreeImpl<S, T extends S> implements Tree<S, T> {
 	constructor(
 		public value: T,
-		public parent?: Tree<T> | undefined,
-		public children?: Array<Tree<T>>
+		public parent?: Tree<S, S> | undefined,
+		public children?: Array<Tree<S, S>>
 	) { }
 }

@@ -1,11 +1,10 @@
 import * as Ber from '../../Ber'
-import { Command, CommandType, GetDirectory, FieldFlags, Invoke, SubscribeImpl,
+import { Command, CommandType, FieldFlags, SubscribeImpl,
 	UnsubscribeImpl, GetDirectoryImpl, InvokeImpl } from '../../model/Command'
-import { Invocation, InvocationImpl } from '../../model/Invocation'
-import { EmberValue, EmberTypedValue } from '../../types/types'
+import { Invocation } from '../../model/Invocation'
+import { decodeInvocation } from './Innvocation'
 
 const CommandBERID = Ber.APPLICATION(2)
-const InvocationBERID = Ber.APPLICATION(22)
 
 function readDirFieldMask(reader: Ber.Reader): FieldFlags | undefined {
 	const intToMask: { [flag: number]: FieldFlags } = {
@@ -60,30 +59,4 @@ export function decodeCommand(reader: Ber.Reader): Command {
 		default:
 			throw new Error('Decode command: Unmatched command type')
 	}
-}
-
-function decodeInvocation(reader: Ber.Reader): Invocation {
-	const ber = reader.getSequence(InvocationBERID)
-	let id: number | undefined = undefined
-	let args: Array<EmberTypedValue> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
-		switch (tag) {
-			case Ber.CONTEXT(0):
-				id = seq.readInt()
-				break
-			case Ber.CONTEXT(1):
-				const argSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
-				while (argSeq.remain > 0) {
-					const dataSeq = argSeq.getSequence(Ber.CONTEXT(0))
-					const dataTag = dataSeq.peek()
-					args.push(dataSeq.readValue())
-				}
-				break
-			default:
-				throw new Error(`Decode invocation: Unknown invocation property `)
-		}
-	}
-	return new InvocationImpl(id, args)
 }
