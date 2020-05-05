@@ -25,3 +25,10 @@ interface StreamDescription {
 	format: StreamFormat
 	offset: number // Integer32
 }
+
+export class StreamDescriptionImpl implements StreamDescription {
+	constructor(
+		public format: StreamFormat,
+		public offset: number
+	) { }
+}

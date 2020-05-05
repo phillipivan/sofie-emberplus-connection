@@ -5,23 +5,31 @@ import { Tree } from './Tree'
 export { Qualified }
 
 interface Qualified<T extends EmberElement> {
-	value: Tree<T>
+	value: Tree<EmberElement, T>
 	path: string
 	getRelativeOID(): RelativeOID<T>
 }
 
 interface Qualifed2<T extends EmberElement> {
-	value: Omit<T, 'number'>
+	value: EmberTreeNode<T>
 	path: string
-	children?: Array<Tree<T>>
 }
 
 import { Node } from '../model/Node'
+import { EmberTreeNode } from '../types/types'
 
 const node: Qualifed2<Node> = {
-	path: '1.2.3',
 	value: {
-		type: ElementType.Node
-	},
-	children: []
+		value: {
+			type: ElementType.Node,
+			number: 10
+		}
+	}
 }
+
+/*
+interface EmberElement
+type Qualified<T extends EmberElement> = T & { path: string }
+type Unqualified<T extends EmberElement> = T & { number: number }
+
+*/

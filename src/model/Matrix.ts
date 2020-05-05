@@ -5,7 +5,7 @@ import { Connection } from './Connection'
 import { Node } from './Node'
 import { Label } from './Label'
 
-export { Matrix, MatrixType, MatrixAddressingMode }
+export { Matrix, MatrixType, MatrixAddressingMode, Connections }
 
 enum MatrixType {
 	OneToN = 'ONE_TO_N',
@@ -18,11 +18,15 @@ enum MatrixAddressingMode {
 	NonLinear = 'NON_LINEAR'
 }
 
+interface Connections {
+	[ target: number ] : Connection
+}
+
 interface Matrix extends EmberElement {
 	type: ElementType.Matrix
 	targets?: Array<number> // Integer32
 	sources?: Array<number> // Integer32
-	connections?: Array<Connection> // Integer32
+	connections?: Connections
 	identifier: string
 	description?: string
 	matrixType?: MatrixType
@@ -45,7 +49,7 @@ export class MatrixImpl implements Matrix {
 		public identifier: string,
 		public targets?: Array<number>,
 		public sources?: Array<number>,
-		public connections?: Array<Connection>,
+		public connections?: Connections,
 		public description?: string,
 		public matrixType?: MatrixType,
 		public addressingMode?: MatrixAddressingMode,

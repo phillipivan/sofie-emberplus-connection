@@ -1,13 +1,18 @@
 import * as Ber from '../../Ber'
 import { Function, FunctionImpl } from '../../model/Function'
 import { decodeFunctionArgument } from './FunctionArgument'
+import { EmberTreeNode } from '../../types/types'
+import { EmberElement } from '../../model/EmberElement'
+import { TreeImpl } from '../../model/Tree'
+import { decodeChildren } from './Tree'
 
 const FunctionBERID = 19
 
-export function decodeFunction(reader: Ber.Reader): Function {
+export function decodeFunction(reader: Ber.Reader): EmberTreeNode<Function> {
 	const ber = reader.getSequence(FunctionBERID)
 	let number: number | null = null
 	let contents: Function | null = null
+	let kids: Array<EmberTreeNode<EmberElement>> | undefined = undefined
 	while (ber.remain) {
 		const tag = ber.peek()
 		const seq = ber.getSequence(tag!)
@@ -19,26 +24,34 @@ export function decodeFunction(reader: Ber.Reader): Function {
 				contents = decodeFunctionContent(seq)
 				break
 			case Ber.CONTEXT(2):
-				// TODO decode children
+				kids = decodeChildren(seq)
 			  break
 			default:
 			  throw new Error(``)
 		}
-
 	}
 	if (number === null) {
 		throw new Error(``)
 	}
 	if (contents === null) {
-		return new FunctionImpl(number)
+		return new TreeImpl(
+			new FunctionImpl(number),
+			undefined,
+			kids
+		)
 	}
-	return new FunctionImpl(
-		number,
-		contents.identifier,
-		contents.description,
-		contents.args,
-		contents.result,
-		contents.templateReference)
+	return new TreeImpl(
+		new FunctionImpl(
+			number,
+			contents.identifier,
+			contents.description,
+			contents.args,
+			contents.result,
+			contents.templateReference
+		),
+		undefined,
+		kids
+	)
 }
 
 export function decodeFunctionContent(reader: Ber.Reader): Function {

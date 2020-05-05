@@ -90,7 +90,7 @@ class ExtendedWriter extends Writer {
 		let value: EmberValue
 		if (arg1 && typeof arg1 === 'object' && arg1.hasOwnProperty('type')) {
 			value = (arg1 as EmberTypedValue).value
-			tag = ParameterTypetoBERTAG((arg1 as EmberTypedValue).type)
+			tag = parameterTypetoBERTAG((arg1 as EmberTypedValue).type)
 		} else {
 			value = arg1 as EmberValue
 		}
@@ -211,4 +211,18 @@ function shortenLong(value: Long): { size: number; value: Long } {
 	}
 
 	return { size, value }
+}
+
+function parameterTypetoBERTAG(parameterType: ParameterType): number {
+	switch (parameterType) {
+		case ParameterType.Integer: return BERDataTypes.INTEGER
+		case ParameterType.Real:    return BERDataTypes.REAL
+		case ParameterType.String:  return BERDataTypes.STRING
+		case ParameterType.Boolean: return BERDataTypes.BOOLEAN
+		case ParameterType.Trigger: return BERDataTypes.STRING // TODO: guess
+		case ParameterType.Enum:    return BERDataTypes.INTEGER // TODO: guess
+		case ParameterType.Octets:  return BERDataTypes.OCTETSTRING
+		default:
+			throw new Error(``)
+	}
 }

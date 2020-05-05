@@ -10,7 +10,7 @@ import { Matrix } from '../../model/Matrix'
 import { encodeConnection } from './Connection'
 import { encodeTarget, encodeSource } from './Matrix'
 
-export function encodeTree(el: EmberTreeNode, writer: Ber.Writer, isQualified = false) {
+export function encodeTree(el: EmberTreeNode<EmberElement>, writer: Ber.Writer, isQualified = false) {
 	if (el.value.type === ElementType.Command) {
 		// Command is a special case
 		if (isQualified) throw new Error('Command cannot be qualified')
@@ -106,7 +106,7 @@ export function encodeTree(el: EmberTreeNode, writer: Ber.Writer, isQualified = 
 	writer.endSequence() // end node
 }
 
-function hasChildren(el: EmberTreeNode): boolean {
+function hasChildren(el: EmberTreeNode<EmberElement>): boolean {
 	return (
 		'children' in el &&
 		!(
