@@ -1,0 +1,3 @@
+class EmberClient {}
+
+export { EmberClient }
