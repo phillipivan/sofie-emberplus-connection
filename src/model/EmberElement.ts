@@ -1,5 +1,6 @@
 export { ElementType, EmberElement, isEmberElement }
 
+/** Type specifyer for ember elements. */
 enum ElementType {
 	Parameter = 'PARAMETER',
 	Node = 'NODE',

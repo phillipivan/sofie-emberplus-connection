@@ -17,7 +17,5 @@ describe('decoders/ber/StreamDescription', () => {
 		const decoded = decodeStreamDescription(reader)
 
 		expect(decoded).toEqual(sd)
-		console.log(sd)
-		console.log(decoded)
 	})
 })
