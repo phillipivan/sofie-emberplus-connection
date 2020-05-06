@@ -1,7 +1,8 @@
 import { ElementType, EmberElement } from './EmberElement'
 import { Invocation } from './Invocation'
 
-export { CommandType, FieldFlags, Command, Subscribe, Unsubscribe, GetDirectory, Invoke }
+export { CommandType, FieldFlags, Command, Subscribe, Unsubscribe, GetDirectory,
+	Invoke, SubscribeImpl, UnsubscribeImpl, GetDirectoryImpl, InvokeImpl }
 
 enum CommandType {
 	Subscribe = 30,
@@ -10,6 +11,7 @@ enum CommandType {
 	Invoke = 33
 }
 
+/** Parameters that a consumer is interested in. */
 enum FieldFlags {
 	Sparse = 'SPARSE',
 	All = 'ALL',
@@ -21,25 +23,45 @@ enum FieldFlags {
 	Connections = 'CONNECTIONS'
 }
 
+/**
+ *  A command - from a consumer to a provider - may be appended to a node,
+ *  parameter or a matrix as child element.
+ */
 interface Command extends EmberElement {
 	type: ElementType.Command
 }
 
+/**
+ *  Subscribe to a stream of updates for a parameter that has a stream identifier.
+ *  Parameters with a stream identifier only transmit changes to subscribers.
+ */
 interface Subscribe extends Command {
 	number: CommandType.Subscribe
 }
 
+/**
+ *  Unsubscribe from a stream of updates for a parameter.
+ */
 interface Unsubscribe extends Command {
 	number: CommandType.Unsubscribe
 }
 
+/**
+ *  Requests all child nodes and parameters of the node containing the command,
+ *  including all attributes of the reported entities.
+ */
 interface GetDirectory extends Command {
 	number: CommandType.GetDirectory
+	/** Properties a cosumer is interested in. */
 	dirFieldMask?: FieldFlags
 }
 
+/**
+ *  Invoke a function.
+ */
 interface Invoke extends Command {
 	number: CommandType.Invoke
+	/** Identifier and arguments to use to invoke a function. */
 	invocation?: Invocation
 }
 
@@ -57,17 +79,17 @@ abstract class CommandImpl implements Command {
 	constructor() { }
 }
 
-export class SubscribeImpl extends CommandImpl implements Subscribe {
+class SubscribeImpl extends CommandImpl implements Subscribe {
 	public readonly number: CommandType.Subscribe = CommandType.Subscribe
 	constructor() { super() }
 }
 
-export class UnsubscribeImpl extends CommandImpl implements Unsubscribe {
+class UnsubscribeImpl extends CommandImpl implements Unsubscribe {
 	public readonly number: CommandType.Unsubscribe = CommandType.Unsubscribe
 	constructor() { super() }
 }
 
-export class GetDirectoryImpl extends CommandImpl implements GetDirectory {
+class GetDirectoryImpl extends CommandImpl implements GetDirectory {
 	public readonly number: CommandType.GetDirectory = CommandType.GetDirectory
 
 	constructor(public dirFieldMask?: FieldFlags) {
@@ -75,7 +97,7 @@ export class GetDirectoryImpl extends CommandImpl implements GetDirectory {
 	}
 }
 
-export class InvokeImpl extends CommandImpl implements Invoke {
+class InvokeImpl extends CommandImpl implements Invoke {
 	public readonly number: CommandType.Invoke = CommandType.Invoke
 	constructor(public invocation?: Invocation) {
 		super()
