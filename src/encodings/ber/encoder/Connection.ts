@@ -1,0 +1,48 @@
+import { Connection, ConnectionOperation, ConnectionDisposition } from '../../../model/Connection'
+import * as Ber from '../../../Ber'
+
+export function encodeConnection(connection: Connection, writer: Ber.Writer) {
+	writer.startSequence(Ber.APPLICATION(16))
+
+	writer.startSequence(Ber.CONTEXT(0))
+	writer.writeInt(connection.target)
+	writer.endSequence()
+
+	if (connection.sources != null) {
+		writer.startSequence(Ber.CONTEXT(1))
+		writer.writeRelativeOID(connection.sources.join('.'), Ber.BERDataTypes.RELATIVE_OID)
+		writer.endSequence()
+	}
+	if (connection.operation != null) {
+		writer.startSequence(Ber.CONTEXT(2))
+		writeConnectionOperation(connection.operation, writer)
+		writer.endSequence()
+	}
+	if (connection.disposition != null) {
+		writer.startSequence(Ber.CONTEXT(3))
+		writeConnectionDisposition(connection.disposition, writer)
+		writer.endSequence()
+	}
+	writer.endSequence()
+}
+
+function writeConnectionOperation(operation: ConnectionOperation, writer: Ber.Writer) {
+	const operationToInt: { [flag: string]: number } = {
+		[ConnectionOperation.Absolute]: 0,
+		[ConnectionOperation.Connect]: 1,
+		[ConnectionOperation.Disconnect]: 2
+	}
+
+	writer.writeInt(operationToInt[operation])
+}
+
+function writeConnectionDisposition(operation: ConnectionDisposition, writer: Ber.Writer) {
+	const operationToInt: { [flag: string]: number } = {
+		[ConnectionDisposition.Tally]: 0,
+		[ConnectionDisposition.Modified]: 1,
+		[ConnectionDisposition.Pending]: 2,
+		[ConnectionDisposition.Locked]: 3
+	}
+
+	writer.writeInt(operationToInt[operation])
+}

@@ -5,12 +5,12 @@ import { S101 } from './S101/index'
 import { S101Client } from './Ember/Socket/index'
 import { EmberTreeNode, Root, RootType, RootElement } from './types/types'
 import * as Ber from './Ber'
-import { encodeInvocationResult } from './encoders/ber/InvocationResult'
+import { encodeInvocationResult } from './encodings/ber/encoder/InvocationResult'
 import { InvocationResult } from './model/InvocationResult'
-import { encodeRootElement } from './encoders/ber/RootElement'
+import { encodeRootElement } from './encodings/ber/encoder/RootElement'
 import { StreamEntry } from './model/StreamEntry'
-import { encodeStreamEntry } from './encoders/ber/StreamEntry'
-import { decodeInvocationResult } from './decoders/ber/InvocationResult'
+import { encodeStreamEntry } from './encodings/ber/encoder/StreamEntry'
+import { decodeInvocationResult } from './encodings/ber/decoder/InvocationResult'
 
 const Decoder = EmberLib.DecodeBuffer
 

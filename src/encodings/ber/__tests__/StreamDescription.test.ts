@@ -1,5 +1,7 @@
 import * as Ber from '../../../Ber'
 import { StreamDescription, StreamFormat } from '../../../model/StreamDescription'
+import { encodeStreamDescription } from '../encoder/StreamDescription'
+import { decodeStreamDescription } from '../decoder/StreamDescription'
 
 describe('decoders/ber/StreamDescription', () => {
 	const sd = {

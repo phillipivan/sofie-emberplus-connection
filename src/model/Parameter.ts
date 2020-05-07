@@ -1,10 +1,8 @@
 import { EmberElement, ElementType, isEmberElement } from './EmberElement'
-import { RelativeOID } from './RelativeOID'
-import { Template } from './Template'
-import { EmberValue, MinMax, StringIntegerCollection } from '../types/types'
+import { EmberValue, MinMax, StringIntegerCollection, RelativeOID } from '../types/types'
 import { StreamDescription } from './StreamDescription'
 
-export { Parameter, ParameterType, ParameterAccess, isParameter }
+export { Parameter, ParameterType, ParameterAccess, isParameter, ParameterImpl }
 
 enum ParameterType {
 	Null = 'NULL',
@@ -74,7 +72,7 @@ interface Parameter extends EmberElement {
 	/** For streams where each value has more than one component. */
 	streamDescriptor?: StreamDescription
 	schemaIdentifiers?: string
-	templateReference?: RelativeOID<Template>
+	templateReference?: RelativeOID
 }
 
 /**
@@ -101,10 +99,9 @@ function isParameter(obj: any): obj is Parameter {
 	return true
 }
 
-export class ParamterImpl implements Parameter {
+class ParameterImpl implements Parameter {
 	public readonly type: ElementType.Parameter = ElementType.Parameter
 	constructor(
-		public number: number,
 		public parameterType: ParameterType,
 		public identifier?: string,
 		public description?: string,
@@ -123,6 +120,6 @@ export class ParamterImpl implements Parameter {
 		public enumMap?: StringIntegerCollection,
 		public streamDescriptor?: StreamDescription,
 		public schemaIdentifiers?: string,
-		public templateReference?: RelativeOID<Template>
+		public templateReference?: RelativeOID
 	) { }
 }
