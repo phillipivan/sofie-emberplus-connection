@@ -17,17 +17,32 @@ export {
 	RootElement,
 	MinMax,
 	StringIntegerCollection,
-	RootType
+	RootType,
+	RelativeOID
+}
+
+interface TreeElement<T extends EmberElement> {
+	parent?: TreeElement<EmberElement>
+	contents?: T
+	children?: Array<NumberedTreeNode<EmberElement>>
+}
+
+interface NumberedTreeNode<T extends EmberElement> extends TreeElement<T> {
+	number: number
+}
+
+interface QualifiedElement<T extends EmberElement> extends TreeElement<T> {
+	path: RelativeOID
 }
 
 type EmberTreeNode<T extends EmberElement> = Tree<EmberElement, T>
 type RootElement =
-	| EmberTreeNode<EmberElement>
-	| Qualified<Parameter>
-	| Qualified<Node>
-	| Qualified<Matrix>
-	| Qualified<Function>
-	| Qualified<Template>
+	| NumberedTreeNode<EmberElement>
+	| QualifiedElement<Parameter>
+	| QualifiedElement<Node>
+	| QualifiedElement<Matrix>
+	| QualifiedElement<Function>
+	| QualifiedElement<Template>
 type Root = Array<RootElement> | Array<StreamEntry> | InvocationResult
 
 enum RootType {
@@ -45,3 +60,4 @@ interface EmberTypedValue {
 
 type MinMax = number | null
 type StringIntegerCollection = Map<string, number>
+type RelativeOID = string

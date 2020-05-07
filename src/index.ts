@@ -10,6 +10,7 @@ import { InvocationResult } from './model/InvocationResult'
 import { encodeRootElement } from './encoders/ber/RootElement'
 import { StreamEntry } from './model/StreamEntry'
 import { encodeStreamEntry } from './encoders/ber/StreamEntry'
+import { decodeInvocationResult } from './decoders/ber/InvocationResult'
 
 const Decoder = EmberLib.DecodeBuffer
 
@@ -49,8 +50,31 @@ function berEncode(el: Root, rootType: RootType): Buffer {
 	return writer.buffer
 }
 
-function berDecode(b: Buffer): EmberTreeNode {
-	return null
+function berDecode(b: Buffer): Root {
+	const reader = new Ber.Reader(b)
+
+	const tag = reader.peek()
+
+	if (tag !== Ber.APPLICATION(0)) throw new Error('Buffer does not contain a root') // TODO - may be continuation from previous msg
+
+	const rootSeq = reader.getSequence(tag)
+	const rootSeqType = rootSeq.peek()
+
+	if (rootSeqType === Ber.APPLICATION(11)) {
+		// RootElementCollection
+		const root: Array<RootElement> = []
+		return root
+	} else if (rootSeqType === Ber.APPLICATION(6)) {
+		// StreamCollection
+		const root: Array<StreamEntry> = []
+		return root
+	} else if (rootSeqType === Ber.APPLICATION(23)) {
+		// InvocationResult
+		const root: InvocationResult = decodeInvocationResult(rootSeq)
+		return root
+	}
+
+	throw new Error('No valid root element')
 }
 
 function isValid(el: EmberTreeNode): boolean {
