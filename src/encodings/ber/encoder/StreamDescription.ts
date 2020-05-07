@@ -1,8 +1,9 @@
 import * as Ber from '../../../Ber'
 import { StreamDescription, StreamFormat } from '../../../model/StreamDescription'
+import { StreamDescriptionBERID } from '../constants'
 
 export function encodeStreamDescription(description: StreamDescription, writer: Ber.Writer) {
-	writer.startSequence(Ber.APPLICATION(12))
+	writer.startSequence(StreamDescriptionBERID)
 
 	writer.writeIfDefined(
 		description.format && formatToInt(description.format),

@@ -3,7 +3,7 @@ import { StreamDescription, StreamFormat } from '../../../model/StreamDescriptio
 import { encodeStreamDescription } from '../encoder/StreamDescription'
 import { decodeStreamDescription } from '../decoder/StreamDescription'
 
-describe('decoders/ber/StreamDescription', () => {
+describe('encodings/ber/StreamDescription', () => {
 	const sd = {
 		format: StreamFormat.Int32BE,
 		offset: 42

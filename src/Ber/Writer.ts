@@ -174,7 +174,7 @@ class ExtendedWriter extends Writer {
 	writeIfDefinedEnum(
 		property: any,
 		type: any,
-		writer: (value: number, tag: number) => {},
+		writer: (value: number, tag: number) => void,
 		outer: number,
 		inner: number
 	): void {

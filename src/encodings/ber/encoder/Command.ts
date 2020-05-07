@@ -1,5 +1,5 @@
-import * as Ber from '../../Ber'
-import { Command, CommandType, GetDirectory, FieldFlags, Invoke } from '../../model/Command'
+import * as Ber from '../../../Ber'
+import { Command, CommandType, GetDirectory, FieldFlags, Invoke } from '../../../model/Command'
 import { encodeInvocation } from './Invocation'
 
 export function encodeCommand(el: Command, writer: Ber.Writer) {

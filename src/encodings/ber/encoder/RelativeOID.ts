@@ -1,8 +1,7 @@
 import * as Ber from '../../../Ber'
-import { RelativeOID } from '../../model/RelativeOID'
-import { EmberElement } from '../../../model/EmberElement'
+import { RelativeOID } from '../../../types/types'
 
-export function encodeRelativeOID<T extends EmberElement>(
-	oid: RelativeOID<T>,
-	writer: Ber.Writer
+export function encodeRelativeOID(
+	_oid: RelativeOID,
+	_writer: Ber.Writer
 ) {}

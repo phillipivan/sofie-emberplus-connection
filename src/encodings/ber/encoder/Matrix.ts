@@ -3,7 +3,6 @@ import { Matrix, MatrixType, MatrixAddressingMode } from '../../../model/Matrix'
 import { ElementType } from '../../../model/EmberElement'
 import { encodeLabel } from './Label'
 import { encodeRelativeOID } from './RelativeOID'
-import { EmberNode } from '../../../model/EmberNode'
 import { RelativeOID } from '../../../types/types'
 
 export function encodeMatrix(matrix: Matrix, writer: Ber.Writer) {
@@ -37,7 +36,7 @@ export function encodeMatrix(matrix: Matrix, writer: Ber.Writer) {
 		writer.startSequence(Ber.CONTEXT(8))
 		let param = Number(matrix.parametersLocation)
 		if (isNaN(param)) {
-			encodeRelativeOID<EmberNode>(matrix.parametersLocation as RelativeOID, writer)
+			encodeRelativeOID(matrix.parametersLocation as RelativeOID, writer)
 		} else {
 			writer.writeInt(param)
 		}

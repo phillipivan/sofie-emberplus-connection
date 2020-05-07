@@ -29,6 +29,7 @@ enum FieldFlags {
  */
 interface Command extends EmberElement {
 	type: ElementType.Command
+	number: CommandType
 }
 
 /**

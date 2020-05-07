@@ -1,8 +1,9 @@
 import * as Ber from '../../../Ber'
 import { InvocationResult } from '../../../model/InvocationResult'
+import { InvocationResultBERID } from '../constants'
 
 export function encodeInvocationResult(result: InvocationResult, writer: Ber.Writer) {
-	writer.startSequence(Ber.APPLICATION(23))
+	writer.startSequence(InvocationResultBERID)
 	if (result.id != null) {
 		writer.startSequence(Ber.CONTEXT(0))
 		writer.writeInt(result.id)

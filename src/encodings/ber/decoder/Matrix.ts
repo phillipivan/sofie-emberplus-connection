@@ -176,7 +176,7 @@ function decodeConnections(reader: Ber.Reader): Connections {
 	const seq = reader.getSequence(Ber.BERDataTypes.SEQUENCE)
 	while (seq.remain > 0) {
 		const conSeq = seq.getSequence(Ber.CONTEXT(0))
-		const connection = decodeConnection(seq)
+		const connection = decodeConnection(conSeq)
 		connections[connection.target] = connection
 	}
 	return connections

@@ -1,8 +1,9 @@
 import { Connection, ConnectionOperation, ConnectionDisposition } from '../../../model/Connection'
 import * as Ber from '../../../Ber'
+import { ConnectionBERID } from '../constants'
 
 export function encodeConnection(connection: Connection, writer: Ber.Writer) {
-	writer.startSequence(Ber.APPLICATION(16))
+	writer.startSequence(ConnectionBERID)
 
 	writer.startSequence(Ber.CONTEXT(0))
 	writer.writeInt(connection.target)

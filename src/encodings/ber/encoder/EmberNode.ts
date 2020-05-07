@@ -34,5 +34,11 @@ export function encodeNode(node: EmberNode, writer: Ber.Writer) {
 		writer.endSequence() // Ber.CONTEXT(4)
 	}
 
+	if (node.templateReference != null) {
+		writer.startSequence(Ber.CONTEXT(5))
+		writer.writeRelativeOID(node.templateReference, Ber.BERDataTypes.RELATIVE_OID)
+		writer.endSequence() // Ber.CONTEXT(3)
+	}
+
 	writer.endSequence() // Ber.BERDataTypes.SET
 }

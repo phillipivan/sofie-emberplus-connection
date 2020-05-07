@@ -2,9 +2,10 @@ import { FunctionArgument } from '../../../model/FunctionArgument'
 import * as Ber from '../../../Ber'
 import { InvalidEmberNode } from '../../../Errors'
 import { ParameterType } from '../../../model/Parameter'
+import { FunctionArgumentBERID } from '../constants'
 
 export function encodeFunctionArgument(arg: FunctionArgument, writer: Ber.Writer) {
-	writer.startSequence(Ber.APPLICATION(21))
+	writer.startSequence(FunctionArgumentBERID)
 	if (arg.type == null) {
 		throw new InvalidEmberNode('', 'FunctionArgument requires a type')
 	}

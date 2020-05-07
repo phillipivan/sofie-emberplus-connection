@@ -2,6 +2,7 @@ import * as Ber from '../../../Ber'
 import { FunctionArgument, FunctionArgumentImpl } from '../../../model/FunctionArgument'
 import { ParameterType } from '../../../model/Parameter'
 import { FunctionArgumentBERID } from '../constants'
+import { readParameterType } from './Parameter'
 
 export { decodeFunctionArgument }
 
@@ -27,19 +28,4 @@ function decodeFunctionArgument(reader: Ber.Reader): FunctionArgument {
 		throw new Error(``)
 	}
 	return new FunctionArgumentImpl(type, name)
-}
-
-function readParameterType(value: number): ParameterType {
-	switch (value) {
-		case 0: return ParameterType.Null
-		case 1: return ParameterType.Integer
-		case 2: return ParameterType.Real
-		case 3: return ParameterType.String
-		case 4: return ParameterType.Boolean
-		case 5: return ParameterType.Trigger
-		case 6: return ParameterType.Enum
-		case 7: return ParameterType.Octets
-		default:
-			throw new Error(``)
-	}
 }

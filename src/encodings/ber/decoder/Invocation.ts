@@ -3,7 +3,9 @@ import { Invocation, InvocationImpl } from '../../../model/Invocation'
 import { EmberTypedValue } from '../../../types/types'
 import { InvocationBERID } from '../constants'
 
-export function decodeInvocation(reader: Ber.Reader): Invocation {
+export { decodeInvocation }
+
+function decodeInvocation(reader: Ber.Reader): Invocation {
 	const ber = reader.getSequence(InvocationBERID)
 	let id: number | undefined = undefined
 	let args: Array<EmberTypedValue> = []

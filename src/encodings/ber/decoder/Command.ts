@@ -2,7 +2,7 @@ import * as Ber from '../../../Ber'
 import { Command, CommandType, FieldFlags, SubscribeImpl,
 	UnsubscribeImpl, GetDirectoryImpl, InvokeImpl } from '../../../model/Command'
 import { Invocation } from '../../../model/Invocation'
-import { decodeInvocation } from './Innvocation'
+import { decodeInvocation } from './Invocation'
 import { CommandBERID } from '../constants'
 
 export { decodeCommand }

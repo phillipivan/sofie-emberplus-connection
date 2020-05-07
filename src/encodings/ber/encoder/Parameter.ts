@@ -3,7 +3,7 @@ import { Parameter, ParameterType, ParameterAccess } from '../../../model/Parame
 import { EmberValue } from '../../../types/types'
 import { encodeStringIntegerCollection } from './StringIntegerCollection'
 import { encodeStreamDescription } from './StreamDescription'
-import { elementTypeToInt } from './Matrix'
+// import { elementTypeToInt } from './Matrix'
 
 export function encodeParameter(parameter: Parameter, writer: Ber.Writer) {
 	writer.startSequence(Ber.BERDataTypes.SET)
@@ -52,18 +52,25 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer) {
 	writer.writeIfDefined(parameter.formula, writer.writeString, 10, Ber.BERDataTypes.STRING)
 	writer.writeIfDefined(parameter.step, writer.writeInt, 11, Ber.BERDataTypes.INTEGER)
 
-	if (parameter.default) {
+	if (parameter.defaultValue) {
 		writer.startSequence(Ber.CONTEXT(12))
-		writeValue(parameter.default)
+		writeValue(parameter.defaultValue)
 		writer.endSequence()
 	}
 
-	writer.writeIfDefined(
-		elementTypeToInt(parameter.type),
-		writer.writeInt,
-		2,
-		Ber.BERDataTypes.INTEGER
-	)
+	if (parameter.parameterType) {
+		writer.startSequence(Ber.CONTEXT(13))
+		writer.writeInt(parameterTypeToInt(parameter.parameterType))
+		writer.endSequence()
+	}
+
+	// FIXME: Property with index 2 is property.value
+	// writer.writeIfDefined( 
+	// 	elementTypeToInt(parameter.type),
+	// 	writer.writeInt,
+	// 	2,
+	// 	Ber.BERDataTypes.INTEGER
+	// )
 	writer.writeIfDefined(parameter.streamIdentifier, writer.writeInt, 14, Ber.BERDataTypes.INTEGER)
 
 	if (parameter.enumMap != null) {
@@ -97,4 +104,19 @@ function parameterAccessToInt(parameter: ParameterAccess) {
 	}
 
 	return paramToInt[parameter]
+}
+
+function parameterTypeToInt(pt: ParameterType) {
+	const paramTypeToInt = {
+		[ParameterType.Null]: 0,
+		[ParameterType.Integer]: 1,
+		[ParameterType.Real]: 2,
+		[ParameterType.String]: 3,
+		[ParameterType.Boolean]: 4,
+		[ParameterType.Trigger]: 5,
+		[ParameterType.Enum]: 6,
+		[ParameterType.Octets]: 7
+	}
+
+	return paramTypeToInt[pt]
 }

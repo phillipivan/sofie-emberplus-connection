@@ -1,4 +1,4 @@
-import { RelativeOID } from "./RelativeOID";
+import { RelativeOID } from "../types/types";
 
 export { Label, LabelImpl }
 

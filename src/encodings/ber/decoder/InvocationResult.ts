@@ -21,12 +21,12 @@ export function decodeInvocationResult(reader: Ber.Reader): InvocationResult {
 			case Ber.CONTEXT(2):
 				result = []
 				let resSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
-				while (resSeq.remain < 0) {
+				while (resSeq.remain > 0) {
 					const resTag = resSeq.peek()
+					const faSeq = resSeq.getSequence(resTag!)
 					if (resTag !== Ber.CONTEXT(0)) {
 						throw new Error(``)
 					}
-					const faSeq = resSeq.getSequence(Ber.CONTEXT(0))
 					result.push(faSeq.readValue())
 				}
 			  break
