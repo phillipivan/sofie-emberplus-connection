@@ -5,9 +5,9 @@ import { Matrix } from '../../model/Matrix'
 import { EmberFunction } from '../../model/EmberFunction'
 import { EmberNode } from '../../model/EmberNode'
 import { decodeParameter } from './Parameter'
-import { decodeNode } from './Node'
+import { decodeNode } from './EmberNode'
 import { decodeMatrix } from './Matrix'
-import { decodeFunction } from './Function'
+import { decodeFunction } from './EmberFunction'
 import { EmberTreeNode } from '../../types/types'
 
 const TemplateBERID = 24
