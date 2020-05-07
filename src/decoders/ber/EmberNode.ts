@@ -1,5 +1,5 @@
 import * as Ber from '../../Ber'
-import { Node, NodeImpl } from '../../model/Node'
+import { EmberNode, EmberNodeImpl } from '../../model/EmberNode'
 import { decodeChildren } from './Tree'
 import { EmberTreeNode } from '../../types/types'
 import { TreeImpl } from '../../model/Tree'
@@ -7,10 +7,10 @@ import { EmberElement } from '../../model/EmberElement'
 
 const NodeBERID = Ber.APPLICATION(3)
 
-export function decodeNode(reader: Ber.Reader): EmberTreeNode<Node> {
+export function decodeNode(reader: Ber.Reader): EmberTreeNode<EmberNode> {
 	const ber = reader.getSequence(NodeBERID)
 	let number: number | null = null
-	let contents: Node | null = null
+	let contents: EmberNode | null = null
 	let kids: Array<EmberTreeNode<EmberElement>> | undefined = undefined
 	while (ber.remain > 0) {
 		const tag = ber.peek()
@@ -34,12 +34,11 @@ export function decodeNode(reader: Ber.Reader): EmberTreeNode<Node> {
 	}
 	if (contents === null) {
 		return new TreeImpl(
-			new NodeImpl(number),
+			new EmberNodeImpl(),
 			undefined,
 			kids)
 	}
-	return new TreeImpl(new NodeImpl(
-			number,
+	return new TreeImpl(new EmberNodeImpl(
 			contents.identifier,
 			contents.description,
 			contents.isRoot,
@@ -51,8 +50,8 @@ export function decodeNode(reader: Ber.Reader): EmberTreeNode<Node> {
 		kids)
 }
 
-function decodeNodeContents(reader: Ber.Reader): Node {
-	let n: Node = {} as Node
+function decodeNodeContents(reader: Ber.Reader): EmberNode {
+	let n: EmberNode = {} as EmberNode
 	const ber = reader.getSequence(Ber.BERDataTypes.SET)
 	while (ber.remain > 0) {
 		const tag = ber.peek()

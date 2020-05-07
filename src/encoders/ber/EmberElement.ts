@@ -5,11 +5,11 @@ import { Command } from '../../model/Command'
 import { encodeParameter } from './Parameter'
 import { Parameter } from '../../model/Parameter'
 import { encodeNode } from './Node'
-import { Node } from '../../model/Node'
+import { EmberNode } from '../../model/EmberNode'
 import { encodeMatrix } from './Matrix'
 import { Matrix } from '../../model/Matrix'
 import { encodeFunction } from './Function'
-import { Function } from '../../model/Function'
+import { EmberFunction } from '../../model/EmberFunction'
 import { encodeTemplate } from './Template'
 import { Template } from '../../model/Template'
 
@@ -22,13 +22,13 @@ export function encodeEmberElement(el: EmberElement, writer: Writer) {
 			encodeParameter(el as Parameter, writer)
 			break
 		case ElementType.Node:
-			encodeNode(el as Node, writer)
+			encodeNode(el as EmberNode, writer)
 			break
 		case ElementType.Matrix:
 			encodeMatrix(el as Matrix, writer)
 			break
 		case ElementType.Function:
-			encodeFunction(el as Function, writer)
+			encodeFunction(el as EmberFunction, writer)
 			break
 		case ElementType.Template:
 			encodeTemplate(el as Template, writer)

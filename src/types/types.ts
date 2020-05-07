@@ -1,13 +1,12 @@
 import { EmberElement } from '../model/EmberElement'
-import { Function } from '../model/Function'
-import { Qualified } from '../model/Qualified'
+import { EmberFunction } from '../model/EmberFunction'
 import { Parameter, ParameterType } from '../model/Parameter'
 import { Template } from '../model/Template'
 import { Matrix } from '../model/Matrix'
-import { Node } from '../model/Node'
-import { Tree } from '../model/Tree'
+import { EmberNode } from '../model/EmberNode'
 import { StreamEntry } from '../model/StreamEntry'
 import { InvocationResult } from '../model/InvocationResult'
+import { Tree } from '../model/Tree'
 
 export {
 	EmberTreeNode,
@@ -39,9 +38,9 @@ type EmberTreeNode<T extends EmberElement> = Tree<EmberElement, T>
 type RootElement =
 	| NumberedTreeNode<EmberElement>
 	| QualifiedElement<Parameter>
-	| QualifiedElement<Node>
+	| QualifiedElement<EmberNode>
 	| QualifiedElement<Matrix>
-	| QualifiedElement<Function>
+	| QualifiedElement<EmberFunction>
 	| QualifiedElement<Template>
 type Root = Array<RootElement> | Array<StreamEntry> | InvocationResult
 

@@ -1,5 +1,5 @@
 import * as Ber from '../../Ber'
-import { Function, FunctionImpl } from '../../model/Function'
+import { EmberFunction, EmberFunctionImpl } from '../../model/EmberFunction'
 import { decodeFunctionArgument } from './FunctionArgument'
 import { EmberTreeNode } from '../../types/types'
 import { EmberElement } from '../../model/EmberElement'
@@ -8,10 +8,10 @@ import { decodeChildren } from './Tree'
 
 const FunctionBERID = 19
 
-export function decodeFunction(reader: Ber.Reader): EmberTreeNode<Function> {
+export function decodeFunction(reader: Ber.Reader): EmberTreeNode<EmberFunction> {
 	const ber = reader.getSequence(FunctionBERID)
 	let number: number | null = null
-	let contents: Function | null = null
+	let contents: EmberFunction | null = null
 	let kids: Array<EmberTreeNode<EmberElement>> | undefined = undefined
 	while (ber.remain) {
 		const tag = ber.peek()
@@ -35,14 +35,13 @@ export function decodeFunction(reader: Ber.Reader): EmberTreeNode<Function> {
 	}
 	if (contents === null) {
 		return new TreeImpl(
-			new FunctionImpl(number),
+			new EmberFunctionImpl(),
 			undefined,
 			kids
 		)
 	}
 	return new TreeImpl(
-		new FunctionImpl(
-			number,
+		new EmberFunctionImpl(
 			contents.identifier,
 			contents.description,
 			contents.args,
@@ -54,8 +53,8 @@ export function decodeFunction(reader: Ber.Reader): EmberTreeNode<Function> {
 	)
 }
 
-export function decodeFunctionContent(reader: Ber.Reader): Function {
-	let f: Function = {} as Function
+export function decodeFunctionContent(reader: Ber.Reader): EmberFunction {
+	let f: EmberFunction = {} as EmberFunction
 	const ber = reader.getSequence(Ber.BERDataTypes.SET)
 	while (ber.remain > 0) {
 		const tag = ber.peek()

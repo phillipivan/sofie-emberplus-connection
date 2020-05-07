@@ -1,9 +1,9 @@
 import * as Ber from '../../Ber'
-import { Function } from '../../model/Function'
+import { EmberFunction } from '../../model/EmberFunction'
 import { encodeFunctionArgument } from './FunctionArgument'
 import { encodeRelativeOID } from './RelativeOID'
 
-export function encodeFunction(el: Function, writer: Ber.Writer) {
+export function encodeFunction(el: EmberFunction, writer: Ber.Writer) {
 	// The function itself is a node, and then the contents are another node I think. This just encodes the contents:
 	writer.startSequence(Ber.BERDataTypes.SET)
 

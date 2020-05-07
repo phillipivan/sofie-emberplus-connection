@@ -1,14 +1,13 @@
 import { EmberElement, ElementType } from './EmberElement'
-import { RelativeOID } from './RelativeOID'
-import { Template } from './Template'
+import { RelativeOID } from '../types/types'
 
-export { Node }
+export { EmberNode, EmberNodeImpl }
 
 /**
  *  A node represents a device or one of its components. Like the parameter,
  *  it must contain a number which identifies the node while the session is active.
  */
-interface Node extends EmberElement {
+interface EmberNode extends EmberElement {
 	type: ElementType.Node
 	/** Name of the node, unique within the current context. */
 	identifier?: string
@@ -21,18 +20,17 @@ interface Node extends EmberElement {
 	/** List of schemas that the sub-tree under this node complies with. `\n` separators. */
 	schemaIdentifiers?: string
 	/** Path of a template containing structure and defaults of this element. */
-	templateReference?: RelativeOID<Template>
+	templateReference?: RelativeOID
 }
 
-export class NodeImpl implements Node {
+class EmberNodeImpl implements EmberNode {
 	public readonly type: ElementType.Node = ElementType.Node
 	constructor(
-		public number: number,
 		public identifier?: string,
 		public description?: string,
 		public isRoot?: boolean,
 		public isOnline?: boolean,
 		public schemaIdentifiers?: string,
-		public templateReference?: RelativeOID<Template>
+		public templateReference?: RelativeOID
 	) { }
 }

@@ -2,8 +2,8 @@ import * as Ber from '../../Ber'
 import { Template, TemplateImpl } from '../../model/Template'
 import { Parameter } from '../../model/Parameter'
 import { Matrix } from '../../model/Matrix'
-import { Function } from '../../model/Function'
-import { Node } from '../../model/Node'
+import { EmberFunction } from '../../model/EmberFunction'
+import { EmberNode } from '../../model/EmberNode'
 import { decodeParameter } from './Parameter'
 import { decodeNode } from './Node'
 import { decodeMatrix } from './Matrix'
@@ -15,7 +15,7 @@ const TemplateBERID = 24
 export function decodeTemplate(reader: Ber.Reader): Template {
 	const ber = reader.getSequence(TemplateBERID)
 	let number: number | null = null
-	let element: EmberTreeNode<Parameter | Node | Matrix | Function> | undefined = undefined
+	let element: EmberTreeNode<Parameter | EmberNode | Matrix | EmberFunction> | undefined = undefined
 	let description: string | undefined = undefined
 	while (ber.remain > 0) {
 		const tag = ber.peek()
@@ -40,7 +40,7 @@ export function decodeTemplate(reader: Ber.Reader): Template {
 	return new TemplateImpl(number, element, description)
 }
 
-function decodeTemplateElement(reader: Ber.Reader): EmberTreeNode<Parameter | Node | Matrix | Function> {
+function decodeTemplateElement(reader: Ber.Reader): EmberTreeNode<Parameter | EmberNode | Matrix | EmberFunction> {
 	const tag = reader.peek()
 	switch (tag) {
 		case Ber.APPLICATION(1):  return decodeParameter(reader)

@@ -1,9 +1,7 @@
 import { EmberElement, ElementType } from './EmberElement'
-import { RelativeOID } from './RelativeOID'
-import { Template } from './Template'
 import { Connection } from './Connection'
-import { Node } from './Node'
 import { Label } from './Label'
+import { RelativeOID } from '../types/types'
 
 export { Matrix, MatrixType, MatrixAddressingMode, Connections, MatrixImpl }
 
@@ -72,7 +70,7 @@ interface Matrix extends EmberElement {
 	/** For n-to-n matrices, element number of the parameter for gain or ration
 	 *  of a connection. */
 	gainParameterNumber?: number
-	/** Labels for signals.  */
+	/** Labels for signals. */
 	labels?: Array<Label>
 	/** List of schemas that the matrid complies with. `\n` separators. */
 	schemaIdentifiers?: string
@@ -95,10 +93,10 @@ class MatrixImpl implements Matrix {
 		public sourceCount?: number,
 		public maximumTotalConnects?: number,
 		public maximumConnectsPerTarget?: number,
-		public parametersLocation?: RelativeOID<Node> | number,
+		public parametersLocation?: RelativeOID | number,
 		public gainParameterNumber?: number,
 		public labels?: Array<Label>,
 		public schemaIdentifiers?: string,
-		public templateReference?: RelativeOID<Template>
+		public templateReference?: RelativeOID
 	) { }
 }

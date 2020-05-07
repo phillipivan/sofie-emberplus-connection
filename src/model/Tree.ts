@@ -1,4 +1,4 @@
-export { Tree }
+export { Tree, TreeImpl }
 
 interface Tree<S, T extends S> {
 	value: T
@@ -7,7 +7,7 @@ interface Tree<S, T extends S> {
 	// TODO: insert all the usual tree manipulation methods
 }
 
-export class TreeImpl<S, T extends S> implements Tree<S, T> {
+class TreeImpl<S, T extends S> implements Tree<S, T> {
 	constructor(
 		public value: T,
 		public parent?: Tree<S, S> | undefined,
