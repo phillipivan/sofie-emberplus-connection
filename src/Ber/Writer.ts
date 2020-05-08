@@ -49,38 +49,39 @@ class ExtendedWriter extends Writer {
 			.and(Long.fromBits(0xffffffff, 0x000fffff, true))
 			.or(Long.fromBits(0x00000000, 0x00100000, true))
 
-		let exponent = bits
+		let exponent: Long.Long | number = bits
 			.and(Long.fromBits(0x00000000, 0x7ff00000, true))
 			.shru(52)
 			.sub(1023)
 			.toSigned()
-			.toNumber()
 
-		while (significand.and(0xff) === Long.fromNumber(0)) {
+		while (significand.and(0xff).toNumber() === 0) {
 			significand = significand.shru(8)
 		}
 
-		while (significand.and(0x01) === Long.fromNumber(0)) {
+		while (significand.and(0x01).toNumber() === 0) {
 			significand = significand.shru(1)
 		}
 
-		const shortenedExponent = shorten(exponent)
-		const shortenedSignificand = shortenLong(significand)
+		exponent = exponent.toNumber()
 
-		this.writeLength(1 + shortenedExponent.size + shortenedSignificand.size)
+		let { size: expSize, value: shortExp } = shorten(exponent)
+		let { size: sigSize, value: shortSig } = shortenLong(significand)
+
+		this.writeLength(1 + expSize + sigSize)
 
 		const preamble = value < 0 ? 0x80 | 0x40 : 0x80 // in what case will 0x80|0x40 be anything but 0xC0?
 		this.writeByte(preamble)
 
-		for (let i = 0; i < shortenedExponent.size; i++) {
-			this.writeByte((shortenedExponent.value & 0xff000000) >> 24)
-			shortenedExponent.value <<= 8
+		for (let i = 0; i < expSize; i++) {
+			this.writeByte((shortExp & 0xff000000) >> 24)
+			shortExp <<= 8
 		}
 
 		const mask = Long.fromBits(0x00000000, 0xff000000, true)
-		for (let i = 0; i < shortenedSignificand.size; i++) {
-			this.writeByte(shortenedSignificand.value.and(mask).shru(56).toNumber())
-			shortenedSignificand.value = shortenedSignificand.value.shl(8)
+		for (let i = 0; i < sigSize; i++) {
+			this.writeByte(shortSig.and(mask).shru(56).toNumber())
+			shortSig = shortSig.shl(8)
 		}
 	}
 
@@ -88,9 +89,9 @@ class ExtendedWriter extends Writer {
 	writeValue(typedValue: EmberTypedValue): void
 	writeValue(arg1: EmberValue | EmberTypedValue, tag?: number): void {
 		let value: EmberValue
-		if (arg1 && typeof arg1 === 'object' && arg1.hasOwnProperty('type')) {
-			value = (arg1 as EmberTypedValue).value
-			tag = parameterTypetoBERTAG((arg1 as EmberTypedValue).type)
+		if (arg1 && typeof arg1 === 'object' && 'type' in arg1) {
+			value = arg1.value
+			tag = parameterTypetoBERTAG(arg1.type)
 		} else {
 			value = arg1 as EmberValue
 		}
@@ -101,7 +102,7 @@ class ExtendedWriter extends Writer {
 		}
 
 		if (typeof value === 'number') {
-			if (Number.isInteger(value)) {
+			if (tag !== BERDataTypes.REAL && Number.isInteger(value)) {
 				if (tag === undefined) {
 					tag = BERDataTypes.INTEGER
 				}
@@ -215,13 +216,20 @@ function shortenLong(value: Long): { size: number; value: Long } {
 
 function parameterTypetoBERTAG(parameterType: ParameterType): number {
 	switch (parameterType) {
-		case ParameterType.Integer: return BERDataTypes.INTEGER
-		case ParameterType.Real:    return BERDataTypes.REAL
-		case ParameterType.String:  return BERDataTypes.STRING
-		case ParameterType.Boolean: return BERDataTypes.BOOLEAN
-		case ParameterType.Trigger: return BERDataTypes.STRING // TODO: guess
-		case ParameterType.Enum:    return BERDataTypes.INTEGER // TODO: guess
-		case ParameterType.Octets:  return BERDataTypes.OCTETSTRING
+		case ParameterType.Integer:
+			return BERDataTypes.INTEGER
+		case ParameterType.Real:
+			return BERDataTypes.REAL
+		case ParameterType.String:
+			return BERDataTypes.STRING
+		case ParameterType.Boolean:
+			return BERDataTypes.BOOLEAN
+		case ParameterType.Trigger:
+			return BERDataTypes.STRING // TODO: guess
+		case ParameterType.Enum:
+			return BERDataTypes.INTEGER // TODO: guess
+		case ParameterType.Octets:
+			return BERDataTypes.OCTETSTRING
 		default:
 			throw new Error(``)
 	}
