@@ -13,11 +13,11 @@ function isValid(el: EmberTreeNode<EmberElement>): boolean {
 	return false
 }
 
-function toJSON(el: TreeElement<EmberElement>): Object {
+function toJSON(el: TreeElement<EmberElement>): Record<string, any> {
 	return null
 }
 
-function fromJSON(json: Object): TreeElement<EmberElement> {
+function fromJSON(json: Record<string, any>): TreeElement<EmberElement> {
 	return null
 }
 
