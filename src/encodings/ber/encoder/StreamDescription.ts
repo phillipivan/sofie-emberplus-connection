@@ -2,7 +2,7 @@ import * as Ber from '../../../Ber'
 import { StreamDescription, StreamFormat } from '../../../model/StreamDescription'
 import { StreamDescriptionBERID } from '../constants'
 
-export function encodeStreamDescription(description: StreamDescription, writer: Ber.Writer) {
+export function encodeStreamDescription(description: StreamDescription, writer: Ber.Writer): void {
 	writer.startSequence(StreamDescriptionBERID)
 
 	writer.writeIfDefined(
@@ -16,7 +16,7 @@ export function encodeStreamDescription(description: StreamDescription, writer: 
 	writer.endSequence()
 }
 
-function formatToInt(format: StreamFormat) {
+function formatToInt(format: StreamFormat): number {
 	const formatToInt = {
 		[StreamFormat.UInt8]: 0,
 		[StreamFormat.UInt16BE]: 2,

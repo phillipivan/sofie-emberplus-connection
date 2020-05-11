@@ -4,7 +4,7 @@ import { InvalidEmberNode } from '../../../Errors'
 import { ParameterType } from '../../../model/Parameter'
 import { FunctionArgumentBERID } from '../constants'
 
-export function encodeFunctionArgument(arg: FunctionArgument, writer: Ber.Writer) {
+export function encodeFunctionArgument(arg: FunctionArgument, writer: Ber.Writer): void {
 	writer.startSequence(FunctionArgumentBERID)
 	if (arg.type == null) {
 		throw new InvalidEmberNode('', 'FunctionArgument requires a type')
@@ -20,7 +20,7 @@ export function encodeFunctionArgument(arg: FunctionArgument, writer: Ber.Writer
 	writer.endSequence()
 }
 
-function writeParameterType(type: ParameterType, writer: Ber.Writer) {
+function writeParameterType(type: ParameterType, writer: Ber.Writer): void {
 	const typeToInt: { [flag: string]: number } = {
 		[ParameterType.Null]: 0,
 		[ParameterType.Integer]: 1,

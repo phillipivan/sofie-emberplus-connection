@@ -6,7 +6,7 @@ import { QualifiedElementImpl, NumberedTreeNodeImpl } from '../../../model/Tree'
 import { EmberNodeImpl } from '../../../model/EmberNode'
 
 describe('encoders/Ber/index', () => {
-	function roundTrip(res: Root, type: RootType) {
+	function roundTrip(res: Root, type: RootType): void {
 		const encoded = berEncode(res, type)
 		const decoded = berDecode(encoded)
 
@@ -31,7 +31,11 @@ describe('encoders/Ber/index', () => {
 				new NumberedTreeNodeImpl(0, new EmberNodeImpl('Test node 1'))
 			])
 		]
-		res[0].children![0].parent = res[0]
+		if (!res[0].children) {
+			fail(`Tree must have children`)
+			return
+		}
+		res[0].children[0].parent = res[0]
 		roundTrip(res, RootType.Elements)
 	})
 	test('Qualified tree', () => {
@@ -40,7 +44,11 @@ describe('encoders/Ber/index', () => {
 				new NumberedTreeNodeImpl(0, new EmberNodeImpl('Node A'), [])
 			])
 		]
-		res[0].children![0].parent = res[0]
+		if (!res[0].children) {
+			fail(`Tree must have children`)
+			return
+		}
+		res[0].children[0].parent = res[0]
 		roundTrip(res, RootType.Elements)
 	})
 })

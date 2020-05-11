@@ -19,5 +19,5 @@ class InvocationResultImpl implements InvocationResult {
 		public id: number,
 		public success?: boolean,
 		public result?: Array<EmberTypedValue>
-	) { }
+	) {}
 }

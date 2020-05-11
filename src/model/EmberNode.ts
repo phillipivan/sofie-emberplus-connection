@@ -32,5 +32,5 @@ class EmberNodeImpl implements EmberNode {
 		public isOnline?: boolean,
 		public schemaIdentifiers?: string,
 		public templateReference?: RelativeOID
-	) { }
+	) {}
 }

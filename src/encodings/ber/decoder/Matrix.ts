@@ -27,7 +27,10 @@ function decodeMatrix(reader: Ber.Reader, isQualified = false): TreeElement<Matr
 	let kids: Array<EmberTreeNode<EmberElement>> | undefined = undefined
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				if (isQualified) {
@@ -100,11 +103,16 @@ function decodeMatrix(reader: Ber.Reader, isQualified = false): TreeElement<Matr
 }
 
 function decodeMatrixContents(reader: Ber.Reader): Matrix {
-	let m: Matrix = {} as Matrix
+	const m: Matrix = {} as Matrix
 	const ber = reader.getSequence(Ber.BERDataTypes.SET)
+	let plTag: number | null
+	let labelSeq: Ber.Reader
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				m.identifier = seq.readString(Ber.BERDataTypes.STRING)
@@ -131,7 +139,7 @@ function decodeMatrixContents(reader: Ber.Reader): Matrix {
 				m.maximumConnectsPerTarget = seq.readInt()
 				break
 			case Ber.CONTEXT(8):
-				const plTag = seq.peek()
+				plTag = seq.peek()
 				if (plTag === Ber.BERDataTypes.RELATIVE_OID) {
 					m.parametersLocation = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				} else {
@@ -143,7 +151,7 @@ function decodeMatrixContents(reader: Ber.Reader): Matrix {
 				break
 			case Ber.CONTEXT(10):
 				m.labels = []
-				const labelSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
+				labelSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
 				while (labelSeq.remain > 0) {
 					const lvSeq = labelSeq.getSequence(Ber.CONTEXT(0))
 					m.labels.push(decodeLabel(lvSeq))

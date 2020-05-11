@@ -13,7 +13,7 @@ import { EmberFunction } from '../../../model/EmberFunction'
 import { encodeTemplate } from './Template'
 import { Template } from '../../../model/Template'
 
-export function encodeEmberElement(el: EmberElement, writer: Writer) {
+export function encodeEmberElement(el: EmberElement, writer: Writer): void {
 	switch (el.type) {
 		case ElementType.Command:
 			encodeCommand(el as Command, writer)

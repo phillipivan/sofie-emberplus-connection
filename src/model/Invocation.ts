@@ -15,7 +15,5 @@ interface Invocation {
 }
 
 class InvocationImpl implements Invocation {
-	constructor(
-		public id: number | undefined,
-		public args: Array<EmberTypedValue>) { }
+	constructor(public id: number | undefined, public args: Array<EmberTypedValue>) {}
 }

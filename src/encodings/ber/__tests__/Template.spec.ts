@@ -11,7 +11,7 @@ describe('encodings/ber/Parameter', () => {
 		parameterType: ParameterType.String
 	} as Template
 
-	function roundtripTemplate(tmpl: Template) {
+	function roundtripTemplate(tmpl: Template): void {
 		const writer = new Ber.Writer()
 		encodeTemplate(tmpl, writer)
 		console.log(writer.buffer)

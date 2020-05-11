@@ -2,7 +2,7 @@ import { Connection, ConnectionOperation, ConnectionDisposition } from '../../..
 import * as Ber from '../../../Ber'
 import { ConnectionBERID } from '../constants'
 
-export function encodeConnection(connection: Connection, writer: Ber.Writer) {
+export function encodeConnection(connection: Connection, writer: Ber.Writer): void {
 	writer.startSequence(ConnectionBERID)
 
 	writer.startSequence(Ber.CONTEXT(0))
@@ -27,7 +27,7 @@ export function encodeConnection(connection: Connection, writer: Ber.Writer) {
 	writer.endSequence()
 }
 
-function writeConnectionOperation(operation: ConnectionOperation, writer: Ber.Writer) {
+function writeConnectionOperation(operation: ConnectionOperation, writer: Ber.Writer): void {
 	const operationToInt: { [flag: string]: number } = {
 		[ConnectionOperation.Absolute]: 0,
 		[ConnectionOperation.Connect]: 1,
@@ -37,7 +37,7 @@ function writeConnectionOperation(operation: ConnectionOperation, writer: Ber.Wr
 	writer.writeInt(operationToInt[operation])
 }
 
-function writeConnectionDisposition(operation: ConnectionDisposition, writer: Ber.Writer) {
+function writeConnectionDisposition(operation: ConnectionDisposition, writer: Ber.Writer): void {
 	const operationToInt: { [flag: string]: number } = {
 		[ConnectionDisposition.Tally]: 0,
 		[ConnectionDisposition.Modified]: 1,

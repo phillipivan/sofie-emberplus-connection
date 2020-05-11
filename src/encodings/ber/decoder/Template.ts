@@ -15,7 +15,10 @@ export function decodeTemplate(reader: Ber.Reader): Template {
 	let description: string | undefined = undefined
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				number = seq.readInt()

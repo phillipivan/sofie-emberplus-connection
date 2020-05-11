@@ -1,7 +1,7 @@
 import * as Ber from '../../../Ber'
 import { EmberNode } from '../../../model/EmberNode'
 
-export function encodeNode(node: EmberNode, writer: Ber.Writer) {
+export function encodeNode(node: EmberNode, writer: Ber.Writer): void {
 	writer.startSequence(Ber.BERDataTypes.SET)
 
 	if (node.identifier != null) {

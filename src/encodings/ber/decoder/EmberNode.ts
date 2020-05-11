@@ -52,27 +52,30 @@ export { decodeNode }
 // }
 
 function decodeNode(reader: Ber.Reader): EmberNode {
-	let n: EmberNode = {} as EmberNode
+	const n: EmberNode = {} as EmberNode
 	const ber = reader.getSequence(Ber.BERDataTypes.SET)
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				n.identifier = seq.readString(Ber.BERDataTypes.STRING)
-			  break
+				break
 			case Ber.CONTEXT(1):
 				n.description = seq.readString(Ber.BERDataTypes.STRING)
-			  break
+				break
 			case Ber.CONTEXT(2):
 				n.isRoot = seq.readBoolean()
-			  break
+				break
 			case Ber.CONTEXT(3):
 				n.isOnline = seq.readBoolean()
-			  break
+				break
 			case Ber.CONTEXT(4):
 				n.schemaIdentifiers = seq.readString(Ber.BERDataTypes.STRING)
-			  break
+				break
 			case Ber.CONTEXT(5):
 				n.templateReference = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				break

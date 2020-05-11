@@ -2,24 +2,34 @@ import * as Ber from '../../../Ber'
 import { EmberElement, ElementType } from '../../../model/EmberElement'
 import { encodeTree } from './Tree'
 import { QualifiedElement } from '../../../types/types'
+import {
+	QualifiedFunctionBERID,
+	QualifiedMatrixBERID,
+	QualifiedNodeBERID,
+	QualifiedParameterBERID,
+	QualifiedTemplateBERID
+} from '../constants'
 
 // note, this no longer encodes a full element, only the start
-export function encodeQualifedElement(el: QualifiedElement<EmberElement>, writer: Ber.Writer) {
+export function encodeQualifedElement(
+	el: QualifiedElement<EmberElement>,
+	writer: Ber.Writer
+): void {
 	switch (el.contents.type) {
 		case ElementType.Function:
-			writer.startSequence(Ber.APPLICATION(20))
+			writer.startSequence(QualifiedFunctionBERID)
 			break
 		case ElementType.Matrix:
-			writer.startSequence(Ber.APPLICATION(17))
+			writer.startSequence(QualifiedMatrixBERID)
 			break
 		case ElementType.Node:
-			writer.startSequence(Ber.APPLICATION(10))
+			writer.startSequence(QualifiedNodeBERID)
 			break
 		case ElementType.Parameter:
-			writer.startSequence(Ber.APPLICATION(9))
+			writer.startSequence(QualifiedParameterBERID)
 			break
 		case ElementType.Template:
-			writer.startSequence(Ber.APPLICATION(25))
+			writer.startSequence(QualifiedTemplateBERID)
 			break
 	}
 

@@ -3,7 +3,7 @@ import { EmberFunction } from '../../../model/EmberFunction'
 import { encodeFunctionArgument } from './FunctionArgument'
 import { encodeRelativeOID } from './RelativeOID'
 
-export function encodeFunction(el: EmberFunction, writer: Ber.Writer) {
+export function encodeFunction(el: EmberFunction, writer: Ber.Writer): void {
 	// The function itself is a node, and then the contents are another node I think. This just encodes the contents:
 	writer.startSequence(Ber.BERDataTypes.SET)
 
@@ -22,7 +22,7 @@ export function encodeFunction(el: EmberFunction, writer: Ber.Writer) {
 	if (el.args != null) {
 		writer.startSequence(Ber.CONTEXT(2))
 		writer.startSequence(Ber.BERDataTypes.SEQUENCE)
-		for (var i = 0; i < el.args.length; i++) {
+		for (let i = 0; i < el.args.length; i++) {
 			writer.startSequence(Ber.CONTEXT(0))
 			encodeFunctionArgument(el.args[i], writer)
 			writer.endSequence()

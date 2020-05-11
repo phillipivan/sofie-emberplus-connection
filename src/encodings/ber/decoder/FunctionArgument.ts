@@ -12,14 +12,17 @@ function decodeFunctionArgument(reader: Ber.Reader): FunctionArgument {
 	let name: string | undefined = undefined
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				type = readParameterType(seq.readInt())
-			  break
+				break
 			case Ber.CONTEXT(1):
 				name = seq.readString(Ber.BERDataTypes.STRING)
-			  break
+				break
 			default:
 				throw new Error(``)
 		}

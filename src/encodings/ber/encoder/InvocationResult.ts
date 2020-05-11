@@ -2,7 +2,7 @@ import * as Ber from '../../../Ber'
 import { InvocationResult } from '../../../model/InvocationResult'
 import { InvocationResultBERID } from '../constants'
 
-export function encodeInvocationResult(result: InvocationResult, writer: Ber.Writer) {
+export function encodeInvocationResult(result: InvocationResult, writer: Ber.Writer): void {
 	writer.startSequence(InvocationResultBERID)
 	if (result.id != null) {
 		writer.startSequence(Ber.CONTEXT(0))
@@ -25,5 +25,5 @@ export function encodeInvocationResult(result: InvocationResult, writer: Ber.Wri
 		writer.endSequence()
 		writer.endSequence()
 	}
-	writer.endSequence() // BER.APPLICATION(23)}
+	writer.endSequence() // InvocationResultBERID
 }

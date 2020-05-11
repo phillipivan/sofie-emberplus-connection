@@ -8,13 +8,11 @@ export { FunctionArgument, FunctionArgumentImpl }
 interface FunctionArgument {
 	/** Type. */
 	type: ParameterType
-	/** Name. May be omitted if function takes only one argument. */ 
+	/** Name. May be omitted if function takes only one argument. */
+
 	name?: string
 }
 
 class FunctionArgumentImpl implements FunctionArgument {
-	constructor(
-		public type: ParameterType,
-		public name?: string
-	) { }
+	constructor(public type: ParameterType, public name?: string) {}
 }

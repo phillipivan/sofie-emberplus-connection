@@ -1,8 +1,19 @@
 import { ElementType, EmberElement } from './EmberElement'
 import { Invocation } from './Invocation'
 
-export { CommandType, FieldFlags, Command, Subscribe, Unsubscribe, GetDirectory,
-	Invoke, SubscribeImpl, UnsubscribeImpl, GetDirectoryImpl, InvokeImpl }
+export {
+	CommandType,
+	FieldFlags,
+	Command,
+	Subscribe,
+	Unsubscribe,
+	GetDirectory,
+	Invoke,
+	SubscribeImpl,
+	UnsubscribeImpl,
+	GetDirectoryImpl,
+	InvokeImpl
+}
 
 enum CommandType {
 	Subscribe = 30,
@@ -75,19 +86,23 @@ export function isGetDirectory(command: Command | null): command is GetDirectory
 }
 
 abstract class CommandImpl implements Command {
-  public abstract number: number
+	public abstract number: number
 	public type: ElementType.Command = ElementType.Command
-	constructor() { }
+	// constructor() {}
 }
 
 class SubscribeImpl extends CommandImpl implements Subscribe {
 	public readonly number: CommandType.Subscribe = CommandType.Subscribe
-	constructor() { super() }
+	constructor() {
+		super()
+	}
 }
 
 class UnsubscribeImpl extends CommandImpl implements Unsubscribe {
 	public readonly number: CommandType.Unsubscribe = CommandType.Unsubscribe
-	constructor() { super() }
+	constructor() {
+		super()
+	}
 }
 
 class GetDirectoryImpl extends CommandImpl implements GetDirectory {

@@ -5,9 +5,9 @@ import { StringIntegerCollectionBERID, StringIntegerPairBERID } from '../constan
 export function encodeStringIntegerCollection(
 	collection: StringIntegerCollection,
 	writer: Ber.Writer
-) {
+): void {
 	writer.startSequence(StringIntegerCollectionBERID)
-	for (let [key, value] of collection) {
+	for (const [key, value] of collection) {
 		writer.startSequence(Ber.CONTEXT(0))
 
 		writer.startSequence(StringIntegerPairBERID)

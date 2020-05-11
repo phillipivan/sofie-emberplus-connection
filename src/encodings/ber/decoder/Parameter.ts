@@ -44,7 +44,10 @@ function decodeParameter(reader: Ber.Reader): Parameter {
 
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				p.identifier = seq.readString(Ber.BERDataTypes.STRING)

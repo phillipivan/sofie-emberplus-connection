@@ -26,7 +26,10 @@ function decodeStreamEntry(reader: Ber.Reader): StreamEntry {
 	let value: EmberTypedValue | null = null
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				identifier = seq.readInt()

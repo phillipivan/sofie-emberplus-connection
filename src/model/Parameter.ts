@@ -54,7 +54,8 @@ interface Parameter extends EmberElement {
 	 *  and multiply it with this factor when it wants to change the parameter.
 	 */
 	factor?: number // Integer32
-	/** True if the parameter's node is online. */ 
+	/** True if the parameter's node is online. */
+
 	isOnline?: boolean
 	/** Transform a paramter value to its displayed form. Two formulas must be
 	 *  provided, separated by a linefeed `\n`, the first from prvider to consumer
@@ -121,5 +122,5 @@ class ParameterImpl implements Parameter {
 		public streamDescriptor?: StreamDescription,
 		public schemaIdentifiers?: string,
 		public templateReference?: RelativeOID
-	) { }
+	) {}
 }

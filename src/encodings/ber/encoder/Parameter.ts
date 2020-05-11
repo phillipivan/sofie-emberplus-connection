@@ -5,10 +5,10 @@ import { encodeStringIntegerCollection } from './StringIntegerCollection'
 import { encodeStreamDescription } from './StreamDescription'
 // import { elementTypeToInt } from './Matrix'
 
-export function encodeParameter(parameter: Parameter, writer: Ber.Writer) {
+export function encodeParameter(parameter: Parameter, writer: Ber.Writer): void {
 	writer.startSequence(Ber.BERDataTypes.SET)
 
-	const writeValue = (value: EmberValue) => {
+	const writeValue = (value: EmberValue): void => {
 		switch (parameter.parameterType) {
 			case ParameterType.Real:
 				writer.writeReal(value as number, Ber.BERDataTypes.REAL)
@@ -100,7 +100,7 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer) {
 	writer.endSequence()
 }
 
-function parameterAccessToInt(parameter: ParameterAccess) {
+function parameterAccessToInt(parameter: ParameterAccess): number {
 	const paramToInt = {
 		[ParameterAccess.None]: 0,
 		[ParameterAccess.Read]: 1,
@@ -111,7 +111,7 @@ function parameterAccessToInt(parameter: ParameterAccess) {
 	return paramToInt[parameter]
 }
 
-function parameterTypeToInt(pt: ParameterType) {
+function parameterTypeToInt(pt: ParameterType): number {
 	const paramTypeToInt = {
 		[ParameterType.Null]: 0,
 		[ParameterType.Integer]: 1,

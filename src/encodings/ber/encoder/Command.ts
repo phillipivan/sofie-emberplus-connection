@@ -2,7 +2,7 @@ import * as Ber from '../../../Ber'
 import { Command, CommandType, GetDirectory, FieldFlags, Invoke } from '../../../model/Command'
 import { encodeInvocation } from './Invocation'
 
-export function encodeCommand(el: Command, writer: Ber.Writer) {
+export function encodeCommand(el: Command, writer: Ber.Writer): void {
 	writer.startSequence(Ber.APPLICATION(2)) // TODO - make non magic number?
 
 	writer.startSequence(Ber.CONTEXT(0))
@@ -32,7 +32,7 @@ function isGetDirectory(command: Command): command is GetDirectory {
 	return command.number === CommandType.GetDirectory
 }
 
-function writeDirFieldMask(fieldMask: FieldFlags, writer: Ber.Writer) {
+function writeDirFieldMask(fieldMask: FieldFlags, writer: Ber.Writer): void {
 	const maskToInt: { [flag: string]: number } = {
 		[FieldFlags.Sparse]: -2,
 		[FieldFlags.All]: -1,

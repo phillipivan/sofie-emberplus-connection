@@ -10,16 +10,19 @@ function decodeLabel(reader: Ber.Reader): Label {
 	let description: string | null = null
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				basePath = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				break
 			case Ber.CONTEXT(1):
 				description = seq.readString(Ber.BERDataTypes.STRING)
-			  break
+				break
 			default:
-			  throw new Error(``)
+				throw new Error(``)
 		}
 	}
 	if (basePath === null) {

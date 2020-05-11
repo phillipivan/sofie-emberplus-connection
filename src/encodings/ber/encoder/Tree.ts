@@ -9,9 +9,19 @@ import { Template } from '../../../model/Template'
 import { Matrix } from '../../../model/Matrix'
 import { encodeConnection } from './Connection'
 import { encodeTarget, encodeSource } from './Matrix'
-import { MatrixBERID, FunctionBERID, NodeBERID, ParameterBERID, TemplateBERID } from '../constants'
+import {
+	MatrixBERID,
+	FunctionBERID,
+	NodeBERID,
+	ParameterBERID,
+	TemplateBERID,
+	ElementCollectionBERID
+} from '../constants'
 
-export function encodeNumberedElement(el: NumberedTreeNode<EmberElement>, writer: Ber.Writer) {
+export function encodeNumberedElement(
+	el: NumberedTreeNode<EmberElement>,
+	writer: Ber.Writer
+): void {
 	if (el.contents.type === ElementType.Command) {
 		// Command is a special case
 		if (isQualified(el)) throw new Error('Command cannot be qualified')
@@ -45,7 +55,7 @@ export function encodeNumberedElement(el: NumberedTreeNode<EmberElement>, writer
 	encodeTree(el, writer)
 }
 
-export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer) {
+export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): void {
 	// Encode Contents:
 	writer.startSequence(Ber.CONTEXT(1)) // start contents
 	encodeEmberElement(el.contents, writer)
@@ -53,11 +63,13 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer) {
 
 	if (hasChildren(el)) {
 		writer.startSequence(Ber.CONTEXT(2)) // start children
-		writer.startSequence(Ber.APPLICATION(4)) // start ElementCollection
-		for (const child of el.children!) {
-			writer.startSequence(Ber.CONTEXT(0)) // start child
-			encodeNumberedElement(child, writer)
-			writer.endSequence() // end child
+		writer.startSequence(ElementCollectionBERID) // start ElementCollection
+		if (el.children) {
+			for (const child of el.children) {
+				writer.startSequence(Ber.CONTEXT(0)) // start child
+				encodeNumberedElement(child, writer)
+				writer.endSequence() // end child
+			}
 		}
 		writer.endSequence() // end ElementCollection
 		writer.endSequence() // end children

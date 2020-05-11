@@ -1,9 +1,10 @@
 import * as Ber from '../../../Ber'
 import { Label } from '../../../model/Label'
 import { InvalidEmberNode } from '../../../Errors'
+import { LabelBERID } from '../constants'
 
-export function encodeLabel(label: Label, writer: Ber.Writer) {
-	writer.startSequence(Ber.APPLICATION(18))
+export function encodeLabel(label: Label, writer: Ber.Writer): void {
+	writer.startSequence(LabelBERID)
 	if (label.basePath == null) {
 		throw new InvalidEmberNode('', 'Missing label base path')
 	}

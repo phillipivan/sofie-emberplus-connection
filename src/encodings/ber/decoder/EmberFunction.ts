@@ -55,13 +55,18 @@ export { decodeFunctionContent }
 // 		kids
 // 	)
 // }
-git 
+
 function decodeFunctionContent(reader: Ber.Reader): EmberFunction {
-	let f: EmberFunction = {} as EmberFunction
+	const f: EmberFunction = {} as EmberFunction
 	const ber = reader.getSequence(Ber.BERDataTypes.SET)
+	let readArgSeq: Ber.Reader
+	let readResSeq: Ber.Reader
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				f.identifier = seq.readString(Ber.BERDataTypes.STRING)
@@ -71,7 +76,7 @@ function decodeFunctionContent(reader: Ber.Reader): EmberFunction {
 				break
 			case Ber.CONTEXT(2):
 				f.args = []
-				const readArgSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
+				readArgSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
 				while (readArgSeq.remain > 0) {
 					const argTag = readArgSeq.peek() // TODO check this
 					if (argTag !== Ber.CONTEXT(0)) {
@@ -83,7 +88,7 @@ function decodeFunctionContent(reader: Ber.Reader): EmberFunction {
 				break
 			case Ber.CONTEXT(3):
 				f.result = []
-				let readResSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
+				readResSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
 				while (readResSeq.remain > 0) {
 					const resTag = readResSeq.peek()
 					if (resTag !== Ber.CONTEXT(0)) {

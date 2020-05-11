@@ -44,5 +44,5 @@ class ConnectionImpl implements Connection {
 		public sources?: Array<number>,
 		public operation?: ConnectionOperation,
 		public disposition?: ConnectionDisposition
-	) { }
+	) {}
 }

@@ -4,8 +4,9 @@ import { ElementType } from '../../../model/EmberElement'
 import { encodeLabel } from './Label'
 import { encodeRelativeOID } from './RelativeOID'
 import { RelativeOID } from '../../../types/types'
+import { TargetBERID, SourceBERID } from '../constants'
 
-export function encodeMatrix(matrix: Matrix, writer: Ber.Writer) {
+export function encodeMatrix(matrix: Matrix, writer: Ber.Writer): void {
 	writer.startSequence(Ber.BERDataTypes.SET)
 
 	writer.writeIfDefined(matrix.identifier, writer.writeString, 0, Ber.BERDataTypes.STRING)
@@ -34,7 +35,7 @@ export function encodeMatrix(matrix: Matrix, writer: Ber.Writer) {
 
 	if (matrix.parametersLocation != null) {
 		writer.startSequence(Ber.CONTEXT(8))
-		let param = Number(matrix.parametersLocation)
+		const param = Number(matrix.parametersLocation)
 		if (isNaN(param)) {
 			encodeRelativeOID(matrix.parametersLocation as RelativeOID, writer)
 		} else {
@@ -48,7 +49,7 @@ export function encodeMatrix(matrix: Matrix, writer: Ber.Writer) {
 	if (matrix.labels != null) {
 		writer.startSequence(Ber.CONTEXT(10))
 		writer.startSequence(Ber.BERDataTypes.SEQUENCE)
-		for (var i = 0; i < matrix.labels.length; i++) {
+		for (let i = 0; i < matrix.labels.length; i++) {
 			writer.startSequence(Ber.CONTEXT(0))
 			encodeLabel(matrix.labels[i], writer)
 			writer.endSequence()
@@ -69,16 +70,16 @@ export function encodeMatrix(matrix: Matrix, writer: Ber.Writer) {
 	writer.endSequence()
 }
 
-export function encodeTarget(target: number, writer: Ber.Writer) {
-	writer.startSequence(Ber.APPLICATION(14))
+export function encodeTarget(target: number, writer: Ber.Writer): void {
+	writer.startSequence(TargetBERID)
 	writer.startSequence(Ber.CONTEXT(0))
 	writer.writeInt(target, Ber.BERDataTypes.INTEGER)
 	writer.endSequence()
 	writer.endSequence()
 }
 
-export function encodeSource(source: number, writer: Ber.Writer) {
-	writer.startSequence(Ber.APPLICATION(15))
+export function encodeSource(source: number, writer: Ber.Writer): void {
+	writer.startSequence(SourceBERID)
 	writer.startSequence(Ber.CONTEXT(0))
 	writer.writeInt(source, Ber.BERDataTypes.INTEGER)
 	writer.endSequence()

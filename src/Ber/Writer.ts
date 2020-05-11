@@ -13,7 +13,7 @@ class ExtendedWriter extends Writer {
 		super(options)
 	}
 
-	writeReal(value: number, tag: number) {
+	writeReal(value: number, tag: number): void {
 		if (tag === undefined) {
 			tag = UNIVERSAL(9)
 		}
@@ -136,7 +136,7 @@ class ExtendedWriter extends Writer {
 		this.writeString(value.toString(), tag)
 	}
 
-	writeEmberParameter(value: Parameter) {
+	writeEmberParameter(value: Parameter): void {
 		if (isParameter(value)) {
 			switch (value.parameterType) {
 				case ParameterType.Real:
@@ -202,7 +202,7 @@ function shorten(value: number): { size: number; value: number } {
 }
 
 function shortenLong(value: Long): { size: number; value: Long } {
-	let mask = Long.fromBits(0x00000000, 0xff800000, true)
+	const mask = Long.fromBits(0x00000000, 0xff800000, true)
 	value = value.toUnsigned()
 
 	let size = 8

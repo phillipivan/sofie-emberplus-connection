@@ -1,5 +1,10 @@
 import * as Ber from '../../../Ber'
-import { Connection, ConnectionOperation, ConnectionDisposition, ConnectionImpl } from '../../../model/Connection'
+import {
+	Connection,
+	ConnectionOperation,
+	ConnectionDisposition,
+	ConnectionImpl
+} from '../../../model/Connection'
 import { ConnectionBERID } from '../constants'
 
 export { decodeConnection }
@@ -10,31 +15,34 @@ function decodeConnection(reader: Ber.Reader): Connection {
 	let sources: Array<number> | undefined = undefined
 	let operation: ConnectionOperation | undefined = undefined
 	let disposition: ConnectionDisposition | undefined = undefined
+	let encodedSources: string
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				target = seq.readInt()
 				break
 			case Ber.CONTEXT(1):
-				const encodedSources = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
+				encodedSources = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				if (encodedSources.length === 0) {
 					sources = []
 				} else {
-					sources = encodedSources.split('.').map(i => Number(i))
+					sources = encodedSources.split('.').map((i) => Number(i))
 				}
-			  break
+				break
 			case Ber.CONTEXT(2):
 				operation = readConnectionOperation(seq.readInt())
-			  break
+				break
 			case Ber.CONTEXT(3):
 				disposition = readConnectionDisposition(seq.readInt())
 				break
 			default:
-			  throw new Error(``)
+				throw new Error(``)
 		}
-
 	}
 	if (target === null) {
 		throw new Error(``)
@@ -44,9 +52,12 @@ function decodeConnection(reader: Ber.Reader): Connection {
 
 function readConnectionOperation(value: number): ConnectionOperation {
 	switch (value) {
-		case 0: return ConnectionOperation.Absolute
-		case 1: return ConnectionOperation.Connect
-		case 2: return ConnectionOperation.Disconnect
+		case 0:
+			return ConnectionOperation.Absolute
+		case 1:
+			return ConnectionOperation.Connect
+		case 2:
+			return ConnectionOperation.Disconnect
 		default:
 			throw new Error(``)
 	}
@@ -54,10 +65,14 @@ function readConnectionOperation(value: number): ConnectionOperation {
 
 function readConnectionDisposition(value: number): ConnectionDisposition {
 	switch (value) {
-		case 0: return ConnectionDisposition.Tally
-		case 1: return ConnectionDisposition.Modified
-		case 2: return ConnectionDisposition.Pending
-		case 3: return ConnectionDisposition.Locked
+		case 0:
+			return ConnectionDisposition.Tally
+		case 1:
+			return ConnectionDisposition.Modified
+		case 2:
+			return ConnectionDisposition.Pending
+		case 3:
+			return ConnectionDisposition.Locked
 		default:
 			throw new Error(``)
 	}

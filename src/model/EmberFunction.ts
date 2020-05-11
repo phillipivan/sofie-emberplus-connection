@@ -30,5 +30,5 @@ class EmberFunctionImpl implements EmberFunction {
 		public args?: Array<FunctionArgument>,
 		public result?: Array<FunctionArgument>,
 		public templateReference?: RelativeOID
-	) { }
+	) {}
 }

@@ -34,9 +34,11 @@ export function decodeChildren(reader: Ber.Reader): Array<NumberedTreeNode<Ember
 
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
 
-		if (tag !== Ber.CONTEXT(0)) throw new Error()
+		if (tag !== Ber.CONTEXT(0)) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 
 		children.push(decodeGenericElement(seq) as NumberedTreeNode<EmberElement>)
 	}
@@ -47,7 +49,7 @@ export function decodeChildren(reader: Ber.Reader): Array<NumberedTreeNode<Ember
 export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberElement> {
 	const tag = reader.peek()
 
-	if (tag === null) throw new Error()
+	if (tag === null) throw new Error(``)
 
 	const isQualified = isTagQualified(tag)
 	const type = tagToElType(tag)
@@ -66,7 +68,10 @@ export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberEleme
 
 	while (ber.remain > 0) {
 		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const seq = ber.getSequence(tag)
 
 		switch (tag) {
 			case Ber.CONTEXT(0):
@@ -139,7 +144,7 @@ export function decodeRootElements(reader: Ber.Reader): Array<RootElement> {
 	return rootEls
 }
 
-function isTagQualified(tag: number) {
+function isTagQualified(tag: number): boolean {
 	const qualifiedTags = new Set([
 		QualifiedTemplateBERID,
 		QualifiedParameterBERID,
@@ -151,7 +156,7 @@ function isTagQualified(tag: number) {
 	return qualifiedTags.has(tag)
 }
 
-function tagToElType(tag: number) {
+function tagToElType(tag: number): ElementType {
 	const tags = {
 		[CommandBERID]: ElementType.Command,
 		[FunctionBERID]: ElementType.Function,

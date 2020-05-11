@@ -27,8 +27,5 @@ interface StreamDescription {
 }
 
 export class StreamDescriptionImpl implements StreamDescription {
-	constructor(
-		public format: StreamFormat,
-		public offset: number
-	) { }
+	constructor(public format: StreamFormat, public offset: number) {}
 }

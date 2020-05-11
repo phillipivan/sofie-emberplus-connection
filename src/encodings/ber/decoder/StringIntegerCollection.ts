@@ -19,13 +19,16 @@ function decodeStringIntegerCollection(reader: Ber.Reader): StringIntegerCollect
 	return collection
 }
 
-function decodeStringIntegerPair(reader: Ber.Reader): { key: string, value: number } {
+function decodeStringIntegerPair(reader: Ber.Reader): { key: string; value: number } {
 	let key: string | null = null
 	let value: number | null = null
 	const seq = reader.getSequence(StringIntegerPairBERID)
 	while (seq.remain > 0) {
 		const tag = seq.peek()
-		const dataSeq = seq.getSequence(tag!)
+		if (tag === null) {
+			throw new Error(``)
+		}
+		const dataSeq = seq.getSequence(tag)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				key = dataSeq.readString(Ber.BERDataTypes.STRING)
@@ -37,7 +40,7 @@ function decodeStringIntegerPair(reader: Ber.Reader): { key: string, value: numb
 				throw new Error(``)
 		}
 	}
-	if ((key === null) || (value === null)) {
+	if (key === null || value === null) {
 		throw new Error(``)
 	}
 	return { key, value }

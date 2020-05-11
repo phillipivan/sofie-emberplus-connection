@@ -11,7 +11,7 @@ describe('encodings/ber/Parameter', () => {
 		parameterType: ParameterType.String
 	} as Parameter
 
-	function roundtripParameter(prm: Parameter) {
+	function roundtripParameter(prm: Parameter): void {
 		const writer = new Ber.Writer()
 		encodeParameter(prm, writer)
 		console.log(writer.buffer)
