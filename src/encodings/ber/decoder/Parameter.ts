@@ -38,7 +38,7 @@ export { decodeParameter, readParameterType }
 // 	return new TreeImpl(param, undefined, kids)
 // }
 
-function decodeParameter (reader: Ber.Reader): Parameter {
+function decodeParameter(reader: Ber.Reader): Parameter {
 	const ber = reader.getSequence(Ber.BERDataTypes.SET)
 	const p: Parameter = {} as Parameter
 
@@ -60,7 +60,7 @@ function decodeParameter (reader: Ber.Reader): Parameter {
 				break
 			case Ber.CONTEXT(4):
 				p.maximum = seq.readValue().value as number | null
-				break;
+				break
 			case Ber.CONTEXT(5):
 				p.access = readParameterAccess(seq.readInt())
 				break
@@ -83,10 +83,10 @@ function decodeParameter (reader: Ber.Reader): Parameter {
 				p.step = seq.readInt()
 				break
 			case Ber.CONTEXT(12):
-				p.defaultValue = seq.readValue().value; // Write value uses type
+				p.defaultValue = seq.readValue().value // Write value uses type
 				break
 			case Ber.CONTEXT(13):
-				p.parameterType = readParameterType(seq.readInt());
+				p.parameterType = readParameterType(seq.readInt())
 				break
 			case Ber.CONTEXT(14):
 				p.streamIdentifier = seq.readInt()
@@ -99,6 +99,9 @@ function decodeParameter (reader: Ber.Reader): Parameter {
 				break
 			case Ber.CONTEXT(17):
 				p.schemaIdentifiers = seq.readString(Ber.BERDataTypes.STRING)
+				break
+			case Ber.CONTEXT(18):
+				p.templateReference = seq.readString(Ber.BERDataTypes.STRING)
 				break
 			default:
 				throw new Error(``)
@@ -130,10 +133,14 @@ function decodeParameter (reader: Ber.Reader): Parameter {
 
 function readParameterAccess(value: number): ParameterAccess {
 	switch (value) {
-		case 0: return ParameterAccess.None
-		case 1: return ParameterAccess.Read
-		case 2: return ParameterAccess.Write
-		case 3: return ParameterAccess.ReadWrite
+		case 0:
+			return ParameterAccess.None
+		case 1:
+			return ParameterAccess.Read
+		case 2:
+			return ParameterAccess.Write
+		case 3:
+			return ParameterAccess.ReadWrite
 		default:
 			throw new Error(``)
 	}
@@ -141,14 +148,22 @@ function readParameterAccess(value: number): ParameterAccess {
 
 function readParameterType(value: number): ParameterType {
 	switch (value) {
-		case 0: return ParameterType.Null
-		case 1: return ParameterType.Integer
-		case 2: return ParameterType.Real
-		case 3: return ParameterType.String
-		case 4: return ParameterType.Boolean
-		case 5: return ParameterType.Trigger
-		case 6: return ParameterType.Enum
-		case 7: return ParameterType.Octets
+		case 0:
+			return ParameterType.Null
+		case 1:
+			return ParameterType.Integer
+		case 2:
+			return ParameterType.Real
+		case 3:
+			return ParameterType.String
+		case 4:
+			return ParameterType.Boolean
+		case 5:
+			return ParameterType.Trigger
+		case 6:
+			return ParameterType.Enum
+		case 7:
+			return ParameterType.Octets
 		default:
 			throw new Error(``)
 	}

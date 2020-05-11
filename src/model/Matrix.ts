@@ -34,7 +34,7 @@ enum MatrixAddressingMode {
  *  Dictionary or targets, indexed by element number.
  */
 interface Connections {
-	[ target: number ] : Connection
+	[target: number]: Connection
 }
 
 /**
@@ -81,7 +81,6 @@ interface Matrix extends EmberElement {
 class MatrixImpl implements Matrix {
 	public readonly type: ElementType.Matrix = ElementType.Matrix
 	constructor(
-		public number: number,
 		public identifier: string,
 		public targets?: Array<number>,
 		public sources?: Array<number>,
@@ -98,5 +97,5 @@ class MatrixImpl implements Matrix {
 		public labels?: Array<Label>,
 		public schemaIdentifiers?: string,
 		public templateReference?: RelativeOID
-	) { }
+	) {}
 }

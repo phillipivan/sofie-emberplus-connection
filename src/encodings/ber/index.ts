@@ -6,7 +6,8 @@ import { encodeRootElement } from './encoder/RootElement'
 import { StreamEntry } from '../../model/StreamEntry'
 import { encodeStreamEntry } from './encoder/StreamEntry'
 import { decodeInvocationResult } from './decoder/InvocationResult'
-import { decodeRootElements } from './decoder/RootElement'
+import { decodeRootElements } from './decoder/Tree'
+import { decodeStreamEntries } from './decoder/StreamEntry'
 
 export { berEncode, berDecode }
 
@@ -62,7 +63,7 @@ function berDecode(b: Buffer): Root {
 		return root
 	} else if (rootSeqType === Ber.APPLICATION(6)) {
 		// StreamCollection
-		const root: Array<StreamEntry> = []
+		const root: Array<StreamEntry> = decodeStreamEntries(rootSeq)
 		return root
 	} else if (rootSeqType === Ber.APPLICATION(23)) {
 		// InvocationResult

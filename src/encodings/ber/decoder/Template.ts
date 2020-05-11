@@ -4,12 +4,9 @@ import { Parameter } from '../../../model/Parameter'
 import { Matrix } from '../../../model/Matrix'
 import { EmberFunction } from '../../../model/EmberFunction'
 import { EmberNode } from '../../../model/EmberNode'
-import { decodeParameter } from './Parameter'
-import { decodeNode } from './EmberNode'
-import { decodeMatrix } from './Matrix'
-import { decodeFunction } from './EmberFunction'
 import { EmberTreeNode } from '../../../types/types'
-import { TemplateBERID, ParameterBERID, NodeBERID, FunctionBERID, MatrixBERID } from '../constants'
+import { TemplateBERID } from '../constants'
+import { decodeGenericElement } from './Tree'
 
 export function decodeTemplate(reader: Ber.Reader): Template {
 	const ber = reader.getSequence(TemplateBERID)
@@ -24,8 +21,10 @@ export function decodeTemplate(reader: Ber.Reader): Template {
 				number = seq.readInt()
 				break
 			case Ber.CONTEXT(1):
-				element = decodeTemplateElement(seq)
-			  break
+				element = decodeGenericElement(seq) as EmberTreeNode<
+					Parameter | EmberNode | Matrix | EmberFunction
+				>
+				break
 			case Ber.CONTEXT(2):
 				description = seq.readString(Ber.BERDataTypes.STRING)
 				break
@@ -37,16 +36,4 @@ export function decodeTemplate(reader: Ber.Reader): Template {
 		throw new Error(``)
 	}
 	return new TemplateImpl(number, element, description)
-}
-
-function decodeTemplateElement(reader: Ber.Reader): EmberTreeNode<Parameter | EmberNode | Matrix | EmberFunction> {
-	const tag = reader.peek()
-	switch (tag) {
-		case ParameterBERID:  return decodeParameter(reader)
-		case NodeBERID:  return decodeNode(reader)
-		case FunctionBERID: return decodeFunction(reader)
-		case MatrixBERID: return decodeMatrix(reader)
-		default:
-			throw new Error(``)
-	}
 }

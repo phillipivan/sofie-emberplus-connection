@@ -1,18 +1,25 @@
 import * as Ber from '../../../Ber'
-import { Matrix, MatrixImpl, Connections, MatrixType, MatrixAddressingMode } from '../../../model/Matrix'
-import { EmberTreeNode } from '../../../types/types'
+import {
+	Matrix,
+	MatrixImpl,
+	Connections,
+	MatrixType,
+	MatrixAddressingMode
+} from '../../../model/Matrix'
+import { EmberTreeNode, RelativeOID } from '../../../types/types'
 import { EmberElement } from '../../../model/EmberElement'
-import { TreeImpl } from '../../../model/Tree'
 import { decodeChildren } from './Tree'
 import { decodeConnection } from './Connection'
 import { decodeLabel } from './Label'
 import { MatrixBERID } from '../constants'
+import { QualifiedElementImpl, NumberedTreeNodeImpl, TreeElement } from '../../../model/Tree'
 
 export { decodeMatrix }
 
-function decodeMatrix(reader: Ber.Reader): EmberTreeNode<Matrix> {
+function decodeMatrix(reader: Ber.Reader, isQualified = false): TreeElement<Matrix> {
 	const ber = reader.getSequence(MatrixBERID)
 	let number: number | null = null
+	let path: RelativeOID | null = null
 	let targets: Array<number> | undefined = undefined
 	let sources: Array<number> | undefined = undefined
 	let connections: Connections | undefined = undefined
@@ -23,65 +30,73 @@ function decodeMatrix(reader: Ber.Reader): EmberTreeNode<Matrix> {
 		const seq = ber.getSequence(tag!)
 		switch (tag) {
 			case Ber.CONTEXT(0):
-			  number = seq.readInt()
-			  break
+				if (isQualified) {
+					path = seq.readRelativeOID()
+				} else {
+					number = seq.readInt()
+				}
+				break
 			case Ber.CONTEXT(1):
 				contents = decodeMatrixContents(seq)
-			  break
+				break
 			case Ber.CONTEXT(2):
 				kids = decodeChildren(seq)
-			  break
+				break
 			case Ber.CONTEXT(3):
 				targets = decodeTargets(seq)
-			  break
+				break
 			case Ber.CONTEXT(4):
 				sources = decodeSources(seq)
-			  break
+				break
 			case Ber.CONTEXT(5):
 				connections = decodeConnections(seq)
-			  break
+				break
 			default:
 				throw new Error(``)
 		}
 	}
-	if (number === null) {
-		throw new Error(``)
-	}
+	let m: MatrixImpl
 	if (contents === null) {
-		return new TreeImpl(
-			new MatrixImpl(
-				number,
-				'',
-				targets,
-				sources,
-				connections
-			),
-			undefined,
-			kids
-		)
+		m = new MatrixImpl('', targets, sources, connections)
 	} else {
-		return new TreeImpl(
-			new MatrixImpl(
-				number,
-				contents.identifier,
-				targets,
-				sources,
-				connections,
-				contents.description,
-				contents.matrixType,
-				contents.addressingMode,
-				contents.targetCount,
-				contents.sourceCount,
-				contents.maximumTotalConnects,
-				contents.maximumConnectsPerTarget,
-				contents.parametersLocation,
-				contents.gainParameterNumber,
-				contents.labels,
-				contents.schemaIdentifiers,
-				contents.templateReference
-			)
+		m = new MatrixImpl(
+			contents.identifier,
+			targets,
+			sources,
+			connections,
+			contents.description,
+			contents.matrixType,
+			contents.addressingMode,
+			contents.targetCount,
+			contents.sourceCount,
+			contents.maximumTotalConnects,
+			contents.maximumConnectsPerTarget,
+			contents.parametersLocation,
+			contents.gainParameterNumber,
+			contents.labels,
+			contents.schemaIdentifiers,
+			contents.templateReference
 		)
 	}
+
+	let el: TreeElement<Matrix>
+	if (isQualified) {
+		if (path === null) throw new Error(``)
+
+		el = new QualifiedElementImpl(path, m, kids)
+	} else {
+		if (number === null) throw new Error(``)
+
+		el = new NumberedTreeNodeImpl(number, m, kids)
+	}
+
+	if (kids) {
+		for (const kiddo of kids) {
+			kiddo.parent = el
+		}
+	}
+
+	return el
 }
 
 function decodeMatrixContents(reader: Ber.Reader): Matrix {
@@ -93,28 +108,28 @@ function decodeMatrixContents(reader: Ber.Reader): Matrix {
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				m.identifier = seq.readString(Ber.BERDataTypes.STRING)
-			  break
+				break
 			case Ber.CONTEXT(1):
 				m.description = seq.readString(Ber.BERDataTypes.STRING)
-			  break
+				break
 			case Ber.CONTEXT(2):
 				m.matrixType = readMatrixType(seq.readInt())
-			  break
+				break
 			case Ber.CONTEXT(3):
 				m.addressingMode = readAddressingMode(seq.readInt())
-			  break
+				break
 			case Ber.CONTEXT(4):
 				m.targetCount = seq.readInt()
-			  break
+				break
 			case Ber.CONTEXT(5):
 				m.sourceCount = seq.readInt()
-			  break
+				break
 			case Ber.CONTEXT(6):
 				m.maximumTotalConnects = seq.readInt()
-			  break
+				break
 			case Ber.CONTEXT(7):
 				m.maximumConnectsPerTarget = seq.readInt()
-			  break
+				break
 			case Ber.CONTEXT(8):
 				const plTag = seq.peek()
 				if (plTag === Ber.BERDataTypes.RELATIVE_OID) {
@@ -122,10 +137,10 @@ function decodeMatrixContents(reader: Ber.Reader): Matrix {
 				} else {
 					m.parametersLocation = seq.readInt()
 				}
-			  break
+				break
 			case Ber.CONTEXT(9):
 				m.gainParameterNumber = seq.readInt()
-			  break
+				break
 			case Ber.CONTEXT(10):
 				m.labels = []
 				const labelSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
@@ -133,13 +148,13 @@ function decodeMatrixContents(reader: Ber.Reader): Matrix {
 					const lvSeq = labelSeq.getSequence(Ber.CONTEXT(0))
 					m.labels.push(decodeLabel(lvSeq))
 				}
-			  break
+				break
 			case Ber.CONTEXT(11):
 				m.schemaIdentifiers = seq.readString(Ber.BERDataTypes.STRING)
-			  break
+				break
 			case Ber.CONTEXT(12):
 				m.templateReference = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
-			  break
+				break
 			default:
 				throw new Error(``)
 		}
@@ -184,9 +199,12 @@ function decodeConnections(reader: Ber.Reader): Connections {
 
 function readMatrixType(value: number): MatrixType {
 	switch (value) {
-		case 0: return MatrixType.OneToN
-		case 1: return MatrixType.OneToOne
-		case 2: return MatrixType.NToN
+		case 0:
+			return MatrixType.OneToN
+		case 1:
+			return MatrixType.OneToOne
+		case 2:
+			return MatrixType.NToN
 		default:
 			throw new Error(``)
 	}
@@ -194,8 +212,10 @@ function readMatrixType(value: number): MatrixType {
 
 function readAddressingMode(value: number): MatrixAddressingMode {
 	switch (value) {
-		case 0: return MatrixAddressingMode.Linear
-		case 1: return MatrixAddressingMode.NonLinear
+		case 0:
+			return MatrixAddressingMode.Linear
+		case 1:
+			return MatrixAddressingMode.NonLinear
 		default:
 			throw new Error(``)
 	}
