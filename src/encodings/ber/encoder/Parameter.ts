@@ -29,6 +29,11 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer) {
 
 	writer.writeIfDefined(parameter.identifier, writer.writeString, 0, Ber.BERDataTypes.STRING)
 	writer.writeIfDefined(parameter.description, writer.writeString, 1, Ber.BERDataTypes.STRING)
+	if (parameter.value) {
+		writer.startSequence(Ber.CONTEXT(2))
+		writeValue(parameter.value)
+		writer.endSequence()
+	}
 	if (parameter.minimum) {
 		writer.startSequence(Ber.CONTEXT(3))
 		writeValue(parameter.minimum)
@@ -52,7 +57,7 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer) {
 	writer.writeIfDefined(parameter.formula, writer.writeString, 10, Ber.BERDataTypes.STRING)
 	writer.writeIfDefined(parameter.step, writer.writeInt, 11, Ber.BERDataTypes.INTEGER)
 
-	if (parameter.defaultValue) {
+	if (parameter.defaultValue !== undefined) {
 		writer.startSequence(Ber.CONTEXT(12))
 		writeValue(parameter.defaultValue)
 		writer.endSequence()
@@ -64,13 +69,6 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer) {
 		writer.endSequence()
 	}
 
-	// FIXME: Property with index 2 is property.value
-	// writer.writeIfDefined( 
-	// 	elementTypeToInt(parameter.type),
-	// 	writer.writeInt,
-	// 	2,
-	// 	Ber.BERDataTypes.INTEGER
-	// )
 	writer.writeIfDefined(parameter.streamIdentifier, writer.writeInt, 14, Ber.BERDataTypes.INTEGER)
 
 	if (parameter.enumMap != null) {
@@ -89,6 +87,13 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer) {
 		parameter.schemaIdentifiers,
 		writer.writeString,
 		17,
+		Ber.BERDataTypes.STRING
+	)
+
+	writer.writeIfDefined(
+		parameter.templateReference,
+		writer.writeString,
+		18,
 		Ber.BERDataTypes.STRING
 	)
 

@@ -1,11 +1,11 @@
 import * as Ber from '../../../Ber'
 import { Template } from '../../../model/Template'
-import { encodeEmberElement } from './EmberElement'
+import { encodeNumberedElement } from './Tree'
 
 export function encodeTemplate(template: Template, writer: Ber.Writer) {
 	if (template.element != null) {
 		writer.startSequence(Ber.CONTEXT(1))
-		encodeEmberElement(template.element, writer)
+		encodeNumberedElement(template.element, writer)
 		writer.endSequence()
 	}
 

@@ -1,4 +1,4 @@
-import { EmberTreeNode } from '../../../types/types'
+import { NumberedTreeNode, TreeElement, QualifiedElement } from '../../../types/types'
 import * as Ber from '../../../Ber'
 import { ElementType, EmberElement } from '../../../model/EmberElement'
 import { encodeEmberElement } from './EmberElement'
@@ -9,42 +9,45 @@ import { Template } from '../../../model/Template'
 import { Matrix } from '../../../model/Matrix'
 import { encodeConnection } from './Connection'
 import { encodeTarget, encodeSource } from './Matrix'
+import { MatrixBERID, FunctionBERID, NodeBERID, ParameterBERID, TemplateBERID } from '../constants'
 
-export function encodeTree(el: EmberTreeNode<EmberElement>, writer: Ber.Writer, isQualified = false) {
-	if (el.value.type === ElementType.Command) {
+export function encodeNumberedElement(el: NumberedTreeNode<EmberElement>, writer: Ber.Writer) {
+	if (el.contents.type === ElementType.Command) {
 		// Command is a special case
-		if (isQualified) throw new Error('Command cannot be qualified')
+		if (isQualified(el)) throw new Error('Command cannot be qualified')
 
-		encodeCommand(el.value as Command, writer)
+		encodeCommand(el.contents as Command, writer)
 		return
 	}
 
-	if (!isQualified) {
-		switch (el.value.type) {
-			case ElementType.Function:
-				writer.startSequence(Ber.APPLICATION(19))
-				break
-			case ElementType.Matrix:
-				writer.startSequence(Ber.APPLICATION(13))
-				break
-			case ElementType.Node:
-				writer.startSequence(Ber.APPLICATION(3)) // start Node
-				break
-			case ElementType.Parameter:
-				writer.startSequence(Ber.APPLICATION(1))
-				break
-			case ElementType.Template:
-				writer.startSequence(Ber.APPLICATION(24))
-				break
-		}
-
-		writer.startSequence(Ber.CONTEXT(0)) // start number
-		writer.writeInt(el.value.number, Ber.BERDataTypes.INTEGER)
-		writer.endSequence()
+	switch (el.contents.type) {
+		case ElementType.Function:
+			writer.startSequence(FunctionBERID)
+			break
+		case ElementType.Matrix:
+			writer.startSequence(MatrixBERID)
+			break
+		case ElementType.Node:
+			writer.startSequence(NodeBERID) // start Node
+			break
+		case ElementType.Parameter:
+			writer.startSequence(ParameterBERID)
+			break
+		case ElementType.Template:
+			writer.startSequence(TemplateBERID)
+			break
 	}
 
+	writer.startSequence(Ber.CONTEXT(0)) // start number
+	writer.writeInt(el.number, Ber.BERDataTypes.INTEGER)
+	writer.endSequence()
+
+	encodeTree(el, writer)
+}
+
+export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer) {
 	// Encode Contents:
-	encodeEmberElement(el.value, writer)
+	encodeEmberElement(el.contents, writer)
 
 	if (hasChildren(el)) {
 		writer.startSequence(Ber.CONTEXT(2)) // start children
@@ -52,7 +55,7 @@ export function encodeTree(el: EmberTreeNode<EmberElement>, writer: Ber.Writer, 
 		writer.startSequence(Ber.BERDataTypes.SEQUENCE) // start Sequence
 		for (const child of el.children!) {
 			writer.startSequence(Ber.CONTEXT(0)) // start child
-			encodeTree(child, writer)
+			encodeNumberedElement(child, writer)
 			writer.endSequence() // end child
 		}
 		writer.endSequence() // end sequence
@@ -61,13 +64,13 @@ export function encodeTree(el: EmberTreeNode<EmberElement>, writer: Ber.Writer, 
 	}
 
 	// Matrix contains some other props as well
-	if (isMatrix(el.value)) {
+	if (isMatrix(el.contents)) {
 		// encode targets
-		if (el.value.targets) {
+		if (el.contents.targets) {
 			writer.startSequence(Ber.CONTEXT(3)) // start targets
 			writer.startSequence(Ber.BERDataTypes.SEQUENCE) // start sequence
 			// write target collection
-			for (const target of el.value.targets) {
+			for (const target of el.contents.targets) {
 				writer.startSequence(Ber.CONTEXT(0)) // start child
 				encodeTarget(target, writer)
 				writer.endSequence() // end child
@@ -75,11 +78,11 @@ export function encodeTree(el: EmberTreeNode<EmberElement>, writer: Ber.Writer, 
 			writer.endSequence() // end sequence
 			writer.endSequence() // end children
 		}
-		if (el.value.sources) {
+		if (el.contents.sources) {
 			writer.startSequence(Ber.CONTEXT(4))
 			writer.startSequence(Ber.BERDataTypes.SEQUENCE)
 			// write sources collection
-			for (const source of el.value.sources) {
+			for (const source of el.contents.sources) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeSource(source, writer)
 				writer.endSequence()
@@ -87,11 +90,11 @@ export function encodeTree(el: EmberTreeNode<EmberElement>, writer: Ber.Writer, 
 			writer.endSequence()
 			writer.endSequence()
 		}
-		if (el.value.connections) {
+		if (el.contents.connections) {
 			writer.startSequence(Ber.CONTEXT(5))
 			writer.startSequence(Ber.BERDataTypes.SEQUENCE)
 			// write connections collection
-			for (const connection of el.value.connections) {
+			for (const connection of Object.values(el.contents.connections)) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeConnection(connection, writer)
 				writer.endSequence()
@@ -99,22 +102,26 @@ export function encodeTree(el: EmberTreeNode<EmberElement>, writer: Ber.Writer, 
 			writer.endSequence()
 			writer.endSequence()
 		}
-	} else if (el.value.type === ElementType.Template) {
-		encodeTemplate(el.value as Template, writer)
+	} else if (el.contents.type === ElementType.Template) {
+		encodeTemplate(el.contents as Template, writer)
 	}
 
 	writer.endSequence() // end node
 }
 
-function hasChildren(el: EmberTreeNode<EmberElement>): boolean {
+function hasChildren(el: TreeElement<EmberElement>): boolean {
 	return (
 		'children' in el &&
 		!(
-			el.value.type === ElementType.Command ||
-			el.value.type === ElementType.Parameter ||
-			el.value.type === ElementType.Template
+			el.contents.type === ElementType.Command ||
+			el.contents.type === ElementType.Parameter ||
+			el.contents.type === ElementType.Template
 		)
 	)
+}
+
+function isQualified(el: TreeElement<EmberElement>): el is QualifiedElement<EmberElement> {
+	return 'path' in el
 }
 
 function isMatrix(el: EmberElement): el is Matrix {
