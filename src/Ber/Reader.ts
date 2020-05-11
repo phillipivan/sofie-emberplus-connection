@@ -87,7 +87,7 @@ class ExtendedReader extends Reader {
 			throw new ASN1Error('Invalid ASN.1; not enough length to contain exponent')
 		}
 
-		for (var i = 0; i < exponentLength; i++) {
+		for (let i = 0; i < exponentLength; i++) {
 			exponent = (exponent << 8) | buf.readUInt8(o++)
 		}
 
