@@ -6,9 +6,12 @@ import { Matrix } from '../model/Matrix'
 import { EmberNode } from '../model/EmberNode'
 import { StreamEntry } from '../model/StreamEntry'
 import { InvocationResult } from '../model/InvocationResult'
-import { Tree } from '../model/Tree'
+import { TreeElement, NumberedTreeNode, QualifiedElement } from '../model/Tree'
 
 export {
+	TreeElement,
+	NumberedTreeNode,
+	QualifiedElement,
 	EmberTreeNode,
 	EmberValue,
 	EmberTypedValue,
@@ -20,21 +23,7 @@ export {
 	RelativeOID
 }
 
-interface TreeElement<T extends EmberElement> {
-	parent?: TreeElement<EmberElement>
-	contents?: T
-	children?: Array<NumberedTreeNode<EmberElement>>
-}
-
-interface NumberedTreeNode<T extends EmberElement> extends TreeElement<T> {
-	number: number
-}
-
-interface QualifiedElement<T extends EmberElement> extends TreeElement<T> {
-	path: RelativeOID
-}
-
-type EmberTreeNode<T extends EmberElement> = Tree<EmberElement, T>
+type EmberTreeNode<T extends EmberElement> = NumberedTreeNode<T>
 type RootElement =
 	| NumberedTreeNode<EmberElement>
 	| QualifiedElement<Parameter>

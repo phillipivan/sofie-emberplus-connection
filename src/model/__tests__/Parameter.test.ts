@@ -6,10 +6,11 @@ describe('model/Parameter', () => {
 		const validParameter: Parameter = {
 			type: ElementType.Parameter,
 			parameterType: ParameterType.Integer,
-			number: 1,
-			templateReference: {
-				resolve: () => ({ value: { number: 1, type: ElementType.Template } })
-			}
+			templateReference: '1'
+			// number: 1
+			// templateReference: {
+			// 	resolve: () => ({ value: { number: 1, type: ElementType.Template } })
+			// }
 		}
 
 		describe('mandatory properties', () => {
