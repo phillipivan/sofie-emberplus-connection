@@ -55,7 +55,7 @@ export { decodeFunctionContent }
 // 		kids
 // 	)
 // }
-
+git 
 function decodeFunctionContent(reader: Ber.Reader): EmberFunction {
 	let f: EmberFunction = {} as EmberFunction
 	const ber = reader.getSequence(Ber.BERDataTypes.SET)
