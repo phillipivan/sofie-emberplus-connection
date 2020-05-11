@@ -29,7 +29,7 @@ import { decodeCommand } from './Command'
 import { RootElement } from '../../../types/types'
 
 export function decodeChildren(reader: Ber.Reader): Array<NumberedTreeNode<EmberElement>> {
-	const ber = reader.getSequence(Ber.BERDataTypes.SEQUENCE)
+	const ber = reader.getSequence(Ber.APPLICATION(4))
 	const children: Array<NumberedTreeNode<EmberElement>> = []
 
 	while (ber.remain > 0) {
@@ -49,7 +49,6 @@ export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberEleme
 
 	if (tag === null) throw new Error()
 
-	const ber = reader.getSequence(tag)
 	const isQualified = isTagQualified(tag)
 	const type = tagToElType(tag)
 
@@ -59,6 +58,7 @@ export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberEleme
 		return new NumberedTreeNodeImpl(0, decodeCommand(reader)) // TODO - hardcoded to 0??
 	}
 
+	const ber = reader.getSequence(tag)
 	let path: string | null = null
 	let number: number | null = null
 	let contents: EmberElement | null = null

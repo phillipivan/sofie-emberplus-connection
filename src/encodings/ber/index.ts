@@ -18,24 +18,20 @@ function berEncode(el: Root, rootType: RootType): Buffer {
 	switch (rootType) {
 		case RootType.Elements:
 			writer.startSequence(Ber.APPLICATION(11)) // Start RootElementCollection
-			writer.startSequence(Ber.BERDataTypes.SEQUENCE)
 			for (const rootEl of el as RootElement[]) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeRootElement(rootEl, writer)
 				writer.endSequence()
 			}
-			writer.endSequence()
 			writer.endSequence() // End RootElementCollection
 			break
 		case RootType.Streams:
 			writer.startSequence(Ber.APPLICATION(6)) // Start StreamCollection
-			writer.startSequence(Ber.BERDataTypes.SEQUENCE)
 			for (const entry of el as StreamEntry[]) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeStreamEntry(entry, writer)
 				writer.endSequence()
 			}
-			writer.endSequence()
 			writer.endSequence() // End StreamCollection
 			break
 		case RootType.InvocationResult:

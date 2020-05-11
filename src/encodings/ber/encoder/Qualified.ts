@@ -24,7 +24,7 @@ export function encodeQualifedElement(el: QualifiedElement<EmberElement>, writer
 	}
 
 	writer.startSequence(Ber.CONTEXT(0))
-	writer.writeString(el.path, Ber.BERDataTypes.SEQUENCE)
+	writer.writeRelativeOID(el.path, Ber.BERDataTypes.RELATIVE_OID)
 	writer.endSequence()
 
 	encodeTree(el, writer)

@@ -1,58 +1,60 @@
 import * as Ber from '../../../Ber'
-import { EmberFunction, EmberFunctionImpl } from '../../../model/EmberFunction'
+// import { EmberFunction, EmberFunctionImpl } from '../../../model/EmberFunction'
+import { EmberFunction } from '../../../model/EmberFunction'
 import { decodeFunctionArgument } from './FunctionArgument'
-import { EmberTreeNode } from '../../../types/types'
-import { EmberElement } from '../../../model/EmberElement'
-import { TreeImpl } from '../../../model/Tree'
-import { decodeChildren } from './Tree'
-import { FunctionBERID } from '../constants'
+// import { EmberTreeNode } from '../../../types/types'
+// import { EmberElement } from '../../../model/EmberElement'
+// import { TreeImpl } from '../../../model/Tree'
+// import { decodeChildren } from './Tree'
+// import { FunctionBERID } from '../constants'
 
-export { decodeFunction, decodeFunctionContent }
+// export { decodeFunction, decodeFunctionContent }
+export { decodeFunctionContent }
 
-function decodeFunction(reader: Ber.Reader): EmberTreeNode<EmberFunction> {
-	const ber = reader.getSequence(FunctionBERID)
-	let number: number | null = null
-	let contents: EmberFunction | null = null
-	let kids: Array<EmberTreeNode<EmberElement>> | undefined = undefined
-	while (ber.remain) {
-		const tag = ber.peek()
-		const seq = ber.getSequence(tag!)
-		switch (tag) {
-			case Ber.CONTEXT(0):
-				number = seq.readInt()
-			  break
-			case Ber.CONTEXT(1):
-				contents = decodeFunctionContent(seq)
-				break
-			case Ber.CONTEXT(2):
-				kids = decodeChildren(seq)
-			  break
-			default:
-			  throw new Error(``)
-		}
-	}
-	if (number === null) {
-		throw new Error(``)
-	}
-	if (contents === null) {
-		return new TreeImpl(
-			new EmberFunctionImpl(),
-			undefined,
-			kids
-		)
-	}
-	return new TreeImpl(
-		new EmberFunctionImpl(
-			contents.identifier,
-			contents.description,
-			contents.args,
-			contents.result,
-			contents.templateReference
-		),
-		undefined,
-		kids
-	)
-}
+// function decodeFunction(reader: Ber.Reader): EmberTreeNode<EmberFunction> {
+// 	const ber = reader.getSequence(FunctionBERID)
+// 	let number: number | null = null
+// 	let contents: EmberFunction | null = null
+// 	let kids: Array<EmberTreeNode<EmberElement>> | undefined = undefined
+// 	while (ber.remain) {
+// 		const tag = ber.peek()
+// 		const seq = ber.getSequence(tag!)
+// 		switch (tag) {
+// 			case Ber.CONTEXT(0):
+// 				number = seq.readInt()
+// 			  break
+// 			case Ber.CONTEXT(1):
+// 				contents = decodeFunctionContent(seq)
+// 				break
+// 			case Ber.CONTEXT(2):
+// 				kids = decodeChildren(seq)
+// 			  break
+// 			default:
+// 			  throw new Error(``)
+// 		}
+// 	}
+// 	if (number === null) {
+// 		throw new Error(``)
+// 	}
+// 	if (contents === null) {
+// 		return new TreeImpl(
+// 			new EmberFunctionImpl(),
+// 			undefined,
+// 			kids
+// 		)
+// 	}
+// 	return new TreeImpl(
+// 		new EmberFunctionImpl(
+// 			contents.identifier,
+// 			contents.description,
+// 			contents.args,
+// 			contents.result,
+// 			contents.templateReference
+// 		),
+// 		undefined,
+// 		kids
+// 	)
+// }
 
 function decodeFunctionContent(reader: Ber.Reader): EmberFunction {
 	let f: EmberFunction = {} as EmberFunction

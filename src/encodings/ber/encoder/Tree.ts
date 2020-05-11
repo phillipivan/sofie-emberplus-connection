@@ -47,18 +47,18 @@ export function encodeNumberedElement(el: NumberedTreeNode<EmberElement>, writer
 
 export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer) {
 	// Encode Contents:
+	writer.startSequence(Ber.CONTEXT(1)) // start contents
 	encodeEmberElement(el.contents, writer)
+	writer.endSequence() // end contents
 
 	if (hasChildren(el)) {
 		writer.startSequence(Ber.CONTEXT(2)) // start children
 		writer.startSequence(Ber.APPLICATION(4)) // start ElementCollection
-		writer.startSequence(Ber.BERDataTypes.SEQUENCE) // start Sequence
 		for (const child of el.children!) {
 			writer.startSequence(Ber.CONTEXT(0)) // start child
 			encodeNumberedElement(child, writer)
 			writer.endSequence() // end child
 		}
-		writer.endSequence() // end sequence
 		writer.endSequence() // end ElementCollection
 		writer.endSequence() // end children
 	}
@@ -112,6 +112,7 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer) {
 function hasChildren(el: TreeElement<EmberElement>): boolean {
 	return (
 		'children' in el &&
+		el.children !== undefined &&
 		!(
 			el.contents.type === ElementType.Command ||
 			el.contents.type === ElementType.Parameter ||
