@@ -37,8 +37,10 @@ class ExtendedReader extends Reader {
 				return { type: ParameterType.Octets, value: this.readString(UNIVERSAL(4), true) }
 			case BERDataTypes.RELATIVE_OID:
 				return { type: ParameterType.String, value: this.readOID(BERDataTypes.RELATIVE_OID) }
-			case BERDataTypes.NULL:
-				return { type: ParameterType.Null, value: null } // TODO should you read something
+			case BERDataTypes.NULL: // Note: No readNull in BER library but writer writes 2 bytes
+				this.readByte(false) // Read past - ASN1.NULL tag 0x05
+				this.readByte(false) // and - 0x00 length
+				return { type: ParameterType.Null, value: null } 
 			default:
 				throw new UnimplementedEmberTypeError(tag)
 		}

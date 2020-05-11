@@ -33,7 +33,6 @@ describe('encoders/Ber/index', () => {
 		]
 		if (!res[0].children) {
 			fail(`Tree must have children`)
-			return
 		}
 		res[0].children[0].parent = res[0]
 		roundTrip(res, RootType.Elements)
@@ -46,7 +45,6 @@ describe('encoders/Ber/index', () => {
 		]
 		if (!res[0].children) {
 			fail(`Tree must have children`)
-			return
 		}
 		res[0].children[0].parent = res[0]
 		roundTrip(res, RootType.Elements)

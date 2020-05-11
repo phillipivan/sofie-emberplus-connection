@@ -1,9 +1,10 @@
 import * as Ber from '../../../Ber'
 import { Command, CommandType, GetDirectory, FieldFlags, Invoke } from '../../../model/Command'
 import { encodeInvocation } from './Invocation'
+import { CommandBERID } from '../constants'
 
 export function encodeCommand(el: Command, writer: Ber.Writer): void {
-	writer.startSequence(Ber.APPLICATION(2)) // TODO - make non magic number?
+	writer.startSequence(CommandBERID) // TODO - make non magic number?
 
 	writer.startSequence(Ber.CONTEXT(0))
 	writer.writeInt(el.number)
@@ -21,7 +22,7 @@ export function encodeCommand(el: Command, writer: Ber.Writer): void {
 		writer.endSequence()
 	}
 
-	writer.endSequence() // BER.APPLICATION(2)
+	writer.endSequence() // CommandBERID
 }
 
 function isInvoke(command: Command): command is Invoke {

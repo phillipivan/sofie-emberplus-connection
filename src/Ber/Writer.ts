@@ -95,9 +95,13 @@ class ExtendedWriter extends Writer {
 		} else {
 			value = arg1 as EmberValue
 		}
-		// this is inconsistent with the original behavior, which would have thrown a TypeError if value was null or undef
-		// TypeScript won't allow doing a value.toString() if value can be null, not sure what to do here
+
+		if (tag === BERDataTypes.NULL && (value === null || value === undefined)) {
+			this.writeNull()
+			return
+		}
 		if (value === null || value === undefined) {
+			this.writeNull()
 			return
 		}
 
@@ -230,6 +234,8 @@ function parameterTypetoBERTAG(parameterType: ParameterType): number {
 			return BERDataTypes.INTEGER // TODO: guess
 		case ParameterType.Octets:
 			return BERDataTypes.OCTETSTRING
+		case ParameterType.Null:
+			return BERDataTypes.NULL
 		default:
 			throw new Error(``)
 	}
