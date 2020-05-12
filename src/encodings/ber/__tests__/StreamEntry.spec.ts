@@ -3,6 +3,8 @@ import { StreamEntry } from '../../../model/StreamEntry'
 import { encodeStreamEntry } from '../encoder/StreamEntry'
 import { decodeStreamEntry } from '../decoder/StreamEntry'
 import { ParameterType } from '../../../model/Parameter'
+import { literal } from '../../../types/types'
+import { StreamDescription } from '../../../model/StreamDescription'
 
 describe('encodings/ber/StreamEntry', () => {
 	test('write and read stream entry - integer', () => {
@@ -96,10 +98,10 @@ describe('encodings/ber/StreamEntry', () => {
 	})
 
 	test('write and read stream entry - empty buffer', () => {
-		const se = {
+		const se = literal<StreamEntry>({
 			identifier: 42,
 			value: { type: ParameterType.Octets, value: Buffer.alloc(0) }
-		} as StreamEntry
+		})
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)

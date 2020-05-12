@@ -20,7 +20,8 @@ export {
 	MinMax,
 	StringIntegerCollection,
 	RootType,
-	RelativeOID
+	RelativeOID,
+	literal
 }
 
 type EmberTreeNode<T extends EmberElement> = NumberedTreeNode<T>
@@ -49,3 +50,7 @@ interface EmberTypedValue {
 type MinMax = number | null
 type StringIntegerCollection = Map<string, number>
 type RelativeOID = string
+
+function literal<T>(arg: T): T {
+	return arg
+}

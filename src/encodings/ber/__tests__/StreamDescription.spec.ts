@@ -2,12 +2,13 @@ import * as Ber from '../../../Ber'
 import { StreamDescription, StreamFormat } from '../../../model/StreamDescription'
 import { encodeStreamDescription } from '../encoder/StreamDescription'
 import { decodeStreamDescription } from '../decoder/StreamDescription'
+import { literal } from '../../../types/types'
 
 describe('encodings/ber/StreamDescription', () => {
-	const sd = {
+	const sd = literal<StreamDescription>({
 		format: StreamFormat.Int32BE,
 		offset: 42
-	} as StreamDescription
+	})
 
 	test('write and read stream description', () => {
 		const writer = new Ber.Writer()
