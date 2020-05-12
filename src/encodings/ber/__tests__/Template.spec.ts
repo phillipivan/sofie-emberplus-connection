@@ -1,27 +1,54 @@
 import * as Ber from '../../../Ber'
-import { ParameterType } from '../../../model/Parameter'
-import { ElementType } from '../../../model/EmberElement'
-import { Template } from '../../../model/Template'
-import { encodeTemplate } from '../encoder/Template'
+import { Template, TemplateImpl } from '../../../model/Template'
 import { decodeTemplate } from '../decoder/Template'
+import {
+	NumberedTreeNodeImpl,
+	TreeElement,
+	NumberedTreeNode,
+	QualifiedElement,
+	QualifiedElementImpl
+} from '../../../model/Tree'
+import { EmberNodeImpl } from '../../../model/EmberNode'
+import { encodeNumberedElement } from '../encoder/Tree'
+import { encodeQualifedElement } from '../encoder/Qualified'
 
-describe('encodings/ber/Parameter', () => {
-	const tmpl = {
-		type: ElementType.Template,
-		parameterType: ParameterType.String
-	} as Template
-
-	function roundtripTemplate(tmpl: Template): void {
+describe('encodings/ber/Template', () => {
+	function roundtripTemplate(tmpl: TreeElement<Template>, qualified = false): void {
 		const writer = new Ber.Writer()
-		encodeTemplate(tmpl, writer)
+		if (!qualified) encodeNumberedElement(tmpl as NumberedTreeNode<Template>, writer)
+		else encodeQualifedElement(tmpl as QualifiedElement<Template>, writer)
 		console.log(writer.buffer)
+		expect(writer.buffer.length).toBeGreaterThan(0)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeTemplate(reader)
+		const decoded = decodeTemplate(reader, qualified)
 
 		expect(decoded).toEqual(tmpl)
 	}
 
-	test('write and read a parameter', () => {
-		roundtripTemplate(tmpl)
+	function runRoundtripTests(qualified: boolean) {
+		test('description', () => {
+			const template: Template = new TemplateImpl(undefined, 'Description')
+			const node: TreeElement<Template> = qualified
+				? new QualifiedElementImpl('1.2.3', template)
+				: new NumberedTreeNodeImpl(0, template)
+			roundtripTemplate(node, qualified)
+		})
+
+		test('element', () => {
+			const template: Template = new TemplateImpl(
+				new NumberedTreeNodeImpl(0, new EmberNodeImpl('TestNode'))
+			)
+			const node: TreeElement<Template> = qualified
+				? new QualifiedElementImpl('1.2.3', template)
+				: new NumberedTreeNodeImpl(0, template)
+			roundtripTemplate(node, qualified)
+		})
+	}
+
+	describe('roundtrip numbered template', () => {
+		runRoundtripTests(false)
+	})
+	describe('roundtrip qualified template', () => {
+		runRoundtripTests(true)
 	})
 })

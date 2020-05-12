@@ -56,6 +56,12 @@ export function encodeNumberedElement(
 }
 
 export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): void {
+	if (isTemplate(el.contents)) {
+		encodeTemplate(el.contents as Template, writer)
+		writer.endSequence() // end node
+		return
+	}
+
 	// Encode Contents:
 	writer.startSequence(Ber.CONTEXT(1)) // start contents
 	encodeEmberElement(el.contents, writer)
@@ -139,4 +145,8 @@ function isQualified(el: TreeElement<EmberElement>): el is QualifiedElement<Embe
 
 function isMatrix(el: EmberElement): el is Matrix {
 	return el.type === ElementType.Matrix
+}
+
+function isTemplate(el: EmberElement): el is Template {
+	return el.type === ElementType.Template
 }

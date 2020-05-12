@@ -56,6 +56,9 @@ export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberEleme
 
 	if (tag === MatrixBERID || tag === QualifiedMatrixBERID) {
 		return decodeMatrix(reader, isQualified)
+	}
+	if (tag === TemplateBERID || tag === QualifiedTemplateBERID) {
+		return decodeTemplate(reader, isQualified)
 	} else if (tag === CommandBERID) {
 		return new NumberedTreeNodeImpl(0, decodeCommand(reader)) // TODO - hardcoded to 0??
 	}
@@ -98,8 +101,7 @@ export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberEleme
 						contents = decodeParameter(seq)
 						break
 					case ElementType.Template:
-						contents = decodeTemplate(seq)
-						break
+						throw new Error('Template is not a generic element')
 				}
 				break
 			case Ber.CONTEXT(2):
