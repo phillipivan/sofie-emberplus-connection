@@ -4,12 +4,13 @@ import { encodeParameter } from '../encoder/Parameter'
 import { decodeParameter } from '../decoder/Parameter'
 import { ElementType } from '../../../model/EmberElement'
 import { StreamFormat, StreamDescriptionImpl } from '../../../model/StreamDescription'
+import { literal } from '../../../types/types'
 
 describe('encodings/ber/Parameter', () => {
-	const prm = {
+	const prm = literal<Parameter>({
 		type: ElementType.Parameter,
 		parameterType: ParameterType.String
-	} as Parameter
+	})
 
 	function roundtripParameter(prm: Parameter): void {
 		const writer = new Ber.Writer()

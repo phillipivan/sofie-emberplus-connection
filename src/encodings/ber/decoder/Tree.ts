@@ -22,31 +22,54 @@ import {
 	MatrixBERID,
 	ParameterBERID,
 	TemplateBERID,
-	RootElementsBERID
+	RootElementsBERID,
+	ElementCollectionBERID
 } from '../constants'
 import { decodeMatrix } from './Matrix'
 import { decodeCommand } from './Command'
 import { RootElement } from '../../../types/types'
+import {
+	DecodeResult,
+	DecodeOptions,
+	defaultDecode,
+	makeResult,
+	unknownContext,
+	safeSet,
+	appendErrors
+} from './DecodeResult'
+import { Command } from '../../../model/Command'
 
-export function decodeChildren(reader: Ber.Reader): Array<NumberedTreeNode<EmberElement>> {
-	const ber = reader.getSequence(Ber.APPLICATION(4))
-	const children: Array<NumberedTreeNode<EmberElement>> = []
+export function decodeChildren(
+	reader: Ber.Reader,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<Array<NumberedTreeNode<EmberElement>>> {
+	const ber = reader.getSequence(ElementCollectionBERID)
+	const kids = makeResult<Array<NumberedTreeNode<EmberElement>>>(
+		[] as Array<NumberedTreeNode<EmberElement>>
+	)
 
 	while (ber.remain > 0) {
 		const tag = ber.peek()
 
 		if (tag !== Ber.CONTEXT(0)) {
-			throw new Error(``)
+			unknownContext(kids, 'decode children', tag, options)
+			continue
 		}
 		const seq = ber.getSequence(tag)
-
-		children.push(decodeGenericElement(seq) as NumberedTreeNode<EmberElement>)
+		const kidEl = decodeGenericElement(seq, options) as DecodeResult<NumberedTreeNode<EmberElement>>
+		safeSet(kidEl, kids, (x, y) => {
+			y.push(x)
+			return y
+		})
 	}
 
-	return children
+	return kids
 }
 
-export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberElement> {
+export function decodeGenericElement(
+	reader: Ber.Reader,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<TreeElement<EmberElement>> {
 	const tag = reader.peek()
 
 	if (tag === null) throw new Error(``)
@@ -60,7 +83,11 @@ export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberEleme
 	if (tag === TemplateBERID || tag === QualifiedTemplateBERID) {
 		return decodeTemplate(reader, isQualified)
 	} else if (tag === CommandBERID) {
-		return new NumberedTreeNodeImpl(0, decodeCommand(reader)) // TODO - hardcoded to 0??
+		const commandResult: DecodeResult<Command> = decodeCommand(reader, options)
+		return makeResult(
+			new NumberedTreeNodeImpl(commandResult.value.number, commandResult.value),
+			commandResult.errors
+		)
 	}
 
 	const ber = reader.getSequence(tag)
@@ -68,11 +95,13 @@ export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberEleme
 	let number: number | null = null
 	let contents: EmberElement | null = null
 	let children: Array<NumberedTreeNode<EmberElement>> | undefined
+	const errors: Array<Error> = []
 
 	while (ber.remain > 0) {
 		const tag = ber.peek()
 		if (tag === null) {
-			throw new Error(``)
+			unknownContext(errors, 'decode generic element', tag, options)
+			continue
 		}
 		const seq = ber.getSequence(tag)
 
@@ -90,22 +119,28 @@ export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberEleme
 					case ElementType.Command:
 						throw new Error('Command is not a generic element')
 					case ElementType.Function:
-						contents = decodeFunctionContent(seq)
+						contents = appendErrors(decodeFunctionContent(seq, options), errors)
 						break
 					case ElementType.Matrix:
 						throw new Error('Matrix is not a generic element')
 					case ElementType.Node:
-						contents = decodeNode(seq)
+						contents = appendErrors(decodeNode(seq, options), errors)
 						break
 					case ElementType.Parameter:
-						contents = decodeParameter(seq)
+						contents = appendErrors(decodeParameter(seq, options), errors)
 						break
 					case ElementType.Template:
 						throw new Error('Template is not a generic element')
+					default:
+						throw new Error('Unknown element type')
 				}
 				break
 			case Ber.CONTEXT(2):
-				children = decodeChildren(seq)
+				children = appendErrors(decodeChildren(seq, options), errors)
+				break
+			default:
+				unknownContext(errors, 'decode generic element', tag, options)
+				break
 		}
 	}
 
@@ -128,20 +163,28 @@ export function decodeGenericElement(reader: Ber.Reader): TreeElement<EmberEleme
 		}
 	}
 
-	return el
+	return makeResult<TreeElement<EmberElement>>(el, errors)
 }
 
-export function decodeRootElements(reader: Ber.Reader): Array<RootElement> {
+export function decodeRootElements(
+	reader: Ber.Reader,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<Array<RootElement>> {
 	const seq = reader.getSequence(RootElementsBERID)
-	const rootEls: Array<RootElement> = []
+	const rootEls = makeResult<Array<RootElement>>([])
 	while (seq.remain > 0) {
 		const tag = seq.peek()
 		if (tag !== Ber.CONTEXT(0)) {
-			throw new Error(``)
+			unknownContext(rootEls, 'decode root elements', tag, options)
 		}
 		const data = seq.getSequence(Ber.CONTEXT(0))
-		const rootEl = decodeGenericElement(data) as RootElement
-		rootEls.push(rootEl)
+		const rootEl = decodeGenericElement(data, options) as DecodeResult<
+			NumberedTreeNode<EmberElement>
+		>
+		safeSet(rootEl, rootEls, (x, y) => {
+			y.push(x)
+			return y
+		})
 	}
 	return rootEls
 }

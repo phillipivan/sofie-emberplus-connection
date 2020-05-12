@@ -8,16 +8,23 @@ import { encodeStreamEntry } from './encoder/StreamEntry'
 import { decodeInvocationResult } from './decoder/InvocationResult'
 import { decodeRootElements } from './decoder/Tree'
 import { decodeStreamEntries } from './decoder/StreamEntry'
+import { DecodeResult, DecodeOptions, defaultDecode } from './decoder/DecodeResult'
+import {
+	RootBERID,
+	RootElementsBERID,
+	StreamEntriesBERID,
+	InvocationResultBERID
+} from './constants'
 
 export { berEncode, berDecode }
 
 function berEncode(el: Root, rootType: RootType): Buffer {
 	const writer = new Ber.Writer()
-	writer.startSequence(Ber.APPLICATION(0)) // Start ROOT
+	writer.startSequence(RootBERID) // Start ROOT
 
 	switch (rootType) {
 		case RootType.Elements:
-			writer.startSequence(Ber.APPLICATION(11)) // Start RootElementCollection
+			writer.startSequence(RootElementsBERID) // Start RootElementCollection
 			for (const rootEl of el as RootElement[]) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeRootElement(rootEl, writer)
@@ -26,7 +33,7 @@ function berEncode(el: Root, rootType: RootType): Buffer {
 			writer.endSequence() // End RootElementCollection
 			break
 		case RootType.Streams:
-			writer.startSequence(Ber.APPLICATION(6)) // Start StreamCollection
+			writer.startSequence(StreamEntriesBERID) // Start StreamCollection
 			for (const entry of el as StreamEntry[]) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeStreamEntry(entry, writer)
@@ -43,27 +50,28 @@ function berEncode(el: Root, rootType: RootType): Buffer {
 	return writer.buffer
 }
 
-function berDecode(b: Buffer): Root {
+function berDecode(b: Buffer, options: DecodeOptions = defaultDecode): DecodeResult<Root> {
 	const reader = new Ber.Reader(b)
 
 	const tag = reader.peek()
 
-	if (tag !== Ber.APPLICATION(0)) throw new Error('Buffer does not contain a root') // TODO - may be continuation from previous msg
+	// TODO deal with top-level errors
+	if (tag !== RootBERID) throw new Error('Buffer does not contain a root') // TODO - may be continuation from previous msg
 
 	const rootSeq = reader.getSequence(tag)
 	const rootSeqType = rootSeq.peek()
 
-	if (rootSeqType === Ber.APPLICATION(11)) {
+	if (rootSeqType === RootElementsBERID) {
 		// RootElementCollection
-		const root: Array<RootElement> = decodeRootElements(rootSeq)
+		const root: DecodeResult<Array<RootElement>> = decodeRootElements(rootSeq, options)
 		return root
-	} else if (rootSeqType === Ber.APPLICATION(6)) {
+	} else if (rootSeqType === StreamEntriesBERID) {
 		// StreamCollection
-		const root: Array<StreamEntry> = decodeStreamEntries(rootSeq)
+		const root: DecodeResult<Array<StreamEntry>> = decodeStreamEntries(rootSeq, options)
 		return root
-	} else if (rootSeqType === Ber.APPLICATION(23)) {
+	} else if (rootSeqType === InvocationResultBERID) {
 		// InvocationResult
-		const root: InvocationResult = decodeInvocationResult(rootSeq)
+		const root: DecodeResult<InvocationResult> = decodeInvocationResult(rootSeq, options)
 		return root
 	}
 

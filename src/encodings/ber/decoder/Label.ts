@@ -1,17 +1,30 @@
 import * as Ber from '../../../Ber'
 import { Label, LabelImpl } from '../../../model/Label'
 import { LabelBERID } from '../constants'
+import {
+	DecodeOptions,
+	defaultDecode,
+	DecodeResult,
+	unknownContext,
+	check,
+	makeResult
+} from './DecodeResult'
 
 export { decodeLabel }
 
-function decodeLabel(reader: Ber.Reader): Label {
+function decodeLabel(
+	reader: Ber.Reader,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<Label> {
 	const ber = reader.getSequence(LabelBERID)
 	let basePath: string | null = null
 	let description: string | null = null
+	const errors: Array<Error> = []
 	while (ber.remain > 0) {
 		const tag = ber.peek()
 		if (tag === null) {
-			throw new Error(``)
+			unknownContext(errors, 'decode label', tag, options)
+			continue
 		}
 		const seq = ber.getSequence(tag)
 		switch (tag) {
@@ -22,15 +35,12 @@ function decodeLabel(reader: Ber.Reader): Label {
 				description = seq.readString(Ber.BERDataTypes.STRING)
 				break
 			default:
-				throw new Error(``)
+				unknownContext(errors, 'decode label', tag, options)
+				break
 		}
 	}
-	if (basePath === null) {
-		throw new Error(``)
-	}
-	if (description === null) {
-		throw new Error(``)
-	}
+	basePath = check(basePath, 'decode label', 'basePath', '', errors, options)
+	description = check(description, 'decode label', 'description', '', errors, options)
 
-	return new LabelImpl(basePath, description)
+	return makeResult(new LabelImpl(basePath, description), errors)
 }

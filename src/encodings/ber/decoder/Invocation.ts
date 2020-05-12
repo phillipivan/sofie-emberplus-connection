@@ -2,18 +2,30 @@ import * as Ber from '../../../Ber'
 import { Invocation, InvocationImpl } from '../../../model/Invocation'
 import { EmberTypedValue } from '../../../types/types'
 import { InvocationBERID } from '../constants'
+import {
+	DecodeOptions,
+	defaultDecode,
+	DecodeResult,
+	unknownContext,
+	makeResult
+} from './DecodeResult'
 
 export { decodeInvocation }
 
-function decodeInvocation(reader: Ber.Reader): Invocation {
+function decodeInvocation(
+	reader: Ber.Reader,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<Invocation> {
 	const ber = reader.getSequence(InvocationBERID)
 	let id: number | undefined = undefined
 	const args: Array<EmberTypedValue> = []
 	let argSeq: Ber.Reader
+	const errors: Array<Error> = []
 	while (ber.remain > 0) {
 		const tag = ber.peek()
 		if (tag === null) {
-			throw new Error(``)
+			unknownContext(errors, 'decode invocation', tag, options)
+			continue
 		}
 		const seq = ber.getSequence(tag)
 		switch (tag) {
@@ -29,8 +41,9 @@ function decodeInvocation(reader: Ber.Reader): Invocation {
 				}
 				break
 			default:
-				throw new Error(`Decode invocation: Unknown invocation property `)
+				unknownContext(errors, 'decode invocation', tag, options)
+				break
 		}
 	}
-	return new InvocationImpl(id, args)
+	return makeResult(new InvocationImpl(id, args), errors)
 }
