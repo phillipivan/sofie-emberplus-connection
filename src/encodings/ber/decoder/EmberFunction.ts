@@ -1,6 +1,6 @@
 import * as Ber from '../../../Ber'
 // import { EmberFunction, EmberFunctionImpl } from '../../../model/EmberFunction'
-import { EmberFunction } from '../../../model/EmberFunction'
+import { EmberFunction, EmberFunctionImpl } from '../../../model/EmberFunction'
 import { decodeFunctionArgument } from './FunctionArgument'
 // import { EmberTreeNode } from '../../../types/types'
 // import { EmberElement } from '../../../model/EmberElement'
@@ -106,5 +106,5 @@ function decodeFunctionContent(reader: Ber.Reader): EmberFunction {
 		}
 	}
 
-	return f
+	return new EmberFunctionImpl(f.identifier, f.description, f.args, f.result, f.templateReference)
 }
