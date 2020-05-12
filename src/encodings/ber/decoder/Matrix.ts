@@ -11,13 +11,13 @@ import { EmberElement } from '../../../model/EmberElement'
 import { decodeChildren } from './Tree'
 import { decodeConnection } from './Connection'
 import { decodeLabel } from './Label'
-import { MatrixBERID } from '../constants'
+import { MatrixBERID, QualifiedMatrixBERID } from '../constants'
 import { QualifiedElementImpl, NumberedTreeNodeImpl, TreeElement } from '../../../model/Tree'
 
 export { decodeMatrix }
 
 function decodeMatrix(reader: Ber.Reader, isQualified = false): TreeElement<Matrix> {
-	const ber = reader.getSequence(MatrixBERID)
+	const ber = reader.getSequence(isQualified ? QualifiedMatrixBERID : MatrixBERID)
 	let number: number | null = null
 	let path: RelativeOID | null = null
 	let targets: Array<number> | undefined = undefined
