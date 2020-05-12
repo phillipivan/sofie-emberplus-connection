@@ -4,14 +4,13 @@ import { encodeStreamEntry } from '../encoder/StreamEntry'
 import { decodeStreamEntry } from '../decoder/StreamEntry'
 import { ParameterType } from '../../../model/Parameter'
 import { literal } from '../../../types/types'
-import { StreamDescription } from '../../../model/StreamDescription'
 
 describe('encodings/ber/StreamEntry', () => {
 	test('write and read stream entry - integer', () => {
-		const se = {
+		const se = literal<StreamEntry>({
 			identifier: 42,
 			value: { type: ParameterType.Integer, value: 42 }
-		} as StreamEntry
+		})
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
@@ -23,10 +22,10 @@ describe('encodings/ber/StreamEntry', () => {
 	})
 
 	test('write and read stream entry - real', () => {
-		const se = {
+		const se = literal<StreamEntry>({
 			identifier: 43,
 			value: { type: ParameterType.Real, value: 42.3 }
-		} as StreamEntry
+		})
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
@@ -38,10 +37,10 @@ describe('encodings/ber/StreamEntry', () => {
 	})
 
 	test('write and read stream entry - string', () => {
-		const se = {
+		const se = literal<StreamEntry>({
 			identifier: 42,
 			value: { type: ParameterType.String, value: 'roundtrip stream entry' }
-		} as StreamEntry
+		})
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
@@ -53,10 +52,10 @@ describe('encodings/ber/StreamEntry', () => {
 	})
 
 	test('write and read stream entry - false', () => {
-		const se = {
+		const se = literal<StreamEntry>({
 			identifier: 42,
 			value: { type: ParameterType.Boolean, value: false }
-		} as StreamEntry
+		})
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
@@ -68,10 +67,10 @@ describe('encodings/ber/StreamEntry', () => {
 	})
 
 	test('write and read stream entry - true', () => {
-		const se = {
+		const se = literal<StreamEntry>({
 			identifier: 42,
 			value: { type: ParameterType.Boolean, value: true }
-		} as StreamEntry
+		})
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
@@ -83,10 +82,10 @@ describe('encodings/ber/StreamEntry', () => {
 	})
 
 	test('write and read stream entry - octets', () => {
-		const se = {
+		const se = literal<StreamEntry>({
 			identifier: 42,
 			value: { type: ParameterType.Octets, value: Buffer.from('roundtrip a buffer') }
-		} as StreamEntry
+		})
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
@@ -113,10 +112,10 @@ describe('encodings/ber/StreamEntry', () => {
 	})
 
 	test('write and read stream entry - null', () => {
-		const se = {
+		const se = literal<StreamEntry>({
 			identifier: 42,
 			value: { type: ParameterType.Null, value: null }
-		} as StreamEntry
+		})
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)

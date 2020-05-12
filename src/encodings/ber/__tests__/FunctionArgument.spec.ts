@@ -3,12 +3,13 @@ import { FunctionArgument } from '../../../model/FunctionArgument'
 import { encodeFunctionArgument } from '../encoder/FunctionArgument'
 import { decodeFunctionArgument } from '../decoder/FunctionArgument'
 import { ParameterType } from '../../../model/Parameter'
+import { literal } from '../../../types/types'
 
 describe('encoders/ber/FunctionArgument', () => {
-	const fa = {
+	const fa = literal<FunctionArgument>({
 		type: ParameterType.String,
 		name: 'fred'
-	} as FunctionArgument
+	})
 
 	test('write and read function argument', () => {
 		const writer = new Ber.Writer()
@@ -21,9 +22,9 @@ describe('encoders/ber/FunctionArgument', () => {
 	})
 
 	test('write and read function argument', () => {
-		const noName = {
+		const noName = literal<FunctionArgument>({
 			type: ParameterType.Boolean
-		} as FunctionArgument
+		})
 		const writer = new Ber.Writer()
 		encodeFunctionArgument(noName, writer)
 		console.log(writer.buffer)

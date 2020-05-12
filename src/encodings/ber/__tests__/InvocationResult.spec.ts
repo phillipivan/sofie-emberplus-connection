@@ -3,21 +3,22 @@ import { InvocationResult } from '../../../model/InvocationResult'
 import { encodeInvocationResult } from '../encoder/InvocationResult'
 import { decodeInvocationResult } from '../decoder/InvocationResult'
 import { ParameterType } from '../../../model/Parameter'
+import { literal } from '../../../types/types'
 
 describe('encodings/ber/InvocationResult', () => {
-	const ir = {
+	const ir = literal<InvocationResult>({
 		id: 42,
 		success: true,
 		result: [
 			{ type: ParameterType.String, value: 'fortytwo' },
 			{ type: ParameterType.Real, value: 42.1 }
 		]
-	} as InvocationResult
+	})
 
-	const voidRes = {
+	const voidRes = literal<InvocationResult>({
 		id: 987654,
 		success: true
-	} as InvocationResult
+	})
 
 	test('write and read invocation result', () => {
 		const writer = new Ber.Writer()

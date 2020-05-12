@@ -2,14 +2,15 @@ import * as Ber from '../../../Ber'
 import { Connection, ConnectionOperation, ConnectionDisposition } from '../../../model/Connection'
 import { encodeConnection } from '../encoder/Connection'
 import { decodeConnection } from '../decoder/Connection'
+import { literal } from '../../../types/types'
 
 describe('encodings/ber/Connection', () => {
-	const connection = {
+	const connection = literal<Connection>({
 		target: 42,
 		sources: [89, 98],
 		operation: ConnectionOperation.Connect,
 		disposition: ConnectionDisposition.Tally
-	} as Connection
+	})
 
 	test('write and read a connection', () => {
 		const writer = new Ber.Writer()

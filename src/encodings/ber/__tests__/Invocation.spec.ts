@@ -3,25 +3,26 @@ import { Invocation } from '../../../model/Invocation'
 import { encodeInvocation } from '../encoder/Invocation'
 import { decodeInvocation } from '../decoder/Invocation'
 import { ParameterType } from '../../../model/Parameter'
+import { literal } from '../../../types/types'
 
 describe('encodings/ber/Invocation', () => {
-	const iv = {
+	const iv = literal<Invocation>({
 		id: 45654,
 		args: [
 			{ type: ParameterType.Integer, value: -1 },
 			{ type: ParameterType.Boolean, value: false },
 			{ type: ParameterType.String, value: 'twotyfour' }
 		]
-	} as Invocation
+	})
 
-	const noArgs = {
+	const noArgs = literal<Invocation>({
 		id: 234,
 		args: []
-	} as Invocation
+	})
 
-	const noId = {
+	const noId = literal<Invocation>({
 		args: [{ type: ParameterType.Integer, value: 47 }]
-	}
+	})
 
 	test('write and read an invocation - 3 args', () => {
 		const writer = new Ber.Writer()
