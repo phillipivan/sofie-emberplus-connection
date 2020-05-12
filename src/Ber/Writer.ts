@@ -130,7 +130,12 @@ class ExtendedWriter extends Writer {
 		}
 
 		if (Buffer.isBuffer(value) && tag) {
-			this.writeBuffer(value, tag)
+			if (value.length === 0) {
+				this.writeByte(tag)
+				this.writeLength(0)
+			} else {
+				this.writeBuffer(value, tag)
+			}
 			return
 		}
 
@@ -153,7 +158,18 @@ class ExtendedWriter extends Writer {
 					this.writeBoolean(value.value as boolean, BERDataTypes.BOOLEAN)
 					break
 				case ParameterType.Octets:
-					this.writeBuffer(value.value as Buffer, BERDataTypes.OCTETSTRING)
+					if (!Buffer.isBuffer(value.value)) { 
+						value.value = Buffer.from(`${value.value}`)
+					} 
+					if (value.value.length) {
+						this.writeByte(BERDataTypes.OCTETSTRING)
+						this.writeLength(0)
+					} else {
+						this.writeBuffer(value.value, BERDataTypes.OCTETSTRING)
+					}
+					break
+				case ParameterType.Null:
+					this.writeNull()
 					break
 				default:
 					this.writeString(value.value as string, BERDataTypes.STRING)

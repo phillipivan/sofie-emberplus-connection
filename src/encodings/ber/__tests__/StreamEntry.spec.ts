@@ -110,7 +110,7 @@ describe('encodings/ber/StreamEntry', () => {
 		expect(decoded).toEqual(se)
 	})
 
-	test.only('write and read stream entry - null', () => {
+	test('write and read stream entry - null', () => {
 		const se = {
 			identifier: 42,
 			value: { type: ParameterType.Null, value: null }
