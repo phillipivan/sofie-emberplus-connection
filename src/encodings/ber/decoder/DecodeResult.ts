@@ -54,13 +54,23 @@ interface DecodeResult<T> {
  * Return the decoded result whatever errors are reported.
  * @param decres Result of decoding.
  * @returns Candidate result of decoding, ignoring any errors.
+ * @
  */
 function whatever<T>(decres: DecodeResult<T>): T {
 	return decres.value
 }
 
+/**
+ * Compound error containing details of all problems encountered when
+ * decoding an EmberPlus BER stream.
+ */
 class DecodeError extends Error {
+	/** Details of each error enountered during encoding. */
 	public readonly sub: Array<Error>
+	/**
+	 * Create an error with details of decoding issues.
+	 * @param errors List of decoding sub-errors.
+	 */
 	constructor(errors: Array<Error>) {
 		super(`Decoding failed. Errors are:\n${errors.join('\n')}`)
 		this.sub = errors
@@ -94,7 +104,7 @@ function makeResult<T>(t: T, errors?: Array<Error>): DecodeResult<T> {
 /**
  * Process a decoding problem when a context parameter tag is not recognized.
  * @param decres Decoding result to add the error to (if appropriate).
- * @param context Description of the context.
+ * @param context Description of where the tag is.
  * @param tag Unrecognized tag.
  * @param options Control the processing of the error.
  */
@@ -111,11 +121,20 @@ function unknownContext<T>(
 			errors = []
 		}
 		errors.push(err)
+		if (!Array.isArray(decres)) {
+			decres.errors = errors
+		}
 	} else {
 		throw err
 	}
 }
 
+/**
+ * Safely update a value from another decoding stage, merging errors.
+ * @param result Result of a decoding stage.
+ * @param update Value to be updated.
+ * @param fn Function to use to update a value with the result.
+ */
 function safeSet<S, T>(
 	result: DecodeResult<S>,
 	update: DecodeResult<T>,
@@ -123,12 +142,24 @@ function safeSet<S, T>(
 ): DecodeResult<T> {
 	if (result.errors && result.errors.length > 0) {
 		update.errors = update.errors ? update.errors.concat(result.errors) : result.errors
-	} else {
-		update.value = fn(result.value, update.value)
 	}
+	update.value = fn(result.value, update.value)
 	return update
 }
 
+/**
+ * Check a value and if it is _null_ or _undefined_ then follow the options
+ * to either substitute a replacement truthy value, reporting an issue in the
+ * errors list, or throw an error when `subsituteForRequired` is `false`.
+ * @param value Value that may be somehow not defined.
+ * @param context Description of where the value is.
+ * @param propertyName Name of the property.
+ * @param substitute Substitute value in the event that the value is missing.
+ * @param decres A decoding result with an error list to be extended or a
+ * stand alone error list.
+ * @param options Control the processing of the check.
+ * @returns Value or, if somehow not defined, the substitute.
+ */
 function check<T>(
 	value: T | null | undefined,
 	context: string,
@@ -145,6 +176,9 @@ function check<T>(
 				errors = []
 			}
 			errors.push(new Error(errMsg + `Substituting '${substitute}`))
+			if (!Array.isArray(decres)) {
+				decres.errors = errors
+			}
 			return substitute
 		} else {
 			throw new Error(errMsg)
@@ -153,17 +187,35 @@ function check<T>(
 	return value
 }
 
+/**
+ * Extend an error list using any errors in the given source, returning the
+ * source value.
+ * @param source Decoding result to split apart.
+ * @param decres Decoding result to extend the error list of or a stand alone
+ * error list.
+ * @returns The value embedded in the source.
+ */
 function appendErrors<T, U>(source: DecodeResult<T>, decres: DecodeResult<U> | Array<Error>): T {
 	if (source.errors && source.errors.length > 0) {
 		if (Array.isArray(decres)) {
 			decres.push(...source.errors)
 		} else {
-			decres.errors = decres.errors ? decres.errors.concat() : source.errors
+			decres.errors = decres.errors ? decres.errors.concat(source.errors) : source.errors
 		}
 	}
 	return source.value
 }
 
+/**
+ * Handle an unexpected enumeration value, returning a substitute value or
+ * throwing an errors depending on option `skipUnexpected`.
+ * @param decres Decoding result to add the error to (if appropriate).
+ * @param context Description of where the tag is.
+ * @param message Description of the unexpected value.
+ * @param substitute Value to substitute (if appropriate).
+ * @param options Control the processing of the check.
+ * @returns Decode result with the substitute value and an error.
+ */
 function unexpected<T>(
 	decres: DecodeResult<T> | Array<Error>,
 	context: string,
@@ -178,7 +230,13 @@ function unexpected<T>(
 			errors = []
 		}
 		errors.push(err)
-		return Array.isArray(decres) ? makeResult(substitute, errors) : decres
+		if (Array.isArray(decres)) {
+			return makeResult(substitute, errors)
+		} else {
+			decres.errors = errors
+			decres.value = substitute
+			return decres
+		}
 	} else {
 		throw err
 	}
