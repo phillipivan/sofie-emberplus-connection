@@ -86,6 +86,6 @@ function berDecode(b: Buffer, options: DecodeOptions = defaultDecode): DecodeRes
 		return root
 	}
 
-	unknownApplication(errors, 'decode root', tag, options)
+	unknownApplication(errors, 'decode root', rootSeqType, options)
 	return makeResult([new NumberedTreeNodeImpl(-1, new EmberNodeImpl())], errors)
 }

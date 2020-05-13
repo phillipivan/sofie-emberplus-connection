@@ -204,7 +204,7 @@ function check<T>(
 			if (!errors) {
 				errors = []
 			}
-			errors.push(new Error(errMsg + `Substituting '${substitute}`))
+			errors.push(new Error(errMsg + ` Substituting '${substitute}'`))
 			if (!Array.isArray(decres)) {
 				decres.errors = errors
 			}
