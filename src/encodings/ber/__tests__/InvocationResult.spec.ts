@@ -4,6 +4,7 @@ import { encodeInvocationResult } from '../encoder/InvocationResult'
 import { decodeInvocationResult } from '../decoder/InvocationResult'
 import { ParameterType } from '../../../model/Parameter'
 import { literal } from '../../../types/types'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/InvocationResult', () => {
 	const ir = literal<InvocationResult>({
@@ -25,7 +26,7 @@ describe('encodings/ber/InvocationResult', () => {
 		encodeInvocationResult(ir, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeInvocationResult(reader)
+		const decoded = guarded(decodeInvocationResult(reader))
 
 		expect(decoded).toEqual(ir)
 	})
@@ -35,7 +36,7 @@ describe('encodings/ber/InvocationResult', () => {
 		encodeInvocationResult(voidRes, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeInvocationResult(reader)
+		const decoded = guarded(decodeInvocationResult(reader))
 
 		expect(decoded).toEqual(voidRes)
 	})
@@ -46,7 +47,7 @@ describe('encodings/ber/InvocationResult', () => {
 		encodeInvocationResult({ id: voidRes.id, success: true, result: [] }, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeInvocationResult(reader)
+		const decoded = guarded(decodeInvocationResult(reader))
 
 		expect(decoded).toEqual(voidRes)
 	})

@@ -11,6 +11,7 @@ import {
 import { EmberNodeImpl } from '../../../model/EmberNode'
 import { encodeNumberedElement } from '../encoder/Tree'
 import { encodeQualifedElement } from '../encoder/Qualified'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/Template', () => {
 	function roundtripTemplate(tmpl: TreeElement<Template>, qualified = false): void {
@@ -20,7 +21,7 @@ describe('encodings/ber/Template', () => {
 		console.log(writer.buffer)
 		expect(writer.buffer.length).toBeGreaterThan(0)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeTemplate(reader, qualified)
+		const decoded = guarded(decodeTemplate(reader, qualified))
 
 		expect(decoded).toEqual(tmpl)
 	}

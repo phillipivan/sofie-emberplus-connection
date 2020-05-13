@@ -5,6 +5,7 @@ import { decodeParameter } from '../decoder/Parameter'
 import { ElementType } from '../../../model/EmberElement'
 import { StreamFormat, StreamDescriptionImpl } from '../../../model/StreamDescription'
 import { literal } from '../../../types/types'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/Parameter', () => {
 	const prm = literal<Parameter>({
@@ -17,7 +18,7 @@ describe('encodings/ber/Parameter', () => {
 		encodeParameter(prm, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeParameter(reader)
+		const decoded = guarded(decodeParameter(reader))
 
 		expect(decoded).toEqual(prm)
 	}

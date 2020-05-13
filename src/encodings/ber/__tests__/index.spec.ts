@@ -4,11 +4,12 @@ import { Root, RootType } from '../../../types/types'
 import { berEncode, berDecode } from '..'
 import { QualifiedElementImpl, NumberedTreeNodeImpl } from '../../../model/Tree'
 import { EmberNodeImpl } from '../../../model/EmberNode'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encoders/Ber/index', () => {
 	function roundTrip(res: Root, type: RootType): void {
 		const encoded = berEncode(res, type)
-		const decoded = berDecode(encoded)
+		const decoded = guarded(berDecode(encoded))
 
 		expect(decoded).toEqual(res)
 	}

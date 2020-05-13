@@ -4,6 +4,7 @@ import { encodeNode } from '../encoder/EmberNode'
 import { decodeNode } from '../decoder/EmberNode'
 import { ElementType } from '../../../model/EmberElement'
 import { literal } from '../../../types/types'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/EmberNode', () => {
 	const en = literal<EmberNode>({
@@ -21,7 +22,7 @@ describe('encodings/ber/EmberNode', () => {
 		encodeNode(en, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeNode(reader)
+		const decoded = guarded(decodeNode(reader))
 
 		expect(decoded).toEqual(en)
 	})

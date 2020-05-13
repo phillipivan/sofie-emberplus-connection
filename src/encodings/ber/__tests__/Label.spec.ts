@@ -3,6 +3,7 @@ import { Label } from '../../../model/Label'
 import { encodeLabel } from '../encoder/Label'
 import { decodeLabel } from '../decoder/Label'
 import { literal } from '../../../types/types'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/Label', () => {
 	const lbl = literal<Label>({
@@ -15,7 +16,7 @@ describe('encodings/ber/Label', () => {
 		encodeLabel(lbl, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeLabel(reader)
+		const decoded = guarded(decodeLabel(reader))
 
 		expect(decoded).toEqual(lbl)
 	})

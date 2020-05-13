@@ -4,6 +4,7 @@ import { encodeInvocation } from '../encoder/Invocation'
 import { decodeInvocation } from '../decoder/Invocation'
 import { ParameterType } from '../../../model/Parameter'
 import { literal } from '../../../types/types'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/Invocation', () => {
 	const iv = literal<Invocation>({
@@ -29,7 +30,7 @@ describe('encodings/ber/Invocation', () => {
 		encodeInvocation(iv, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeInvocation(reader)
+		const decoded = guarded(decodeInvocation(reader))
 
 		expect(decoded).toEqual(iv)
 	})
@@ -39,7 +40,7 @@ describe('encodings/ber/Invocation', () => {
 		encodeInvocation(noArgs, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeInvocation(reader)
+		const decoded = guarded(decodeInvocation(reader))
 
 		expect(decoded).toEqual(noArgs)
 	})
@@ -49,7 +50,7 @@ describe('encodings/ber/Invocation', () => {
 		encodeInvocation(noId, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeInvocation(reader)
+		const decoded = guarded(decodeInvocation(reader))
 
 		expect(decoded).toEqual(noId)
 	})
