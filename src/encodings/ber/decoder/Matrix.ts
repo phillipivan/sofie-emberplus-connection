@@ -11,7 +11,7 @@ import { EmberElement } from '../../../model/EmberElement'
 import { decodeChildren } from './Tree'
 import { decodeConnection } from './Connection'
 import { decodeLabel } from './Label'
-import { MatrixBERID, TargetBERID, SourceBERID } from '../constants'
+import { MatrixBERID, QualifiedMatrixBERID, TargetBERID, SourceBERID } from '../constants'
 import { QualifiedElementImpl, NumberedTreeNodeImpl, TreeElement } from '../../../model/Tree'
 import {
 	DecodeOptions,
@@ -32,7 +32,7 @@ function decodeMatrix(
 	isQualified = false,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<TreeElement<Matrix>> {
-	const ber = reader.getSequence(MatrixBERID)
+	const ber = reader.getSequence(isQualified ? QualifiedMatrixBERID : MatrixBERID)
 	let number: number | null = null
 	let path: RelativeOID | null = null
 	let targets: Array<number> | undefined = undefined
@@ -209,7 +209,7 @@ function decodeMatrixContents(
 
 function decodeTargets(
 	reader: Ber.Reader,
-	_options: DecodeOptions = defaultDecode
+	_options: DecodeOptions = defaultDecode // eslint-disable-line @typescript-eslint/no-unused-vars
 ): DecodeResult<Array<number>> {
 	const targets: Array<number> = []
 	const ber = reader.getSequence(Ber.BERDataTypes.SEQUENCE)
@@ -224,7 +224,7 @@ function decodeTargets(
 
 function decodeSources(
 	reader: Ber.Reader,
-	_options: DecodeOptions = defaultDecode
+	_options: DecodeOptions = defaultDecode // eslint-disable-line @typescript-eslint/no-unused-vars
 ): DecodeResult<Array<number>> {
 	const sources: Array<number> = []
 	const ber = reader.getSequence(Ber.BERDataTypes.SEQUENCE)

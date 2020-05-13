@@ -26,7 +26,7 @@ describe('encodings/ber/Template', () => {
 		expect(decoded).toEqual(tmpl)
 	}
 
-	function runRoundtripTests(qualified: boolean) {
+	function runRoundtripTests(qualified: boolean): void {
 		test('description', () => {
 			const template: Template = new TemplateImpl(undefined, 'Description')
 			const node: TreeElement<Template> = qualified
