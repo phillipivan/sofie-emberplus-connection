@@ -1,4 +1,5 @@
-const DecodeBuffer = null
+const EmberLib = {
+	DecodeBuffer: null
+}
 
-export default {}
-export { DecodeBuffer }
+export { EmberLib }
