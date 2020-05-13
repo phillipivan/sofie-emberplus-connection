@@ -8,13 +8,21 @@ import { encodeStreamEntry } from './encoder/StreamEntry'
 import { decodeInvocationResult } from './decoder/InvocationResult'
 import { decodeRootElements } from './decoder/Tree'
 import { decodeStreamEntries } from './decoder/StreamEntry'
-import { DecodeResult, DecodeOptions, defaultDecode } from './decoder/DecodeResult'
+import {
+	DecodeResult,
+	DecodeOptions,
+	defaultDecode,
+	unknownApplication,
+	makeResult
+} from './decoder/DecodeResult'
 import {
 	RootBERID,
 	RootElementsBERID,
 	StreamEntriesBERID,
 	InvocationResultBERID
 } from './constants'
+import { NumberedTreeNodeImpl } from '../../model/Tree'
+import { EmberNodeImpl } from '../../model/EmberNode'
 
 export { berEncode, berDecode }
 
@@ -52,11 +60,14 @@ function berEncode(el: Root, rootType: RootType): Buffer {
 
 function berDecode(b: Buffer, options: DecodeOptions = defaultDecode): DecodeResult<Root> {
 	const reader = new Ber.Reader(b)
+	const errors = new Array<Error>()
 
 	const tag = reader.peek()
 
-	// TODO deal with top-level errors
-	if (tag !== RootBERID) throw new Error('Buffer does not contain a root') // TODO - may be continuation from previous msg
+	if (tag !== RootBERID) {
+		unknownApplication(errors, 'decode root', tag, options)
+		return makeResult([new NumberedTreeNodeImpl(-1, new EmberNodeImpl())], errors)
+	}
 
 	const rootSeq = reader.getSequence(tag)
 	const rootSeqType = rootSeq.peek()
@@ -75,5 +86,6 @@ function berDecode(b: Buffer, options: DecodeOptions = defaultDecode): DecodeRes
 		return root
 	}
 
-	throw new Error('No valid root element')
+	unknownApplication(errors, 'decode root', tag, options)
+	return makeResult([new NumberedTreeNodeImpl(-1, new EmberNodeImpl())], errors)
 }

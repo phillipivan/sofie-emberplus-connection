@@ -9,6 +9,7 @@ export {
 	DecodeError,
 	makeResult,
 	unknownContext,
+	unknownApplication,
 	safeSet,
 	guarded,
 	appendErrors,
@@ -114,9 +115,37 @@ function unknownContext<T>(
 	tag: number | null,
 	options: DecodeOptions = defaultDecode
 ): void {
-	const err = new Error(`${context}: Unexpected BER tag '${tag}'`)
+	const err = new Error(`${context}: Unexpected BER context tag '${tag}'`)
 	let errors = Array.isArray(decres) ? decres : decres.errors
 	if (options.skipContextTags) {
+		if (!errors) {
+			errors = []
+		}
+		errors.push(err)
+		if (!Array.isArray(decres)) {
+			decres.errors = errors
+		}
+	} else {
+		throw err
+	}
+}
+
+/**
+ * Process a decoding problem when an application tag is not recognized.
+ * @param decres Decoding result to add the error to (if appropriate).
+ * @param context Description of where the tag is.
+ * @param tag Unrecognized tag.
+ * @param options Control the processing of the error.
+ */
+function unknownApplication<T>(
+	decres: DecodeResult<T> | Array<Error>,
+	context: string,
+	tag: number | null,
+	options: DecodeOptions = defaultDecode
+): void {
+	const err = new Error(`${context}: Unexpected BER application tag '${tag}'`)
+	let errors = Array.isArray(decres) ? decres : decres.errors
+	if (options.skipApplicationTags) {
 		if (!errors) {
 			errors = []
 		}

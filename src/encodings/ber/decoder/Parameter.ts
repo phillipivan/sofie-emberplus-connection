@@ -9,7 +9,8 @@ import {
 	check,
 	makeResult,
 	unexpected,
-	appendErrors
+	appendErrors,
+	unknownContext
 } from './DecodeResult'
 import { EmberValue, StringIntegerCollection, RelativeOID } from '../../../types/types'
 import { StreamDescription } from '../../../model/StreamDescription'
@@ -47,7 +48,8 @@ function decodeParameter(
 	while (ber.remain > 0) {
 		const tag = ber.peek()
 		if (tag === null) {
-			throw new Error(``)
+			unknownContext(errors, 'decode parameter', tag, options)
+			continue
 		}
 		const seq = ber.getSequence(tag)
 		switch (tag) {
@@ -109,7 +111,8 @@ function decodeParameter(
 				templateReference = seq.readString(Ber.BERDataTypes.STRING)
 				break
 			default:
-				throw new Error(``)
+				unknownContext(errors, 'decode parameter', tag, options)
+				break
 		}
 	}
 	parameterType = check(

@@ -35,9 +35,13 @@ import {
 	makeResult,
 	unknownContext,
 	safeSet,
-	appendErrors
+	appendErrors,
+	unknownApplication,
+	check,
+	unexpected
 } from './DecodeResult'
 import { Command } from '../../../model/Command'
+import { EmberNodeImpl } from '../../../model/EmberNode'
 
 export function decodeChildren(
 	reader: Ber.Reader,
@@ -71,11 +75,14 @@ export function decodeGenericElement(
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<TreeElement<EmberElement>> {
 	const tag = reader.peek()
+	const errors = new Array<Error>()
 
-	if (tag === null) throw new Error(``)
-
+	if (tag === null) {
+		unknownApplication(errors, 'decode generic element', tag, options)
+		return makeResult(new NumberedTreeNodeImpl(-1, new EmberNodeImpl()), errors)
+	}
 	const isQualified = isTagQualified(tag)
-	const type = tagToElType(tag)
+	const type = appendErrors(tagToElType(tag, options), errors)
 
 	if (tag === MatrixBERID || tag === QualifiedMatrixBERID) {
 		return decodeMatrix(reader, isQualified)
@@ -95,7 +102,6 @@ export function decodeGenericElement(
 	let number: number | null = null
 	let contents: EmberElement | null = null
 	let children: Array<NumberedTreeNode<EmberElement>> | undefined
-	const errors: Array<Error> = []
 
 	while (ber.remain > 0) {
 		const tag = ber.peek()
@@ -117,12 +123,26 @@ export function decodeGenericElement(
 				// parse contents
 				switch (type) {
 					case ElementType.Command:
-						throw new Error('Command is not a generic element')
+						unknownApplication(
+							errors,
+							'decode generic element: command is not generic',
+							tag,
+							options
+						)
+						contents = new EmberNodeImpl()
+						break
 					case ElementType.Function:
 						contents = appendErrors(decodeFunctionContent(seq, options), errors)
 						break
 					case ElementType.Matrix:
-						throw new Error('Matrix is not a generic element')
+						unknownApplication(
+							errors,
+							'decode generic element: matrix is not generic',
+							tag,
+							options
+						)
+						contents = new EmberNodeImpl()
+						break
 					case ElementType.Node:
 						contents = appendErrors(decodeNode(seq, options), errors)
 						break
@@ -130,9 +150,18 @@ export function decodeGenericElement(
 						contents = appendErrors(decodeParameter(seq, options), errors)
 						break
 					case ElementType.Template:
-						throw new Error('Template is not a generic element')
+						unknownApplication(
+							errors,
+							'decode generic element: template is not generic',
+							tag,
+							options
+						)
+						contents = new EmberNodeImpl()
+						break
 					default:
-						throw new Error('Unknown element type')
+						unknownApplication(errors, 'decode generic element', tag, options)
+						contents = new EmberNodeImpl()
+						break
 				}
 				break
 			case Ber.CONTEXT(2):
@@ -145,15 +174,19 @@ export function decodeGenericElement(
 	}
 
 	let el: TreeElement<EmberElement>
+	contents = check(
+		contents,
+		'decode generic element',
+		'contents',
+		new EmberNodeImpl(),
+		errors,
+		options
+	)
 	if (isQualified) {
-		if (path === null) throw new Error('')
-		if (contents === null) throw new Error('')
-
+		path = check(path, 'decode generic element', 'path', '', errors, options)
 		el = new QualifiedElementImpl(path, contents, children)
 	} else {
-		if (number === null) throw new Error('')
-		if (contents === null) throw new Error('')
-
+		number = check(number, 'decode generic element', 'number', -1, errors, options)
 		el = new NumberedTreeNodeImpl(number, contents, children)
 	}
 
@@ -201,7 +234,10 @@ function isTagQualified(tag: number): boolean {
 	return qualifiedTags.has(tag)
 }
 
-function tagToElType(tag: number): ElementType {
+function tagToElType(
+	tag: number,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<ElementType> {
 	const tags = {
 		[CommandBERID]: ElementType.Command,
 		[FunctionBERID]: ElementType.Function,
@@ -216,7 +252,15 @@ function tagToElType(tag: number): ElementType {
 		[QualifiedFunctionBERID]: ElementType.Function
 	}
 
-	if (!tags[tag]) throw new Error('')
+	if (!tags[tag]) {
+		return unexpected(
+			[],
+			'tag to element type',
+			`Unexpected element type tag '${tag}'`,
+			ElementType.Node,
+			options
+		)
+	}
 
-	return tags[tag]
+	return makeResult(tags[tag])
 }

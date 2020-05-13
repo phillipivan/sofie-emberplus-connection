@@ -10,7 +10,8 @@ import {
 	check,
 	appendErrors,
 	unexpected,
-	DecodeOptions
+	DecodeOptions,
+	unknownApplication
 } from '../decoder/DecodeResult'
 
 describe('encodings/ver/DecodeResult - default settings', () => {
@@ -47,7 +48,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 		const updateMe = Object.assign({}, goodResult)
 		unknownContext(updateMe, 'decode wibbly wobble', 42, defaultDecode)
 		expect(updateMe.errors).toHaveLength(1)
-		expect(updateMe.errors?.toString()).toMatch(/Unexpected BER tag '42'/)
+		expect(updateMe.errors?.toString()).toMatch(/Unexpected BER context tag '42'/)
 		expect(updateMe.value).toBe(42)
 	})
 
@@ -55,7 +56,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 		const updateMe = Object.assign({}, goodResult)
 		unknownContext(updateMe, 'decode wibbly wobble', null, defaultDecode)
 		expect(updateMe.errors).toHaveLength(1)
-		expect(updateMe.errors?.toString()).toMatch(/Unexpected BER tag 'null'/)
+		expect(updateMe.errors?.toString()).toMatch(/Unexpected BER context tag 'null'/)
 		expect(updateMe.value).toBe(42)
 	})
 
@@ -63,14 +64,44 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 		const updateMe = new Array<Error>()
 		unknownContext(updateMe, 'decode wibbly wobble', 42, defaultDecode)
 		expect(updateMe).toHaveLength(1)
-		expect(updateMe.toString()).toMatch(/Unexpected BER tag '42'/)
+		expect(updateMe.toString()).toMatch(/Unexpected BER context tag '42'/)
 	})
 
 	test('unknownContext - error array, null tag', () => {
 		const updateMe = new Array<Error>()
 		unknownContext(updateMe, 'decode wibbly wobble', null, defaultDecode)
 		expect(updateMe).toHaveLength(1)
-		expect(updateMe.toString()).toMatch(/Unexpected BER tag 'null'/)
+		expect(updateMe.toString()).toMatch(/Unexpected BER context tag 'null'/)
+	})
+
+	test('unknownApplication - decode result, number tag', () => {
+		const updateMe = Object.assign({}, goodResult)
+		unknownApplication(updateMe, 'decode wibbly wobble', 42, defaultDecode)
+		expect(updateMe.errors).toHaveLength(1)
+		expect(updateMe.errors?.toString()).toMatch(/Unexpected BER application tag '42'/)
+		expect(updateMe.value).toBe(42)
+	})
+
+	test('unknownApplication - decode result, null tag', () => {
+		const updateMe = Object.assign({}, goodResult)
+		unknownApplication(updateMe, 'decode wibbly wobble', null, defaultDecode)
+		expect(updateMe.errors).toHaveLength(1)
+		expect(updateMe.errors?.toString()).toMatch(/Unexpected BER application tag 'null'/)
+		expect(updateMe.value).toBe(42)
+	})
+
+	test('unknownApplication - error array, number tag', () => {
+		const updateMe = new Array<Error>()
+		unknownApplication(updateMe, 'decode wibbly wobble', 42, defaultDecode)
+		expect(updateMe).toHaveLength(1)
+		expect(updateMe.toString()).toMatch(/Unexpected BER application tag '42'/)
+	})
+
+	test('unknownApplication - error array, null tag', () => {
+		const updateMe = new Array<Error>()
+		unknownApplication(updateMe, 'decode wibbly wobble', null, defaultDecode)
+		expect(updateMe).toHaveLength(1)
+		expect(updateMe.toString()).toMatch(/Unexpected BER application tag 'null'/)
 	})
 
 	test('safeSet - no error', () => {
@@ -269,6 +300,30 @@ describe('encodings/ver/DecodeResult - expect to throw', () => {
 	test('unknownContext - error array, null tag', () => {
 		const updateMe = new Array<Error>()
 		expect(() => unknownContext(updateMe, 'decode wibbly wobble', null, triggerThrow)).toThrow()
+		expect(updateMe).toHaveLength(0)
+	})
+
+	test('unknownApplication - decode result, number tag', () => {
+		const updateMe = Object.assign({}, goodResult)
+		expect(() => unknownApplication(updateMe, 'decode wibbly wobble', 42, triggerThrow)).toThrow()
+		expect(updateMe.errors).toBeUndefined()
+	})
+
+	test('unknownApplication - decode result, null tag', () => {
+		const updateMe = Object.assign({}, goodResult)
+		expect(() => unknownApplication(updateMe, 'decode wibbly wobble', null, triggerThrow)).toThrow()
+		expect(updateMe.errors).toBeUndefined()
+	})
+
+	test('unknownApplication - error array, number tag', () => {
+		const updateMe = new Array<Error>()
+		expect(() => unknownApplication(updateMe, 'decode wibbly wobble', 42, triggerThrow)).toThrow()
+		expect(updateMe).toHaveLength(0)
+	})
+
+	test('unknownApplication - error array, null tag', () => {
+		const updateMe = new Array<Error>()
+		expect(() => unknownApplication(updateMe, 'decode wibbly wobble', null, triggerThrow)).toThrow()
 		expect(updateMe).toHaveLength(0)
 	})
 
