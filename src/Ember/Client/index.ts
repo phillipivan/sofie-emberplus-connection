@@ -1,25 +1,35 @@
-import { EmberTreeNode, EmberValue, RootElement } from '../../types/types'
-import { Function } from '../../model/Function'
-import { Invocation } from '../../model/Invocation'
+import {
+	EmberValue,
+	RootElement,
+	QualifiedElement,
+	TreeElement,
+	NumberedTreeNode,
+	EmberTypedValue,
+	EmberTreeNode,
+	RootType,
+	QualifiedElements
+} from '../../types/types'
 import { InvocationResult } from '../../model/InvocationResult'
 import { Matrix } from '../../model/Matrix'
-import { Qualified } from '../../model/Qualified'
 import { EmberElement } from '../../model/EmberElement'
-import { Command } from '../../model/Command'
+import { Command, GetDirectoryImpl, SubscribeImpl, UnsubscribeImpl } from '../../model/Command'
 import { GetDirectory, CommandType, FieldFlags } from '../../model/Command'
 import { ElementType } from '../../model/EmberElement'
 import { Subscribe } from '../../model/Command'
 import { Unsubscribe } from '../../model/Command'
 import { Invoke } from '../../model/Command'
 import { Parameter } from '../../model/Parameter'
-import { Tree } from '../../model/Tree'
 import { Connection, ConnectionDisposition } from '../../model/Connection'
 import { ConnectionOperation } from '../../model/Connection'
 import { Root } from '../../types/types'
-import { Node } from '../../model/Node'
+import { EmberNode } from '../../model/EmberNode'
 
 import { EventEmitter } from 'events'
 import { S101Client } from '../Socket'
+import { getPath, assertQualifiedEmberNode, insertCommand, updateProps } from '../Lib/util'
+import { berEncode } from '../..'
+import { NumberedTreeNodeImpl } from '../../model/Tree'
+import { EmberFunction } from '../../model/EmberFunction'
 
 export type RequestPromise<T> = Promise<RequestPromiseArguments<T>>
 export interface RequestPromiseArguments<T> {
@@ -31,19 +41,20 @@ export interface RequestPromiseArguments<T> {
 
 export interface IRequest {
 	reqId: string
-	node: Qualified<EmberElement>
+	node: RootElement
 	resolve: (res: any) => void
 	reject: (err: Error) => void
+	cb?: (EmberNode: TreeElement<EmberElement>) => void
 }
 
 export interface ISubscription {
 	path: string
-	cb: (node: EmberTreeNode) => void
+	cb: (EmberNode: TreeElement<EmberElement>) => void
 }
 
 export interface IChange {
 	path: string
-	node: EmberTreeNode
+	node: NumberedTreeNode<EmberElement>
 }
 
 export enum ConnectionStatus {
@@ -53,69 +64,13 @@ export enum ConnectionStatus {
 	Connected
 }
 
-export interface IEmberClient {
-	tree: EmberTreeNode
-	isConnected: boolean
-	requests: Map<string, IRequest>
-
-	constructor: (host: string, port: number) => void
-
-	connect: (host?: string, port?: number) => Promise<void>
-	disconnect: () => Promise<void>
-
-	/**
-	 * Ember+ native commands:
-	 */
-	getDirectory: (node: RootElement) => RequestPromise<RootElement>
-	subscribe: (node: EmberTreeNode, cb?: (node: EmberTreeNode) => void) => RequestPromise<void>
-	unsubscribe: (node: EmberTreeNode) => RequestPromise<void>
-	invokeFunction: (func: Function, args: Invocation['args']) => RequestPromise<InvocationResult>
-
-	/**
-	 * Send parts of tree to provider for setting stuff:
-	 */
-	setValue: (node: Tree<Parameter>, value: EmberValue) => RequestPromise<Tree<Parameter>>
-	matrixConnect: (
-		matrix: Tree<Matrix>,
-		targetId: number,
-		sources: Array<number>
-	) => RequestPromise<Tree<Matrix>>
-	matrixDisconnect: (
-		matrix: Tree<Matrix>,
-		targetId: number,
-		sources: Array<number>
-	) => RequestPromise<Tree<Matrix>>
-	matrixSetConnection: (
-		matrix: Tree<Matrix>,
-		targetId: number,
-		sources: Array<number>
-	) => RequestPromise<Tree<Matrix>>
-
-	/**
-	 * Helpful functions for the tree:
-	 */
-	expand: (node: EmberTreeNode) => RequestPromise<EmberTreeNode> // TODO - is this the correct input / output?
-	/**
-	 * Attempts find an element in the tree. Optional callback to be called
-	 * everytime there is an update for this node
-	 *
-	 * TODO - should this attempt to find the node locally first and do
-	 * getDirectory for missing nodes or just send a qualified node with a
-	 * getDirectory?
-	 */
-	getElementByPath: (
-		path: string,
-		cb?: (node: EmberTreeNode) => void
-	) => RequestPromise<EmberTreeNode>
-}
-
 export class EmberClient extends EventEmitter {
 	host: string
 	port: number
 
 	private _requests = new Map<string, IRequest>()
 	private _lastInvocation = 0
-	private _tree: Array<EmberTreeNode> = [] // TODO - why not public?
+	private _tree: Array<NumberedTreeNode<EmberElement>> = [] // TODO - why not public?
 	private _client: S101Client
 	private _subscriptions: Array<ISubscription> = []
 
@@ -126,6 +81,7 @@ export class EmberClient extends EventEmitter {
 		this.port = port
 
 		this._client = new S101Client(this.host, this.port)
+		this._client.on('emberTree', (tree: Root) => this._handleIncoming(tree))
 	}
 
 	/**
@@ -153,11 +109,21 @@ export class EmberClient extends EventEmitter {
 	}
 
 	/** Ember+ commands: */
-	getDirectory(node: EmberTreeNode, dirFieldMask?: FieldFlags, cb?: (node: EmberTreeNode) => void) {
-		const command: GetDirectory = {
-			type: ElementType.Command,
-			number: CommandType.GetDirectory,
-			dirFieldMask
+	getDirectory(
+		node: RootElement | Array<RootElement>,
+		dirFieldMask?: FieldFlags,
+		cb?: (EmberNode: TreeElement<EmberElement>) => void
+	) {
+		const command: GetDirectory = new GetDirectoryImpl(dirFieldMask)
+
+		if (Array.isArray(node)) {
+			if (cb)
+				this._subscriptions.push({
+					path: '', // TODO
+					cb
+				})
+
+			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command))
 		}
 
 		if (cb)
@@ -168,10 +134,20 @@ export class EmberClient extends EventEmitter {
 
 		return this._sendCommand<RootElement>(node, command)
 	}
-	subscribe(node: EmberTreeNode, cb?: (node: EmberTreeNode) => void) {
-		const command: Subscribe = {
-			type: ElementType.Command,
-			number: CommandType.Subscribe
+	subscribe(
+		node: RootElement | Array<RootElement>,
+		cb?: (EmberNode: TreeElement<EmberElement>) => void
+	) {
+		const command: Subscribe = new SubscribeImpl()
+
+		if (Array.isArray(node)) {
+			if (cb)
+				this._subscriptions.push({
+					path: '', // TODO
+					cb
+				})
+
+			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command))
 		}
 
 		if (cb)
@@ -182,22 +158,26 @@ export class EmberClient extends EventEmitter {
 
 		return this._sendCommand<void>(node, command, false)
 	}
-	unsubscribe(node: EmberTreeNode) {
-		const command: Unsubscribe = {
-			type: ElementType.Command,
-			number: CommandType.Unsubscribe
-		}
+	unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>) {
+		const command: Unsubscribe = new UnsubscribeImpl()
 
-		const path = getPath(node)
+		const path = Array.isArray(node) ? '' : getPath(node)
 		for (let i in this._subscriptions) {
 			if (this._subscriptions[i].path === path) {
 				this._subscriptions.splice(Number(i), 1)
 			}
 		}
 
+		if (Array.isArray(node)) {
+			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command))
+		}
+
 		return this._sendCommand<void>(node, command, false)
 	}
-	invoke(node: EmberTreeNode, ...args: Array<EmberValue>) {
+	invoke(
+		node: NumberedTreeNode<EmberFunction> | QualifiedElement<EmberFunction>,
+		...args: Array<EmberTypedValue>
+	) {
 		// TODO - validate arguments
 		const command: Invoke = {
 			type: ElementType.Command,
@@ -211,77 +191,76 @@ export class EmberClient extends EventEmitter {
 	}
 
 	/** Sending ember+ values */
-	setValue(node: Tree<Parameter>, value: EmberValue): RequestPromise<Tree<Parameter>> {
-		const qualifiedParam = assertQualifiedNode(node) as Qualified<Parameter>
+	setValue(
+		node: QualifiedElement<Parameter> | NumberedTreeNode<Parameter>,
+		value: EmberValue
+	): RequestPromise<TreeElement<Parameter>> {
+		const qualifiedParam = assertQualifiedEmberNode(node) as QualifiedElement<Parameter>
 
 		// TODO - validate value
 		// TODO - should other properties be scrapped?
-		qualifiedParam.value.value.value = value
+		qualifiedParam.contents.value = value
 
-		return this._sendRequest<Tree<Parameter>>(qualifiedParam)
+		return this._sendRequest<TreeElement<Parameter>>(qualifiedParam)
 	}
 	matrixConnect(
-		matrix: Tree<Matrix>,
+		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
 		sources: Array<number>
-	): RequestPromise<Tree<Matrix>> {
+	): RequestPromise<TreeElement<Matrix>> {
 		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Connect)
 	}
 	matrixDisconnect(
-		matrix: Tree<Matrix>,
+		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
 		sources: Array<number>
-	): RequestPromise<Tree<Matrix>> {
-		return this._matrixMutation(matrix, target, sources, ConnectionOperation.disconnect)
+	): RequestPromise<TreeElement<Matrix>> {
+		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Disconnect)
 	}
 	matrixSetConnection(
-		matrix: Tree<Matrix>,
+		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
 		sources: Array<number>
-	): RequestPromise<Tree<Matrix>> {
+	): RequestPromise<TreeElement<Matrix>> {
 		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Absolute)
 	}
 
 	/** Getting the tree: */
-	// TODO - these functions don't necessarilly send a request, should they really
+	// TODO - these EmberFunctions don't necessarilly send a request, should they really
 	// return a RequestPromise?
-	expand(node: EmberTreeNode): RequestPromise<EmberTreeNode> {
-		const nodes = [node]
-		const p: Array<Promise<any>> = []
-
-		let curNode
-		while ((curNode = nodes.shift())) {
-			if (curNode.children) {
-				nodes.push(...curNode.children)
-			} else {
-				p.push(
-					this.getDirectory(curNode).then(async (req) => {
-						if (req.response) {
-							const res = (await req.response) as Tree<EmberElement>
-							return res.children?.map((c) => this.expand(c))
-						}
-						return
-					})
-				)
-			}
+	async expand(node: NumberedTreeNode<EmberElement> | Array<RootElement>) {
+		if (Array.isArray(node)) {
+			await (await this.getDirectory(node)).response
+			for (const root of this._tree) await this.expand(root)
+			return
 		}
 
-		return Promise.all(p).then(
-			() => ({
-				sentOk: true,
-				response: Promise.resolve(node)
-			}),
-			() => ({
-				sentOk: false
-			})
-		)
+		const emberNodes = [node]
+
+		let curEmberNode
+		while ((curEmberNode = emberNodes.shift())) {
+			if (curEmberNode.children) {
+				emberNodes.push(
+					...curEmberNode.children.filter((c) => c.contents.type !== ElementType.Parameter)
+				)
+			} else {
+				const req = await this.getDirectory(curEmberNode)
+				if (!req.response) continue
+				const res = (await req.response) as RootElement
+				if (res.children) {
+					res.children.forEach(
+						(c) => c.contents.type !== ElementType.Parameter && emberNodes.push(c) // TODO - which types should not be expanded further?
+					)
+				}
+			}
+		}
 	}
 	async getElementByPath(
 		path: string,
-		cb?: (node: EmberTreeNode) => void
-	): RequestPromise<EmberTreeNode> {
+		cb?: (EmberNode: TreeElement<EmberElement>) => void
+	): RequestPromise<NumberedTreeNode<EmberElement>> {
 		const pathArr = path.split('.') // TODO - should we remain backward compatible and accept "/"?
-		let tree: EmberTreeNode = this._tree[(pathArr.shift() as unknown) as number]
+		let tree: NumberedTreeNode<EmberElement> = this._tree[(pathArr.shift() as unknown) as number]
 
 		for (let i = pathArr.shift(); pathArr.length; i = pathArr.shift()) {
 			let index = (i as unknown) as number
@@ -289,7 +268,7 @@ export class EmberClient extends EventEmitter {
 				tree = tree.children[index]
 			} else {
 				const req = await this.getDirectory(tree)
-				tree = (await req.response) as EmberTreeNode
+				tree = (await req.response) as NumberedTreeNode<EmberElement> // TODO - can't this return qualified?
 				if (tree.children && tree.children[index]) {
 					tree = tree.children[index]
 				} else {
@@ -312,12 +291,12 @@ export class EmberClient extends EventEmitter {
 	}
 
 	private _matrixMutation(
-		matrix: Tree<Matrix>,
+		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
 		sources: Array<number>,
 		operation: ConnectionOperation
 	) {
-		const qualifiedMatrix = assertQualifiedNode(matrix) as Qualified<Matrix>
+		const qualifiedMatrix = assertQualifiedEmberNode(matrix) as QualifiedElement<Matrix>
 
 		const connection: Connection = {
 			operation,
@@ -325,28 +304,21 @@ export class EmberClient extends EventEmitter {
 			sources
 		}
 
-		qualifiedMatrix.value.value.connections = [connection]
+		qualifiedMatrix.contents.connections = [connection]
 
-		return this._sendRequest<Tree<Matrix>>(qualifiedMatrix)
+		return this._sendRequest<TreeElement<Matrix>>(qualifiedMatrix)
 	}
 
-	private _sendCommand<T>(
-		node: EmberTreeNode | RootElement,
-		command: Command,
-		hasResponse?: boolean
-	) {
-		// assert a qualified node
-		const qualifiedNode = assertQualifiedNode(node)
+	private _sendCommand<T>(EmberNode: RootElement, command: Command, hasResponse?: boolean) {
+		// assert a qualified EmberNode
+		const qualifiedEmberNode = assertQualifiedEmberNode(EmberNode) // as QualifiedElements // kill me now
 		// insert command
-		const commandNode = insertCommand(qualifiedNode, command)
+		const commandEmberNode = insertCommand(qualifiedEmberNode, command) // as QualifiedElements
 		// send request
-		return this._sendRequest<T>(commandNode, hasResponse)
+		return this._sendRequest<T>(commandEmberNode, hasResponse)
 	}
 
-	private async _sendRequest<T>(
-		node: Qualified<EmberElement>,
-		hasResponse = true
-	): RequestPromise<T> {
+	private async _sendRequest<T>(node: RootElement, hasResponse = true): RequestPromise<T> {
 		const reqId = Math.random().toString(24).substr(-4)
 		const requestPromise: RequestPromiseArguments<T> = {
 			reqId,
@@ -371,7 +343,7 @@ export class EmberClient extends EventEmitter {
 			requestPromise.response = p
 		}
 
-		const message = berEncode(node)
+		const message = berEncode([node], RootType.Elements)
 		const sentOk = await this._client.sendBER(message) // TODO - if sending multiple values to same path, should we do synchronous requests?
 
 		return {
@@ -384,6 +356,11 @@ export class EmberClient extends EventEmitter {
 		// update tree:
 		const changes = this._applyRootToTree(node)
 
+		console.log(
+			changes.map((c) => c.path),
+			Array.from(this._requests.values()).map((r) => r.node.path)
+		)
+
 		// check for subscriptiions:
 		for (const change of changes) {
 			const subscription = this._subscriptions.find((s) => s.path === change.path)
@@ -394,40 +371,77 @@ export class EmberClient extends EventEmitter {
 		// iterate over requests, check path, if Invocation check id
 		// resolve requests
 		for (const change of changes) {
-			const req = this._requests.values().find((s) => s.path === change.path)
-			if (req) req.cb(change.node)
+			const req = Array.from(this._requests.values()).find(
+				(s) =>
+					(!('path' in s.node) && !change.path) || ('path' in s.node && s.node.path === change.path)
+			)
+			if (req) {
+				if (req.cb) req.cb(change.node)
+				if (req.resolve) {
+					req.resolve(change.node)
+					this._requests.delete(req.reqId)
+				}
+			}
 		}
 	}
 
 	private _applyRootToTree(node: Root): Array<IChange> {
 		let changes: Array<IChange> = []
 
-		if ((node as InvocationResult).id === undefined) {
-			// node is not an InvocationResult
+		if ('id' in node) {
+			// node is an InvocationResult
+		} else {
+			// EmberNode is not an InvocationResult
 
 			// walk tree
 			for (const rootElement of node as Array<RootElement>) {
-				// TODO - these can also be StreamElements - how to figure out what is what? (if it is, then update parameters)
-				if ((rootElement as Qualified<EmberElement>).path) {
+				if ('identifier' in rootElement) {
+					// rootElement is a StreamEntry
+					continue
+				} else if ('path' in rootElement) {
 					// element is qualified
-					const path: Array<string> = (rootElement as Qualified<EmberElement>).path.split('.')
+					const path: Array<string> = rootElement.path.split('.')
 					let tree = this._tree[Number(path.shift())]
+					let inserted = false
+
+					if (!tree) throw new Error('No tree')
 
 					for (const number of path) {
+						if (!tree.children) tree.children = []
+						if (!tree.children[Number(number)]) {
+							tree.children[Number(number)] = {
+								...rootElement,
+								number: Number(number),
+								parent: tree
+							}
+							changes = [
+								...changes,
+								{
+									path: rootElement.path.substr(0, rootElement.path.length - 2),
+									node: tree
+								}
+							]
+							inserted = true
+							break
+						}
 						tree = tree.children![Number(number)]
 					}
 
-					changes = {
-						...changes,
-						...this._updateTree(rootElement.value as Qualified<EmberElement>['value'], tree)
-					}
+					if (inserted) continue
+					changes = [...changes, ...this._updateTree(rootElement, tree)]
 				} else {
-					changes = {
-						...changes,
-						...this._updateTree(
-							rootElement as EmberTreeNode,
-							this._tree[(rootElement as EmberTreeNode).value.number]
-						)
+					if (this._tree[rootElement.number]) {
+						changes = [
+							...changes,
+							...this._updateTree(
+								rootElement as NumberedTreeNode<EmberElement>,
+								this._tree[(rootElement as NumberedTreeNode<EmberElement>).number]
+							)
+						]
+					} else {
+						this._tree[rootElement.number] = rootElement
+						// @ts-ignore
+						changes = [...changes, { path: undefined, node: rootElement }]
 					}
 				}
 			}
@@ -436,27 +450,30 @@ export class EmberClient extends EventEmitter {
 		return changes
 	}
 
-	private _updateTree(update: EmberTreeNode, tree: EmberTreeNode): Array<IChange> {
+	private _updateTree(
+		update: TreeElement<EmberElement>,
+		tree: NumberedTreeNode<EmberElement>
+	): Array<IChange> {
 		let changes: Array<IChange> = []
 
-		if (update.value.type === tree.value.type) {
+		if (update.contents.type === tree.contents.type) {
 			changes.push({ path: getPath(tree), node: tree })
-			switch (tree.value.type) {
+			switch (tree.contents.type) {
 				case ElementType.Node:
-					this._updateNode(update.value as Node, tree.value as Node)
+					this._updateEmberNode(update.contents as EmberNode, tree.contents as EmberNode)
 					break
 				case ElementType.Parameter:
-					this._updateParameter(update.value as Parameter, tree.value as Parameter)
+					this._updateParameter(update.contents as Parameter, tree.contents as Parameter)
 					break
 				case ElementType.Matrix:
-					this._updateMatrix(update.value as Matrix, tree.value as Matrix)
+					this._updateMatrix(update.contents as Matrix, tree.contents as Matrix)
 					break
 			}
 		}
 		if (update.children && tree.children) {
 			// Update children
 			for (const child of update.children) {
-				const i = child.value.number
+				const i = child.number
 				const oldChild = tree.children[i] // TODO - check that this is safe
 				changes = {
 					...changes,
@@ -471,8 +488,8 @@ export class EmberClient extends EventEmitter {
 		return changes
 	}
 
-	private _updateNode(update: Node, node: Node) {
-		updateProps<Node>(node, update, ['isOnline'])
+	private _updateEmberNode(update: EmberNode, EmberNode: EmberNode) {
+		updateProps<EmberNode>(EmberNode, update, ['isOnline'])
 	}
 
 	private _updateParameter(update: Parameter, parameter: Parameter) {
@@ -492,7 +509,7 @@ export class EmberClient extends EventEmitter {
 		if (update.connections) {
 			if (matrix.connections) {
 				// matrix already has connections
-				for (const connection of update.connections) {
+				for (const connection of Object.values(update.connections)) {
 					if (
 						!connection.disposition ||
 						!(
@@ -512,10 +529,10 @@ export class EmberClient extends EventEmitter {
 
 						if (!exists) {
 							// connection to target does not exist yet
-							matrix.connections.push({
+							matrix.connections[connection.target] = {
 								target: connection.target,
 								sources: connection.sources
-							})
+							}
 						}
 					}
 				}
@@ -528,64 +545,3 @@ export class EmberClient extends EventEmitter {
 }
 
 // TODO - move to utils
-export function assertQualifiedNode(node: RootElement): Qualified<EmberElement> {
-	if ((node as Qualified<EmberElement>).path) {
-		return node as Qualified<EmberElement>
-	} else {
-		return toQualifiedNode(node as EmberTreeNode)
-	}
-}
-
-export function getPath(node: EmberTreeNode): string {
-	const findPath = (node: EmberTreeNode): string => {
-		if (node.parent) {
-			return findPath(node.parent) + '.' + node.value.number
-		}
-		return ''
-	}
-
-	return findPath(node)
-}
-
-// TODO - what to do with any children. Do they keep their object pointers / references?
-export function toQualifiedNode(node: EmberTreeNode): Qualified<EmberElement> {
-	const path = getPath(node)
-
-	// TODO - use actual class!
-	return {
-		value: {
-			value: node.value,
-			index: 1,
-			children: node.children // TODO - do we want the children?
-		},
-		path,
-		getRelativeOID(): RelativeOID<T>
-	}
-}
-
-export function insertCommand(
-	node: Qualified<EmberElement>,
-	command: Command
-): Qualified<EmberElement> {
-	if (node.value.children) {
-		// TODO - what does this mean? can we even insert a command?
-	} else {
-		node.value.children = [
-			{
-				index: 1,
-				value: command
-			}
-		]
-	}
-	return node
-}
-
-export function updateProps<T>(oldProps: T, newProps: T, props?: Array<keyof T>) {
-	if (!props) props = Object.keys(newProps) as Array<keyof T>
-
-	for (let key of props) {
-		if (newProps[key] !== undefined && newProps[key] !== oldProps[key]) {
-			oldProps[key] = newProps[key]
-		}
-	}
-}

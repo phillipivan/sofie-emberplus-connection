@@ -2,7 +2,8 @@ import { EventEmitter } from 'events'
 import { Socket } from 'net'
 
 import { S101Codec } from '../../S101'
-import { EmberTreeNode } from '../../types/types'
+import { EmberTreeNode, Root } from '../../types/types'
+import { berDecode, berEncode } from '../..'
 
 export type Request = any
 
@@ -179,11 +180,11 @@ export default class S101Socket extends EventEmitter {
 		}
 	}
 
-	sendBERNode(node: EmberTreeNode) {
-		if (!node) return
-		const ber = berEncode(node)
-		this.sendBER(ber)
-	}
+	// sendBERNode(node: Root) {
+	// 	if (!node) return
+	// 	const ber = berEncode(node)
+	// 	this.sendBER(ber)
+	// }
 
 	startKeepAlive() {
 		this.keepaliveIntervalTimer = setInterval(() => {
