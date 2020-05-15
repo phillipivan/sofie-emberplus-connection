@@ -4,6 +4,7 @@ import { encodeStreamEntry } from '../encoder/StreamEntry'
 import { decodeStreamEntry } from '../decoder/StreamEntry'
 import { ParameterType } from '../../../model/Parameter'
 import { literal } from '../../../types/types'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/StreamEntry', () => {
 	test('write and read stream entry - integer', () => {
@@ -16,7 +17,7 @@ describe('encodings/ber/StreamEntry', () => {
 		encodeStreamEntry(se, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeStreamEntry(reader)
+		const decoded = guarded(decodeStreamEntry(reader))
 
 		expect(decoded).toEqual(se)
 	})
@@ -31,7 +32,7 @@ describe('encodings/ber/StreamEntry', () => {
 		encodeStreamEntry(se, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeStreamEntry(reader)
+		const decoded = guarded(decodeStreamEntry(reader))
 
 		expect(decoded).toEqual(se)
 	})
@@ -46,7 +47,7 @@ describe('encodings/ber/StreamEntry', () => {
 		encodeStreamEntry(se, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeStreamEntry(reader)
+		const decoded = guarded(decodeStreamEntry(reader))
 
 		expect(decoded).toEqual(se)
 	})
@@ -61,7 +62,7 @@ describe('encodings/ber/StreamEntry', () => {
 		encodeStreamEntry(se, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeStreamEntry(reader)
+		const decoded = guarded(decodeStreamEntry(reader))
 
 		expect(decoded).toEqual(se)
 	})
@@ -76,7 +77,7 @@ describe('encodings/ber/StreamEntry', () => {
 		encodeStreamEntry(se, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeStreamEntry(reader)
+		const decoded = guarded(decodeStreamEntry(reader))
 
 		expect(decoded).toEqual(se)
 	})
@@ -91,7 +92,7 @@ describe('encodings/ber/StreamEntry', () => {
 		encodeStreamEntry(se, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeStreamEntry(reader)
+		const decoded = guarded(decodeStreamEntry(reader))
 
 		expect(decoded).toEqual(se)
 	})
@@ -106,7 +107,7 @@ describe('encodings/ber/StreamEntry', () => {
 		encodeStreamEntry(se, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeStreamEntry(reader)
+		const decoded = guarded(decodeStreamEntry(reader))
 
 		expect(decoded).toEqual(se)
 	})
@@ -121,7 +122,7 @@ describe('encodings/ber/StreamEntry', () => {
 		encodeStreamEntry(se, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeStreamEntry(reader)
+		const decoded = guarded(decodeStreamEntry(reader))
 
 		expect(decoded).toEqual(se)
 	})

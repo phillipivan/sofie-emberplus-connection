@@ -10,6 +10,7 @@ import { encodeNumberedElement } from '../encoder/Tree'
 import { encodeQualifedElement } from '../encoder/Qualified'
 import { decodeMatrix } from '../decoder/Matrix'
 import { ConnectionOperation, ConnectionDisposition } from '../../../model/Connection'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/Matrix', () => {
 	function roundtripMatrix(matrix: Matrix, qualified = false): void {
@@ -22,12 +23,12 @@ describe('encodings/ber/Matrix', () => {
 		console.log(writer.buffer)
 		expect(writer.buffer.length).toBeGreaterThan(0)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeMatrix(reader, qualified)
+		const decoded = guarded(decodeMatrix(reader, qualified))
 
 		expect(decoded).toEqual(node)
 	}
 
-	function runRoundtripTests(qualified: boolean) {
+	function runRoundtripTests(qualified: boolean): void {
 		test('identifier', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
 			roundtripMatrix(matrix, qualified)

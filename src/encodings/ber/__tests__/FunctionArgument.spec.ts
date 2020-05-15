@@ -4,6 +4,7 @@ import { encodeFunctionArgument } from '../encoder/FunctionArgument'
 import { decodeFunctionArgument } from '../decoder/FunctionArgument'
 import { ParameterType } from '../../../model/Parameter'
 import { literal } from '../../../types/types'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encoders/ber/FunctionArgument', () => {
 	const fa = literal<FunctionArgument>({
@@ -16,7 +17,7 @@ describe('encoders/ber/FunctionArgument', () => {
 		encodeFunctionArgument(fa, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeFunctionArgument(reader)
+		const decoded = guarded(decodeFunctionArgument(reader))
 
 		expect(decoded).toEqual(fa)
 	})
@@ -29,7 +30,7 @@ describe('encoders/ber/FunctionArgument', () => {
 		encodeFunctionArgument(noName, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeFunctionArgument(reader)
+		const decoded = guarded(decodeFunctionArgument(reader))
 
 		expect(decoded).toEqual(noName)
 	})

@@ -158,9 +158,9 @@ class ExtendedWriter extends Writer {
 					this.writeBoolean(value.value as boolean, BERDataTypes.BOOLEAN)
 					break
 				case ParameterType.Octets:
-					if (!Buffer.isBuffer(value.value)) { 
+					if (!Buffer.isBuffer(value.value)) {
 						value.value = Buffer.from(`${value.value}`)
-					} 
+					}
 					if (value.value.length) {
 						this.writeByte(BERDataTypes.OCTETSTRING)
 						this.writeLength(0)
