@@ -4,15 +4,16 @@ import { encodeFunction } from '../encoder/EmberFunction'
 import { decodeFunctionContent } from '../decoder/EmberFunction'
 import { FunctionArgumentImpl } from '../../../model/FunctionArgument'
 import { ParameterType } from '../../../model/Parameter'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/EmberFunction', () => {
 	describe('roundtrips', () => {
-		function testFunction(fn: EmberFunction) {
+		function testFunction(fn: EmberFunction): void {
 			const writer = new Ber.Writer()
 			encodeFunction(fn, writer)
 			console.log(writer.buffer)
 			const reader = new Ber.Reader(writer.buffer)
-			const decoded = decodeFunctionContent(reader)
+			const decoded = guarded(decodeFunctionContent(reader))
 
 			expect(decoded).toEqual(fn)
 		}

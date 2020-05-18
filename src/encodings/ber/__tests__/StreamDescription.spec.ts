@@ -3,6 +3,7 @@ import { StreamDescription, StreamFormat } from '../../../model/StreamDescriptio
 import { encodeStreamDescription } from '../encoder/StreamDescription'
 import { decodeStreamDescription } from '../decoder/StreamDescription'
 import { literal } from '../../../types/types'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/StreamDescription', () => {
 	const sd = literal<StreamDescription>({
@@ -15,7 +16,7 @@ describe('encodings/ber/StreamDescription', () => {
 		encodeStreamDescription(sd, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeStreamDescription(reader)
+		const decoded = guarded(decodeStreamDescription(reader))
 
 		expect(decoded).toEqual(sd)
 	})

@@ -11,6 +11,16 @@ import {
 import { Invocation } from '../../../model/Invocation'
 import { decodeInvocation } from './Invocation'
 import { CommandBERID } from '../constants'
+import {
+	DecodeOptions,
+	defaultDecode,
+	DecodeResult,
+	unknownContext,
+	check,
+	makeResult,
+	appendErrors,
+	unexpected
+} from './DecodeResult'
 
 export { decodeCommand }
 
@@ -29,16 +39,21 @@ function readDirFieldMask(reader: Ber.Reader): FieldFlags | undefined {
 	return intToMask[reader.readInt()]
 }
 
-function decodeCommand(reader: Ber.Reader): Command {
+function decodeCommand(
+	reader: Ber.Reader,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<Command> {
 	const ber = reader.getSequence(CommandBERID)
 	let type: CommandType | null = null
 	let dirFieldMask: FieldFlags | undefined = undefined
 	let invocation: Invocation | undefined = undefined
+	const errors: Array<Error> = []
 
 	while (ber.remain > 0) {
 		const tag = ber.peek()
 		if (tag === null) {
-			throw new Error(``)
+			unknownContext(errors, 'decode command', tag, options)
+			continue
 		}
 		const seq = ber.getSequence(tag)
 		switch (tag) {
@@ -47,27 +62,35 @@ function decodeCommand(reader: Ber.Reader): Command {
 				break
 			case Ber.CONTEXT(1):
 				dirFieldMask = readDirFieldMask(seq)
+				if (!dirFieldMask) {
+					errors.push(new Error(`decode command: encounted unknown dir field mask`))
+				}
 				break
 			case Ber.CONTEXT(2):
-				invocation = decodeInvocation(seq)
+				invocation = appendErrors(decodeInvocation(seq, options), errors)
 				break
 			default:
-				throw new Error(``)
+				unknownContext(errors, 'decode command', tag, options)
+				break
 		}
 	}
-	if (type === null) {
-		throw new Error(``)
-	}
+	type = check(type, 'decode command', 'type', CommandType.Subscribe, errors, options)
 	switch (type) {
 		case CommandType.Subscribe:
-			return new SubscribeImpl()
+			return makeResult(new SubscribeImpl(), errors)
 		case CommandType.Unsubscribe:
-			return new UnsubscribeImpl()
+			return makeResult(new UnsubscribeImpl(), errors)
 		case CommandType.GetDirectory:
-			return new GetDirectoryImpl(dirFieldMask)
+			return makeResult(new GetDirectoryImpl(dirFieldMask), errors)
 		case CommandType.Invoke:
-			return new InvokeImpl(invocation)
+			return makeResult(new InvokeImpl(invocation), errors)
 		default:
-			throw new Error(``)
+			return unexpected(
+				errors,
+				'decode command',
+				`command type '${type}' is not recognized`,
+				new SubscribeImpl(),
+				options
+			)
 	}
 }

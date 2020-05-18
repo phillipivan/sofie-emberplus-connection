@@ -21,7 +21,8 @@ export {
 	StringIntegerCollection,
 	RootType,
 	RelativeOID,
-	literal
+	literal,
+	Collection
 }
 
 type EmberTreeNode<T extends EmberElement> = NumberedTreeNode<T>
@@ -32,7 +33,7 @@ type RootElement =
 	| QualifiedElement<Matrix>
 	| QualifiedElement<EmberFunction>
 	| QualifiedElement<Template>
-type Root = Array<RootElement> | Array<StreamEntry> | InvocationResult
+type Root = Collection<RootElement> | Collection<StreamEntry> | InvocationResult
 
 enum RootType {
 	Elements,
@@ -61,3 +62,5 @@ type QualifiedElements =
 	| QualifiedElement<Matrix>
 	| QualifiedElement<EmberFunction>
 	| QualifiedElement<Template>
+
+type Collection<T> = { [index: number]: T }

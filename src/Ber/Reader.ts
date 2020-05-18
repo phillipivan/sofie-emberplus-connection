@@ -40,7 +40,7 @@ class ExtendedReader extends Reader {
 			case BERDataTypes.NULL: // Note: No readNull in BER library but writer writes 2 bytes
 				this.readByte(false) // Read past - ASN1.NULL tag 0x05
 				this.readByte(false) // and - 0x00 length
-				return { type: ParameterType.Null, value: null } 
+				return { type: ParameterType.Null, value: null }
 			default:
 				throw new UnimplementedEmberTypeError(tag)
 		}

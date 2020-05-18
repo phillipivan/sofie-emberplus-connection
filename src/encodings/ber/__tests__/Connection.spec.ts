@@ -3,6 +3,7 @@ import { Connection, ConnectionOperation, ConnectionDisposition } from '../../..
 import { encodeConnection } from '../encoder/Connection'
 import { decodeConnection } from '../decoder/Connection'
 import { literal } from '../../../types/types'
+import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/Connection', () => {
 	const connection = literal<Connection>({
@@ -17,7 +18,7 @@ describe('encodings/ber/Connection', () => {
 		encodeConnection(connection, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeConnection(reader)
+		const decoded = guarded(decodeConnection(reader))
 
 		expect(decoded).toEqual(connection)
 	})
@@ -28,7 +29,7 @@ describe('encodings/ber/Connection', () => {
 		encodeConnection(minCon, writer)
 		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
-		const decoded = decodeConnection(reader)
+		const decoded = guarded(decodeConnection(reader))
 
 		expect(decoded).toEqual(minCon)
 	})

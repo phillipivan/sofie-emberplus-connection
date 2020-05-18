@@ -1,33 +1,54 @@
 import * as Ber from '../../../Ber'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry'
-import { EmberTypedValue } from '../../../types/types'
+import { EmberTypedValue, literal } from '../../../types/types'
 import { StreamEntryBERID, StreamEntriesBERID } from '../constants'
+import {
+	DecodeResult,
+	makeResult,
+	unknownContext,
+	DecodeOptions,
+	defaultDecode,
+	safeSet,
+	check
+} from './DecodeResult'
+import { ParameterType } from '../../../model/Parameter'
 
 export { decodeStreamEntry, decodeStreamEntries }
 
-function decodeStreamEntries(reader: Ber.Reader): Array<StreamEntry> {
+function decodeStreamEntries(
+	reader: Ber.Reader,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<Array<StreamEntry>> {
 	const seq = reader.getSequence(StreamEntriesBERID)
-	const streamEntries: Array<StreamEntry> = []
+	const streamEntries = makeResult<Array<StreamEntry>>([])
 	while (seq.remain > 0) {
 		const tag = seq.peek()
 		if (tag !== Ber.CONTEXT(0)) {
-			throw new Error(``)
+			unknownContext(streamEntries, 'decode stream entries', tag, options)
 		}
 		const data = seq.getSequence(Ber.CONTEXT(0))
 		const rootEl = decodeStreamEntry(data)
-		streamEntries.push(rootEl)
+		safeSet(rootEl, streamEntries, (x, y) => {
+			y.push(x)
+			return y
+		})
 	}
 	return streamEntries
 }
 
-function decodeStreamEntry(reader: Ber.Reader): StreamEntry {
+function decodeStreamEntry(
+	reader: Ber.Reader,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<StreamEntry> {
 	const ber = reader.getSequence(StreamEntryBERID)
 	let identifier: number | null = null
 	let value: EmberTypedValue | null = null
+	const errors: Array<Error> = []
 	while (ber.remain > 0) {
 		const tag = ber.peek()
 		if (tag === null) {
-			throw new Error(``)
+			unknownContext(errors, 'decode stream entry', tag, options)
+			continue
 		}
 		const seq = ber.getSequence(tag)
 		switch (tag) {
@@ -38,11 +59,18 @@ function decodeStreamEntry(reader: Ber.Reader): StreamEntry {
 				value = seq.readValue()
 				break
 			default:
-				throw new Error(``)
+				unknownContext(errors, 'decode stream entry', tag, options)
+				break
 		}
 	}
-	if (identifier === null || value === null) {
-		throw new Error(``)
-	}
-	return new StreamEntryImpl(identifier, value)
+	identifier = check(identifier, 'decode stream entry', 'identifier', 0, errors, options)
+	value = check(
+		value,
+		'decode stream entry',
+		'value',
+		literal<EmberTypedValue>({ value: null, type: ParameterType.Null }),
+		errors,
+		options
+	)
+	return makeResult(new StreamEntryImpl(identifier, value), errors)
 }
