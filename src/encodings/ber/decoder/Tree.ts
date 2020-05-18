@@ -27,7 +27,7 @@ import {
 } from '../constants'
 import { decodeMatrix } from './Matrix'
 import { decodeCommand } from './Command'
-import { RootElement } from '../../../types/types'
+import { RootElement, Collection } from '../../../types/types'
 import {
 	DecodeResult,
 	DecodeOptions,
@@ -46,10 +46,10 @@ import { EmberNodeImpl } from '../../../model/EmberNode'
 export function decodeChildren(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
-): DecodeResult<Array<NumberedTreeNode<EmberElement>>> {
+): DecodeResult<Collection<NumberedTreeNode<EmberElement>>> {
 	const ber = reader.getSequence(ElementCollectionBERID)
-	const kids = makeResult<Array<NumberedTreeNode<EmberElement>>>(
-		[] as Array<NumberedTreeNode<EmberElement>>
+	const kids = makeResult<Collection<NumberedTreeNode<EmberElement>>>(
+		{} as Collection<NumberedTreeNode<EmberElement>>
 	)
 
 	while (ber.remain > 0) {
@@ -62,7 +62,7 @@ export function decodeChildren(
 		const seq = ber.getSequence(tag)
 		const kidEl = decodeGenericElement(seq, options) as DecodeResult<NumberedTreeNode<EmberElement>>
 		safeSet(kidEl, kids, (x, y) => {
-			y.push(x)
+			y[x.number] = x
 			return y
 		})
 	}
@@ -101,7 +101,7 @@ export function decodeGenericElement(
 	let path: string | null = null
 	let number: number | null = null
 	let contents: EmberElement | null = null
-	let children: Array<NumberedTreeNode<EmberElement>> | undefined
+	let children: Collection<NumberedTreeNode<EmberElement>> | undefined
 
 	while (ber.remain > 0) {
 		const tag = ber.peek()
@@ -191,8 +191,8 @@ export function decodeGenericElement(
 	}
 
 	if (children) {
-		for (const kid of children) {
-			kid.parent = el
+		for (const kid of Object.values(children)) {
+			kid.parent = el as RootElement
 		}
 	}
 
@@ -202,9 +202,9 @@ export function decodeGenericElement(
 export function decodeRootElements(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
-): DecodeResult<Array<RootElement>> {
+): DecodeResult<Collection<RootElement>> {
 	const seq = reader.getSequence(RootElementsBERID)
-	const rootEls = makeResult<Array<RootElement>>([])
+	const rootEls = makeResult<Collection<RootElement>>({})
 	while (seq.remain > 0) {
 		const tag = seq.peek()
 		if (tag !== Ber.CONTEXT(0)) {
@@ -214,8 +214,13 @@ export function decodeRootElements(
 		const rootEl = decodeGenericElement(data, options) as DecodeResult<
 			NumberedTreeNode<EmberElement>
 		>
+		console.log(rootEl.value.number)
 		safeSet(rootEl, rootEls, (x, y) => {
-			y.push(x)
+			if (x.number) {
+				y[x.number] = x
+			} else {
+				y[Object.values(y).length] = x
+			}
 			return y
 		})
 	}
