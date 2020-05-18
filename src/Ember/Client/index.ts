@@ -5,9 +5,8 @@ import {
 	TreeElement,
 	NumberedTreeNode,
 	EmberTypedValue,
-	EmberTreeNode,
 	RootType,
-	QualifiedElements
+	Collection
 } from '../../types/types'
 import { InvocationResult } from '../../model/InvocationResult'
 import { Matrix } from '../../model/Matrix'
@@ -30,6 +29,7 @@ import { getPath, assertQualifiedEmberNode, insertCommand, updateProps } from '.
 import { berEncode } from '../..'
 import { NumberedTreeNodeImpl } from '../../model/Tree'
 import { EmberFunction } from '../../model/EmberFunction'
+import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
 
 export type RequestPromise<T> = Promise<RequestPromiseArguments<T>>
 export interface RequestPromiseArguments<T> {
@@ -45,6 +45,9 @@ export interface IRequest {
 	resolve: (res: any) => void
 	reject: (err: Error) => void
 	cb?: (EmberNode: TreeElement<EmberElement>) => void
+	message: Buffer
+	firstSent: number
+	lastSent: number
 }
 
 export interface ISubscription {
@@ -54,7 +57,7 @@ export interface ISubscription {
 
 export interface IChange {
 	path: string
-	node: NumberedTreeNode<EmberElement>
+	node: RootElement
 }
 
 export enum ConnectionStatus {
@@ -74,14 +77,52 @@ export class EmberClient extends EventEmitter {
 	private _client: S101Client
 	private _subscriptions: Array<ISubscription> = []
 
-	constructor(host: string, port = 9000) {
+	private _timeout = 3000
+	private _resendTimeout = 1000
+	private _resends = false
+	private _timer: NodeJS.Timer
+
+	constructor(
+		host: string,
+		port = 9000,
+		timeout = 3000,
+		enableResends = false,
+		resendTimeout = 1000
+	) {
 		super()
 
 		this.host = host
 		this.port = port
+		this._timeout = timeout
+		this._resendTimeout = resendTimeout
+		this._resends = enableResends
+
+		// resend timer runs at greatest common divisor of timeouts and resends
+		const findGcd = (a: number, b: number) => {
+			// assuming a and b are greater than 0
+			while (b) {
+				let t = b
+				b = a % b
+				a = t
+			}
+			return a
+		}
+		this._timer = setInterval(
+			() => this._resendTimer(),
+			findGcd(this._timeout, this._resendTimeout)
+		)
 
 		this._client = new S101Client(this.host, this.port)
-		this._client.on('emberTree', (tree: Root) => this._handleIncoming(tree))
+		this._client.on('emberTree', (tree: DecodeResult<Root>) => this._handleIncoming(tree))
+
+		this._client.on('connected', () => this.emit('connected'))
+		this._client.on('disconnected', () => {
+			this._requests.forEach((req) => {
+				req.reject(new Error('Socket was disconnected'))
+				this._requests.delete(req.reqId)
+			})
+			this.emit('disconnected')
+		})
 	}
 
 	/**
@@ -106,6 +147,25 @@ export class EmberClient extends EventEmitter {
 	 */
 	disconnect() {
 		return this._client.disconnect()
+	}
+
+	/**
+	 * Discards any outgoing connections, removes all requests and clears any timing loops
+	 *
+	 * This is destructive, using this class after discarding will cause errors.
+	 */
+	discard() {
+		this.disconnect()
+		delete this._client
+		this._requests.forEach((req) => {
+			req.reject(new Error('Socket was disconnected'))
+			this._requests.delete(req.reqId)
+		})
+		clearInterval(this._timer)
+	}
+
+	get connected(): boolean {
+		return this._client.status === 'connected'
 	}
 
 	/** Ember+ commands: */
@@ -193,7 +253,8 @@ export class EmberClient extends EventEmitter {
 	/** Sending ember+ values */
 	setValue(
 		node: QualifiedElement<Parameter> | NumberedTreeNode<Parameter>,
-		value: EmberValue
+		value: EmberValue,
+		awaitResponse = true
 	): RequestPromise<TreeElement<Parameter>> {
 		const qualifiedParam = assertQualifiedEmberNode(node) as QualifiedElement<Parameter>
 
@@ -201,7 +262,7 @@ export class EmberClient extends EventEmitter {
 		// TODO - should other properties be scrapped?
 		qualifiedParam.contents.value = value
 
-		return this._sendRequest<TreeElement<Parameter>>(qualifiedParam)
+		return this._sendRequest<TreeElement<Parameter>>(qualifiedParam, awaitResponse)
 	}
 	matrixConnect(
 		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
@@ -241,14 +302,16 @@ export class EmberClient extends EventEmitter {
 		while ((curEmberNode = emberNodes.shift())) {
 			if (curEmberNode.children) {
 				emberNodes.push(
-					...curEmberNode.children.filter((c) => c.contents.type !== ElementType.Parameter)
+					...Object.values(curEmberNode.children).filter(
+						(c) => c.contents.type !== ElementType.Parameter
+					)
 				)
 			} else {
 				const req = await this.getDirectory(curEmberNode)
 				if (!req.response) continue
 				const res = (await req.response) as RootElement
 				if (res.children) {
-					res.children.forEach(
+					Object.values(res.children).forEach(
 						(c) => c.contents.type !== ElementType.Parameter && emberNodes.push(c) // TODO - which types should not be expanded further?
 					)
 				}
@@ -325,13 +388,18 @@ export class EmberClient extends EventEmitter {
 			sentOk: false
 		}
 
+		const message = berEncode([node], RootType.Elements)
+
 		if (hasResponse) {
 			const p = new Promise<T>((resolve, reject) => {
 				const request: IRequest = {
 					reqId,
 					node,
 					resolve,
-					reject
+					reject,
+					message,
+					firstSent: Date.now(),
+					lastSent: Date.now()
 				}
 				this._requests.set(reqId, request)
 
@@ -343,8 +411,12 @@ export class EmberClient extends EventEmitter {
 			requestPromise.response = p
 		}
 
-		const message = berEncode([node], RootType.Elements)
 		const sentOk = await this._client.sendBER(message) // TODO - if sending multiple values to same path, should we do synchronous requests?
+
+		if (!sentOk && requestPromise.cancel) {
+			this._requests.get(reqId)?.reject(new Error('Request was not sent correctly'))
+			this._requests.delete(reqId)
+		}
 
 		return {
 			...requestPromise,
@@ -352,7 +424,9 @@ export class EmberClient extends EventEmitter {
 		}
 	}
 
-	private _handleIncoming(node: Root) {
+	private _handleIncoming(incoming: DecodeResult<Root>) {
+		// TODO - consider emitting errors (or even rejecting?)
+		const node = incoming.value
 		// update tree:
 		const changes = this._applyRootToTree(node)
 
@@ -364,18 +438,18 @@ export class EmberClient extends EventEmitter {
 		// check for subscriptiions:
 		for (const change of changes) {
 			const subscription = this._subscriptions.find((s) => s.path === change.path)
-			if (subscription) subscription.cb(change.node)
+			if (subscription && change.node) subscription.cb(change.node)
 		}
 
 		// check for any outstanding requests and resolve them
 		// iterate over requests, check path, if Invocation check id
 		// resolve requests
 		for (const change of changes) {
-			const req = Array.from(this._requests.values()).find(
+			const reqs = Array.from(this._requests.values()).filter(
 				(s) =>
 					(!('path' in s.node) && !change.path) || ('path' in s.node && s.node.path === change.path)
 			)
-			if (req) {
+			for (const req of reqs) {
 				if (req.cb) req.cb(change.node)
 				if (req.resolve) {
 					req.resolve(change.node)
@@ -394,7 +468,7 @@ export class EmberClient extends EventEmitter {
 			// EmberNode is not an InvocationResult
 
 			// walk tree
-			for (const rootElement of node as Array<RootElement>) {
+			for (const rootElement of Object.values(node as Collection<RootElement>)) {
 				if ('identifier' in rootElement) {
 					// rootElement is a StreamEntry
 					continue
@@ -404,7 +478,11 @@ export class EmberClient extends EventEmitter {
 					let tree = this._tree[Number(path.shift())]
 					let inserted = false
 
-					if (!tree) throw new Error('No tree')
+					if (!tree) {
+						// Assuming this means that no get directory was done on the root of the tree.
+						changes = [...changes, { path: rootElement.path, node: rootElement }]
+						continue
+					}
 
 					for (const number of path) {
 						if (!tree.children) tree.children = []
@@ -472,7 +550,7 @@ export class EmberClient extends EventEmitter {
 		}
 		if (update.children && tree.children) {
 			// Update children
-			for (const child of update.children) {
+			for (const child of Object.values(update.children)) {
 				const i = child.number
 				const oldChild = tree.children[i] // TODO - check that this is safe
 				changes = {
@@ -540,6 +618,22 @@ export class EmberClient extends EventEmitter {
 				// connections have not been set yet
 				matrix.connections = update.connections
 			}
+		}
+	}
+
+	private _resendTimer() {
+		if (this.connected) {
+			this._requests.forEach((req) => {
+				const sinceSent = Date.now() - req.lastSent
+				if (this._resends && sinceSent >= this._resendTimeout) {
+					this._client.sendBER(req.message)
+					req.lastSent = Date.now()
+				}
+				if (sinceSent >= this._timeout) {
+					req.reject(new Error('Request timed out'))
+					this._requests.delete(req.reqId)
+				}
+			})
 		}
 	}
 }
