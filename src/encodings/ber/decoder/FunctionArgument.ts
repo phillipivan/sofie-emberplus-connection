@@ -10,7 +10,8 @@ import {
 	makeResult,
 	unknownContext,
 	check,
-	appendErrors
+	appendErrors,
+	skipNext
 } from './DecodeResult'
 
 export { decodeFunctionArgument }
@@ -19,26 +20,23 @@ function decodeFunctionArgument(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<FunctionArgument> {
-	const ber = reader.getSequence(FunctionArgumentBERID)
+	reader.readSequence(FunctionArgumentBERID)
 	let type: ParameterType | null = null
 	let name: string | undefined = undefined
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode function argument', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				type = appendErrors(readParameterType(seq.readInt(), options), errors)
+				type = appendErrors(readParameterType(reader.readInt(), options), errors)
 				break
 			case Ber.CONTEXT(1):
-				name = seq.readString(Ber.BERDataTypes.STRING)
+				name = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			default:
 				unknownContext(errors, 'decode function context', tag, options)
+				skipNext(reader)
 				break
 		}
 	}

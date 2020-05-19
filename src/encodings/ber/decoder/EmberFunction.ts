@@ -8,7 +8,8 @@ import {
 	DecodeResult,
 	unknownContext,
 	makeResult,
-	appendErrors
+	appendErrors,
+	skipNext
 } from './DecodeResult'
 import { FunctionArgument } from '../../../model/FunctionArgument'
 import { RelativeOID } from '../../../types/types'
@@ -19,62 +20,61 @@ function decodeFunctionContent(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<EmberFunction> {
-	const ber = reader.getSequence(Ber.BERDataTypes.SET)
-	let readArgSeq: Ber.Reader
-	let readResSeq: Ber.Reader
+	reader.readSequence(Ber.BERDataTypes.SET)
 	let identifier: string | undefined = undefined
 	let description: string | undefined = undefined
 	let args: Array<FunctionArgument> | undefined = undefined
 	let result: Array<FunctionArgument> | undefined = undefined
 	let templateReference: RelativeOID | undefined = undefined
+	let seqOffset: number
+	let resOffset: number
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode function content', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				identifier = seq.readString(Ber.BERDataTypes.STRING)
+				identifier = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(1):
-				description = seq.readString(Ber.BERDataTypes.STRING)
+				description = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(2):
 				args = []
-				readArgSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
-				while (readArgSeq.remain > 0) {
-					const argTag = readArgSeq.peek() // TODO check this
+				reader.readSequence(Ber.BERDataTypes.SEQUENCE)
+				seqOffset = reader.offset + reader.length
+				while (reader.offset < seqOffset) {
+					const argTag = reader.readSequence()
 					if (argTag !== Ber.CONTEXT(0)) {
 						unknownContext(errors, 'decode function content: arguments', argTag, options)
+						skipNext(reader)
 						continue
 					}
-					const argSeq = readArgSeq.getSequence(Ber.CONTEXT(0))
-					const argEl = appendErrors(decodeFunctionArgument(argSeq, options), errors)
+					const argEl = appendErrors(decodeFunctionArgument(reader, options), errors)
 					args.push(argEl)
 				}
 				break
 			case Ber.CONTEXT(3):
 				result = []
-				readResSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
-				while (readResSeq.remain > 0) {
-					const resTag = readResSeq.peek()
+				reader.readSequence(Ber.BERDataTypes.SEQUENCE)
+				resOffset = reader.offset + reader.length
+				while (reader.offset < resOffset) {
+					const resTag = reader.readSequence()
 					if (resTag !== Ber.CONTEXT(0)) {
 						unknownContext(errors, 'decode function content: result', resTag, options)
+						skipNext(reader)
 						continue
 					}
-					const resSeq = readResSeq.getSequence(Ber.CONTEXT(0))
-					const resEl = appendErrors(decodeFunctionArgument(resSeq, options), errors)
+					const resEl = appendErrors(decodeFunctionArgument(reader, options), errors)
 					result.push(resEl)
 				}
 				break
 			case Ber.CONTEXT(4):
-				templateReference = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
+				templateReference = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				break
 			default:
 				unknownContext(errors, 'decode function content', tag, options)
+				skipNext(reader)
 				break
 		}
 	}

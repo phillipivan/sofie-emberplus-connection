@@ -7,7 +7,8 @@ import {
 	defaultDecode,
 	DecodeResult,
 	unknownContext,
-	makeResult
+	makeResult,
+	skipNext
 } from './DecodeResult'
 
 export { decodeInvocation }
@@ -16,32 +17,30 @@ function decodeInvocation(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<Invocation> {
-	const ber = reader.getSequence(InvocationBERID)
+	reader.readSequence(InvocationBERID)
 	let id: number | undefined = undefined
 	const args: Array<EmberTypedValue> = []
-	let argSeq: Ber.Reader
+	let seqOffset: number
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode invocation', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				id = seq.readInt()
+				id = reader.readInt()
 				break
 			case Ber.CONTEXT(1):
-				argSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
-				while (argSeq.remain > 0) {
-					const dataSeq = argSeq.getSequence(Ber.CONTEXT(0))
+				reader.readSequence(Ber.BERDataTypes.SEQUENCE)
+				seqOffset = reader.offset + reader.length
+				while (reader.offset < seqOffset) {
+					reader.readSequence(Ber.CONTEXT(0))
 					// const dataTag = dataSeq.peek() // TODO I think readValue gets the tag
-					args.push(dataSeq.readValue())
+					args.push(reader.readValue())
 				}
 				break
 			default:
 				unknownContext(errors, 'decode invocation', tag, options)
+				skipNext(reader)
 				break
 		}
 	}

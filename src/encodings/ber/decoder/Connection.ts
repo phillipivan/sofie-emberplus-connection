@@ -14,7 +14,8 @@ import {
 	check,
 	makeResult,
 	unexpected,
-	appendErrors
+	appendErrors,
+	skipNext
 } from './DecodeResult'
 
 export { decodeConnection }
@@ -23,26 +24,22 @@ function decodeConnection(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<Connection> {
-	const ber = reader.getSequence(ConnectionBERID)
+	reader.readSequence(ConnectionBERID)
 	let target: number | null = null
 	let sources: Array<number> | undefined = undefined
 	let operation: ConnectionOperation | undefined = undefined
 	let disposition: ConnectionDisposition | undefined = undefined
 	let encodedSources: string
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode connection', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				target = seq.readInt()
+				target = reader.readInt()
 				break
 			case Ber.CONTEXT(1):
-				encodedSources = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
+				encodedSources = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				if (encodedSources.length === 0) {
 					sources = []
 				} else {
@@ -50,13 +47,14 @@ function decodeConnection(
 				}
 				break
 			case Ber.CONTEXT(2):
-				operation = appendErrors(readConnectionOperation(seq.readInt(), options), errors)
+				operation = appendErrors(readConnectionOperation(reader.readInt(), options), errors)
 				break
 			case Ber.CONTEXT(3):
-				disposition = appendErrors(readConnectionDisposition(seq.readInt(), options), errors)
+				disposition = appendErrors(readConnectionDisposition(reader.readInt(), options), errors)
 				break
 			default:
 				unknownContext(errors, 'decode connection', tag, options)
+				skipNext(reader)
 				break
 		}
 	}

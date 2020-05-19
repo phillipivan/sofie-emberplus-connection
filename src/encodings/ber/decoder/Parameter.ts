@@ -10,7 +10,8 @@ import {
 	makeResult,
 	unexpected,
 	appendErrors,
-	unknownContext
+	unknownContext,
+	skipNext
 } from './DecodeResult'
 import { EmberValue, StringIntegerCollection, RelativeOID } from '../../../types/types'
 import { StreamDescription } from '../../../model/StreamDescription'
@@ -21,7 +22,7 @@ function decodeParameter(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<Parameter> {
-	const ber = reader.getSequence(Ber.BERDataTypes.SET)
+	reader.readSequence(Ber.BERDataTypes.SET)
 
 	let identifier: string | undefined = undefined
 	let description: string | undefined = undefined
@@ -44,74 +45,70 @@ function decodeParameter(
 	let templateReference: RelativeOID | undefined = undefined
 
 	const errors: Array<Error> = []
-
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode parameter', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				identifier = seq.readString(Ber.BERDataTypes.STRING)
+				identifier = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(1):
-				description = seq.readString(Ber.BERDataTypes.STRING)
+				description = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(2):
-				value = seq.readValue().value
+				value = reader.readValue().value
 				break
 			case Ber.CONTEXT(3):
-				minimum = seq.readValue().value as number | null
+				minimum = reader.readValue().value as number | null
 				break
 			case Ber.CONTEXT(4):
-				maximum = seq.readValue().value as number | null
+				maximum = reader.readValue().value as number | null
 				break
 			case Ber.CONTEXT(5):
-				access = appendErrors(readParameterAccess(seq.readInt(), options), errors)
+				access = appendErrors(readParameterAccess(reader.readInt(), options), errors)
 				break
 			case Ber.CONTEXT(6):
-				format = seq.readString(Ber.BERDataTypes.STRING)
+				format = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(7):
-				enumeration = seq.readString(Ber.BERDataTypes.STRING)
+				enumeration = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(8):
-				factor = seq.readInt()
+				factor = reader.readInt()
 				break
 			case Ber.CONTEXT(9):
-				isOnline = seq.readBoolean()
+				isOnline = reader.readBoolean()
 				break
 			case Ber.CONTEXT(10):
-				formula = seq.readString(Ber.BERDataTypes.STRING)
+				formula = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(11):
-				step = seq.readInt()
+				step = reader.readInt()
 				break
 			case Ber.CONTEXT(12):
-				defaultValue = seq.readValue().value // Write value uses type
+				defaultValue = reader.readValue().value // Write value uses type
 				break
 			case Ber.CONTEXT(13):
-				parameterType = appendErrors(readParameterType(seq.readInt(), options), errors)
+				parameterType = appendErrors(readParameterType(reader.readInt(), options), errors)
 				break
 			case Ber.CONTEXT(14):
-				streamIdentifier = seq.readInt()
+				streamIdentifier = reader.readInt()
 				break
 			case Ber.CONTEXT(15):
-				enumMap = appendErrors(decodeStringIntegerCollection(seq, options), errors)
+				enumMap = appendErrors(decodeStringIntegerCollection(reader, options), errors)
 				break
 			case Ber.CONTEXT(16):
-				streamDescriptor = appendErrors(decodeStreamDescription(seq, options), errors)
+				streamDescriptor = appendErrors(decodeStreamDescription(reader, options), errors)
 				break
 			case Ber.CONTEXT(17):
-				schemaIdentifiers = seq.readString(Ber.BERDataTypes.STRING)
+				schemaIdentifiers = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(18):
-				templateReference = seq.readString(Ber.BERDataTypes.STRING)
+				templateReference = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			default:
 				unknownContext(errors, 'decode parameter', tag, options)
+				skipNext(reader)
 				break
 		}
 	}

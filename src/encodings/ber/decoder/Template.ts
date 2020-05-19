@@ -23,37 +23,33 @@ export function decodeTemplate(
 	isQualified = false,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<TreeElement<Template>> {
-	const ber = reader.getSequence(isQualified ? QualifiedTemplateBERID : TemplateBERID)
+	reader.readSequence(isQualified ? QualifiedTemplateBERID : TemplateBERID)
 	let number: number | null = null
 	let path: string | null = null
 	let element: EmberTreeNode<Parameter | EmberNode | Matrix | EmberFunction> | undefined = undefined
 	let description: string | undefined = undefined
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode tempalte', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				if (isQualified) {
-					path = seq.readRelativeOID()
+					path = reader.readRelativeOID()
 				} else {
-					number = seq.readInt()
+					number = reader.readInt()
 				}
 				break
 			case Ber.CONTEXT(1):
 				element = appendErrors(
-					decodeGenericElement(seq, options) as DecodeResult<
+					decodeGenericElement(reader, options) as DecodeResult<
 						EmberTreeNode<Parameter | EmberNode | Matrix | EmberFunction>
 					>,
 					errors
 				)
 				break
 			case Ber.CONTEXT(2):
-				description = seq.readString(Ber.BERDataTypes.STRING)
+				description = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			default:
 				unknownContext(errors, 'decode template', tag, options)

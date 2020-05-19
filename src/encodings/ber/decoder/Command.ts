@@ -19,7 +19,8 @@ import {
 	check,
 	makeResult,
 	appendErrors,
-	unexpected
+	unexpected,
+	skipNext
 } from './DecodeResult'
 
 export { decodeCommand }
@@ -43,34 +44,30 @@ function decodeCommand(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<Command> {
-	const ber = reader.getSequence(CommandBERID)
+	reader.readSequence(CommandBERID)
 	let type: CommandType | null = null
 	let dirFieldMask: FieldFlags | undefined = undefined
 	let invocation: Invocation | undefined = undefined
 	const errors: Array<Error> = []
-
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode command', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				type = seq.readInt()
+				type = reader.readInt()
 				break
 			case Ber.CONTEXT(1):
-				dirFieldMask = readDirFieldMask(seq)
+				dirFieldMask = readDirFieldMask(reader)
 				if (!dirFieldMask) {
 					errors.push(new Error(`decode command: encounted unknown dir field mask`))
 				}
 				break
 			case Ber.CONTEXT(2):
-				invocation = appendErrors(decodeInvocation(seq, options), errors)
+				invocation = appendErrors(decodeInvocation(reader, options), errors)
 				break
 			default:
 				unknownContext(errors, 'decode command', tag, options)
+				skipNext(reader)
 				break
 		}
 	}
