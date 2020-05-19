@@ -479,9 +479,21 @@ export class EmberClient extends EventEmitter {
 					let inserted = false
 
 					if (!tree) {
-						// Assuming this means that no get directory was done on the root of the tree.
-						changes = [...changes, { path: rootElement.path, node: rootElement }]
-						continue
+						if (path.length) {
+							// Assuming this means that no get directory was done on the root of the tree.
+							changes = [...changes, { path: rootElement.path, node: rootElement }]
+							continue
+						} else {
+							let number = Number(rootElement.path)
+							// Insert node into root
+							this._tree[number] = new NumberedTreeNodeImpl(
+								number,
+								rootElement.contents,
+								rootElement.children
+							)
+							changes = [...changes, { path: undefined, node: this._tree[number] }]
+							continue
+						}
 					}
 
 					for (const number of path) {
