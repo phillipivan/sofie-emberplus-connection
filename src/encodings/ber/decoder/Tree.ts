@@ -210,6 +210,7 @@ export function decodeRootElements(
 		if (tag !== Ber.CONTEXT(0)) {
 			unknownContext(rootEls, 'decode root elements', tag, options)
 			skipNext(reader)
+			continue
 		}
 		const rootEl = decodeGenericElement(reader, options) as DecodeResult<
 			NumberedTreeNode<EmberElement>
