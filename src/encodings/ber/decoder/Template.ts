@@ -15,7 +15,8 @@ import {
 	unknownContext,
 	appendErrors,
 	check,
-	makeResult
+	makeResult,
+	skipNext
 } from './DecodeResult'
 
 export function decodeTemplate(
@@ -53,6 +54,7 @@ export function decodeTemplate(
 				break
 			default:
 				unknownContext(errors, 'decode template', tag, options)
+				skipNext(reader)
 				break
 		}
 	}
