@@ -247,7 +247,7 @@ export class EmberClient extends EventEmitter {
 				args
 			}
 		}
-		return this._sendCommand<InvocationResult>(node, command, false)
+		return this._sendCommand<InvocationResult>(node, command)
 	}
 
 	/** Sending ember+ values */
@@ -469,6 +469,18 @@ export class EmberClient extends EventEmitter {
 
 		if ('id' in node) {
 			// node is an InvocationResult
+			this._requests.forEach(req => {
+				if (req.node.contents.type === ElementType.Function) {
+					if (req.node.children && req.node.children[0]) {
+						if ('invocation' in (req.node.children[0].contents as Invoke)) {
+							if ((req.node.children[0].contents as Invoke).invocation?.id && (req.node.children[0].contents as Invoke).invocation?.id === node.id) {
+								req.resolve(node)
+								this._requests.delete(req.reqId)
+							}
+						}
+					}
+				}
+			})
 		} else {
 			// EmberNode is not an InvocationResult
 
