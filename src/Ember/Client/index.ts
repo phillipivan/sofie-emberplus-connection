@@ -297,14 +297,19 @@ export class EmberClient extends EventEmitter {
 		}
 
 		const emberNodes = [node]
+		const canBeExpanded = (node: NumberedTreeNode<EmberElement>) => {
+			if (node.contents.type === ElementType.Node) {
+				return (node as NumberedTreeNode<EmberNode>).contents.isOnline !== false
+			} else {
+				return node.contents.type !== ElementType.Parameter && node.contents.type !== ElementType.Function
+			}
+		}
 
 		let curEmberNode
 		while ((curEmberNode = emberNodes.shift())) {
 			if (curEmberNode.children) {
 				emberNodes.push(
-					...Object.values(curEmberNode.children).filter(
-						(c) => c.contents.type !== ElementType.Parameter
-					)
+					...Object.values(curEmberNode.children).filter(canBeExpanded)
 				)
 			} else {
 				const req = await this.getDirectory(curEmberNode)
@@ -312,7 +317,7 @@ export class EmberClient extends EventEmitter {
 				const res = (await req.response) as RootElement
 				if (res.children) {
 					Object.values(res.children).forEach(
-						(c) => c.contents.type !== ElementType.Parameter && emberNodes.push(c) // TODO - which types should not be expanded further?
+						(c) => canBeExpanded(c) && emberNodes.push(c) // TODO - which types should not be expanded further?
 					)
 				}
 			}
