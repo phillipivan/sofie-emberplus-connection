@@ -33,7 +33,6 @@ export function getPath(node: RootElement): string {
 	return ''
 }
 
-// TODO - what to do with any children. Do they keep their object pointers / references?
 export function toQualifiedEmberNode(
 	EmberNode: NumberedTreeNode<EmberElement>
 ): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
@@ -54,11 +53,6 @@ export function insertCommand(
 	node: Exclude<RootElement, NumberedTreeNode<EmberElement>>,
 	command: Command
 ): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
-	// if (node.children) {
-	// 	// TODO - what does this mean? can we even insert a command?
-	// } else {
-	// 	node.children = [new NumberedTreeNodeImpl(0, command)]
-	// }
 	return new QualifiedElementImpl<EmberElement>(
 		node.path,
 		node.contents,
