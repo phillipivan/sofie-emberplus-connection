@@ -123,6 +123,7 @@ export class EmberClient extends EventEmitter {
 			})
 			this.emit('disconnected')
 		})
+		this._client.on('error', (e) => this.emit('error', e))
 	}
 
 	/**
@@ -430,7 +431,6 @@ export class EmberClient extends EventEmitter {
 	}
 
 	private _handleIncoming(incoming: DecodeResult<Root>) {
-		// TODO - consider emitting errors (or even rejecting?)
 		const node = incoming.value
 		// update tree:
 		const changes = this._applyRootToTree(node)
@@ -462,6 +462,9 @@ export class EmberClient extends EventEmitter {
 				}
 			}
 		}
+
+		// at last, emit the errors for logging purposes
+		incoming.errors?.forEach((e) => this.emit('warn', e))
 	}
 
 	private _applyRootToTree(node: Root): Array<IChange> {

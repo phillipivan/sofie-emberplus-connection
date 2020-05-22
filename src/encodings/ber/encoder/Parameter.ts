@@ -14,13 +14,13 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer): void 
 				writer.writeNull()
 				break
 			case ParameterType.Integer:
-				writer.writeInt(value as number, Ber.BERDataTypes.INTEGER)
+				writer.writeInt(Number(value), Ber.BERDataTypes.INTEGER)
 				break
 			case ParameterType.Real:
-				writer.writeReal(value as number, Ber.BERDataTypes.REAL)
+				writer.writeReal(Number(value), Ber.BERDataTypes.REAL)
 				break
 			case ParameterType.String:
-				writer.writeString(value as string, Ber.BERDataTypes.STRING)
+				writer.writeString(value + '', Ber.BERDataTypes.STRING)
 				break
 			case ParameterType.Boolean:
 				writer.writeBoolean(value as boolean, Ber.BERDataTypes.BOOLEAN)

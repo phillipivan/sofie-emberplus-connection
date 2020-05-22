@@ -67,6 +67,7 @@ export default class S101Socket extends EventEmitter {
 			this.socket.on('close', () => {
 				this.emit('disconnected')
 				this.status = 'disconnected'
+				this.socket?.removeAllListeners()
 				this.socket = undefined
 			})
 
