@@ -4,16 +4,16 @@ import { Writer, WriterOptions } from 'asn1'
 import { CONTEXT, UNIVERSAL } from './functions'
 import { BERDataTypes } from './BERDataTypes'
 import { Parameter, ParameterType, isParameter } from '../model/Parameter'
-import { EmberValue } from '../types/types'
+import { EmberValue, EmberTypedValue } from '../types/types'
 
 export { ExtendedWriter as Writer }
 
 class ExtendedWriter extends Writer {
-	constructor(options: WriterOptions | undefined) {
+	constructor(options?: WriterOptions) {
 		super(options)
 	}
 
-	writeReal(value: number, tag: number) {
+	writeReal(value: number, tag: number): void {
 		if (tag === undefined) {
 			tag = UNIVERSAL(9)
 		}
@@ -49,50 +49,64 @@ class ExtendedWriter extends Writer {
 			.and(Long.fromBits(0xffffffff, 0x000fffff, true))
 			.or(Long.fromBits(0x00000000, 0x00100000, true))
 
-		let exponent = bits
+		let exponent: Long.Long | number = bits
 			.and(Long.fromBits(0x00000000, 0x7ff00000, true))
 			.shru(52)
 			.sub(1023)
 			.toSigned()
-			.toNumber()
 
-		while (significand.and(0xff) === Long.fromNumber(0)) {
+		while (significand.and(0xff).toNumber() === 0) {
 			significand = significand.shru(8)
 		}
 
-		while (significand.and(0x01) === Long.fromNumber(0)) {
+		while (significand.and(0x01).toNumber() === 0) {
 			significand = significand.shru(1)
 		}
 
-		const shortenedExponent = shorten(exponent)
-		const shortenedSignificand = shortenLong(significand)
+		exponent = exponent.toNumber()
 
-		this.writeLength(1 + shortenedExponent.size + shortenedSignificand.size)
+		let { size: expSize, value: shortExp } = shorten(exponent)
+		let { size: sigSize, value: shortSig } = shortenLong(significand)
+
+		this.writeLength(1 + expSize + sigSize)
 
 		const preamble = value < 0 ? 0x80 | 0x40 : 0x80 // in what case will 0x80|0x40 be anything but 0xC0?
 		this.writeByte(preamble)
 
-		for (let i = 0; i < shortenedExponent.size; i++) {
-			this.writeByte((shortenedExponent.value & 0xff000000) >> 24)
-			shortenedExponent.value <<= 8
+		for (let i = 0; i < expSize; i++) {
+			this.writeByte((shortExp & 0xff000000) >> 24)
+			shortExp <<= 8
 		}
 
 		const mask = Long.fromBits(0x00000000, 0xff000000, true)
-		for (let i = 0; i < shortenedSignificand.size; i++) {
-			this.writeByte(shortenedSignificand.value.and(mask).shru(56).toNumber())
-			shortenedSignificand.value = shortenedSignificand.value.shl(8)
+		for (let i = 0; i < sigSize; i++) {
+			this.writeByte(shortSig.and(mask).shru(56).toNumber())
+			shortSig = shortSig.shl(8)
 		}
 	}
 
-	writeValue(value: EmberValue, tag?: number) {
-		// this is inconsistent with the original behavior, which would have thrown a TypeError if value was null or undef
-		// TypeScript won't allow doing a value.toString() if value can be null, not sure what to do here
+	writeValue(value: EmberValue, tag?: number): void
+	writeValue(typedValue: EmberTypedValue): void
+	writeValue(arg1: EmberValue | EmberTypedValue, tag?: number): void {
+		let value: EmberValue
+		if (arg1 && typeof arg1 === 'object' && 'type' in arg1) {
+			value = arg1.value
+			tag = parameterTypetoBERTAG(arg1.type)
+		} else {
+			value = arg1 as EmberValue
+		}
+
+		if (tag === BERDataTypes.NULL && (value === null || value === undefined)) {
+			this.writeNull()
+			return
+		}
 		if (value === null || value === undefined) {
+			this.writeNull()
 			return
 		}
 
-		if (typeof value == 'number') {
-			if (Number.isInteger(value)) {
+		if (typeof value === 'number') {
+			if (tag !== BERDataTypes.REAL && Number.isInteger(value)) {
 				if (tag === undefined) {
 					tag = BERDataTypes.INTEGER
 				}
@@ -116,7 +130,12 @@ class ExtendedWriter extends Writer {
 		}
 
 		if (Buffer.isBuffer(value) && tag) {
-			this.writeBuffer(value, tag)
+			if (value.length === 0) {
+				this.writeByte(tag)
+				this.writeLength(0)
+			} else {
+				this.writeBuffer(value, tag)
+			}
 			return
 		}
 
@@ -126,7 +145,7 @@ class ExtendedWriter extends Writer {
 		this.writeString(value.toString(), tag)
 	}
 
-	writeEmberParameter(value: Parameter) {
+	writeEmberParameter(value: Parameter): void {
 		if (isParameter(value)) {
 			switch (value.parameterType) {
 				case ParameterType.Real:
@@ -139,24 +158,30 @@ class ExtendedWriter extends Writer {
 					this.writeBoolean(value.value as boolean, BERDataTypes.BOOLEAN)
 					break
 				case ParameterType.Octets:
-					this.writeBuffer(value.value as Buffer, BERDataTypes.OCTETSTRING)
+					if (!Buffer.isBuffer(value.value)) {
+						value.value = Buffer.from(`${value.value}`)
+					}
+					if (value.value.length) {
+						this.writeByte(BERDataTypes.OCTETSTRING)
+						this.writeLength(0)
+					} else {
+						this.writeBuffer(value.value, BERDataTypes.OCTETSTRING)
+					}
+					break
+				case ParameterType.Null:
+					this.writeNull()
 					break
 				default:
 					this.writeString(value.value as string, BERDataTypes.STRING)
 			}
-			if (value.parameterType === ParameterType.Real) {
-				const tag = BERDataTypes.REAL
-				this.writeReal(value.value as number, tag)
-				return
-			}
 		} else {
-			this.writeValue(value as any, undefined)
+			this.writeValue((value as any).value, undefined)
 		}
 	}
 
-	writeIfDefined(
-		property: any,
-		writer: (value: number, tag: number) => {},
+	writeIfDefined<T>(
+		property: T | undefined,
+		writer: (value: T, tag: number) => void,
 		outer: number,
 		inner: number
 	): void {
@@ -170,7 +195,7 @@ class ExtendedWriter extends Writer {
 	writeIfDefinedEnum(
 		property: any,
 		type: any,
-		writer: (value: number, tag: number) => {},
+		writer: (value: number, tag: number) => void,
 		outer: number,
 		inner: number
 	): void {
@@ -197,7 +222,7 @@ function shorten(value: number): { size: number; value: number } {
 }
 
 function shortenLong(value: Long): { size: number; value: Long } {
-	let mask = Long.fromBits(0x00000000, 0xff800000, true)
+	const mask = Long.fromBits(0x00000000, 0xff800000, true)
 	value = value.toUnsigned()
 
 	let size = 8
@@ -207,4 +232,27 @@ function shortenLong(value: Long): { size: number; value: Long } {
 	}
 
 	return { size, value }
+}
+
+function parameterTypetoBERTAG(parameterType: ParameterType): number {
+	switch (parameterType) {
+		case ParameterType.Integer:
+			return BERDataTypes.INTEGER
+		case ParameterType.Real:
+			return BERDataTypes.REAL
+		case ParameterType.String:
+			return BERDataTypes.STRING
+		case ParameterType.Boolean:
+			return BERDataTypes.BOOLEAN
+		case ParameterType.Trigger:
+			return BERDataTypes.STRING // TODO: guess
+		case ParameterType.Enum:
+			return BERDataTypes.INTEGER // TODO: guess
+		case ParameterType.Octets:
+			return BERDataTypes.OCTETSTRING
+		case ParameterType.Null:
+			return BERDataTypes.NULL
+		default:
+			throw new Error(``)
+	}
 }

@@ -2,8 +2,9 @@ import { Reader } from 'asn1'
 import Long from 'long'
 import { ASN1Error, UnimplementedEmberTypeError } from '../Errors'
 import { BERDataTypes } from './BERDataTypes'
-import { UNIVERSAL } from './functions.js'
-import { EmberValue } from '../types/types'
+import { UNIVERSAL } from './functions'
+import { EmberTypedValue } from '../types/types'
+import { ParameterType } from '../model/Parameter'
 
 export { ExtendedReader as Reader }
 
@@ -12,12 +13,13 @@ class ExtendedReader extends Reader {
 		super(data)
 	}
 
-	getSequence(tag: number): ExtendedReader {
-		const buf = this.readString(tag, true)
-		return new ExtendedReader(buf)
-	}
+	// This is bad. No need to create a new reader for every tag!
+	// getSequence(tag: number): ExtendedReader {
+	// 	const buf = this.readString(tag, true)
+	// 	return new ExtendedReader(buf)
+	// }
 
-	readValue(): EmberValue {
+	readValue(): EmberTypedValue {
 		const tag = this.peek()
 		if (!tag) {
 			throw new Error('No tag available')
@@ -25,17 +27,21 @@ class ExtendedReader extends Reader {
 
 		switch (tag) {
 			case BERDataTypes.STRING:
-				return this.readString(BERDataTypes.STRING)
+				return { type: ParameterType.String, value: this.readString(BERDataTypes.STRING) }
 			case BERDataTypes.INTEGER:
-				return this.readInt()
+				return { type: ParameterType.Integer, value: this.readInt() }
 			case BERDataTypes.REAL:
-				return this.readReal()
+				return { type: ParameterType.Real, value: this.readReal() }
 			case BERDataTypes.BOOLEAN:
-				return this.readBoolean()
+				return { type: ParameterType.Boolean, value: this.readBoolean() }
 			case BERDataTypes.OCTETSTRING:
-				return this.readString(UNIVERSAL(4), true)
+				return { type: ParameterType.Octets, value: this.readString(UNIVERSAL(4), true) }
 			case BERDataTypes.RELATIVE_OID:
-				return this.readOID(BERDataTypes.RELATIVE_OID)
+				return { type: ParameterType.String, value: this.readOID(BERDataTypes.RELATIVE_OID) }
+			case BERDataTypes.NULL: // Note: No readNull in BER library but writer writes 2 bytes
+				this.readByte(false) // Read past - ASN1.NULL tag 0x05
+				this.readByte(false) // and - 0x00 length
+				return { type: ParameterType.Null, value: null }
 			default:
 				throw new UnimplementedEmberTypeError(tag)
 		}
@@ -84,7 +90,7 @@ class ExtendedReader extends Reader {
 			throw new ASN1Error('Invalid ASN.1; not enough length to contain exponent')
 		}
 
-		for (var i = 0; i < exponentLength; i++) {
+		for (let i = 0; i < exponentLength; i++) {
 			exponent = (exponent << 8) | buf.readUInt8(o++)
 		}
 

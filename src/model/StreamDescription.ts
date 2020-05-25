@@ -1,4 +1,4 @@
-export { StreamDescription }
+export { StreamDescription, StreamFormat }
 
 enum StreamFormat {
 	UInt8 = 'UInt8',
@@ -24,4 +24,8 @@ enum StreamFormat {
 interface StreamDescription {
 	format: StreamFormat
 	offset: number // Integer32
+}
+
+export class StreamDescriptionImpl implements StreamDescription {
+	constructor(public format: StreamFormat, public offset: number) {}
 }

@@ -25,9 +25,9 @@ class UnimplementedEmberTypeError extends Error {
 	constructor(tag: number) {
 		super()
 		this.name = this.constructor.name
-		var identifier = (tag & 0xc0) >> 6
-		var value = (tag & 0x1f).toString()
-		var tagStr = tag.toString()
+		const identifier = (tag & 0xc0) >> 6
+		const value = (tag & 0x1f).toString()
+		let tagStr = tag.toString()
 		if (identifier == 0) {
 			tagStr = '[UNIVERSAL ' + value + ']'
 		} else if (identifier == 1) {
@@ -102,7 +102,7 @@ class InvalidRequestFormat extends Error {
 }
 
 class InvalidEmberNode extends Error {
-	constructor(path: string = 'unknown', info: string = '') {
+	constructor(path = 'unknown', info = '') {
 		super(`Invalid Ember Node at ${path}: ${info}`)
 	}
 }
@@ -138,13 +138,13 @@ class InvalidBERFormat extends Error {
 	 *
 	 * @param {string} info
 	 */
-	constructor(info: string = '') {
+	constructor(info = '') {
 		super(`Invalid BER format: ${info}`)
 	}
 }
 
 class InvalidResultFormat extends Error {
-	constructor(info: string = '') {
+	constructor(info = '') {
 		super(`Invalid Result format: ${info}`)
 	}
 }
