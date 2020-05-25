@@ -204,6 +204,8 @@ export function decodeRootElements(
 ): DecodeResult<Collection<RootElement>> {
 	reader.readSequence(RootElementsBERID)
 	const rootEls = makeResult<Collection<RootElement>>({})
+
+	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
 		const tag = reader.readSequence()
 		if (tag !== Ber.CONTEXT(0)) {

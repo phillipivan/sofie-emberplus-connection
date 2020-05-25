@@ -63,7 +63,7 @@ export function insertCommand(
 export function updateProps<T>(oldProps: T, newProps: T, props?: Array<keyof T>) {
 	if (!props) props = Object.keys(newProps) as Array<keyof T>
 
-	for (let key of props) {
+	for (const key of props) {
 		if (newProps[key] !== undefined && newProps[key] !== oldProps[key]) {
 			oldProps[key] = newProps[key]
 		}

@@ -63,7 +63,7 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 	}
 
 	// Encode Contents:
-	if (Object.values(el.contents).filter((v: EmberElement) => v !== undefined).length > 1) { 
+	if (Object.values(el.contents).filter((v: EmberElement) => v !== undefined).length > 1) {
 		writer.startSequence(Ber.CONTEXT(1)) // start contents
 		encodeEmberElement(el.contents, writer)
 		writer.endSequence() // end contents

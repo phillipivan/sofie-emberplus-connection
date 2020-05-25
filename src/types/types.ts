@@ -56,11 +56,4 @@ function literal<T>(arg: T): T {
 	return arg
 }
 
-type QualifiedElements =
-	| QualifiedElement<Parameter>
-	| QualifiedElement<EmberNode>
-	| QualifiedElement<Matrix>
-	| QualifiedElement<EmberFunction>
-	| QualifiedElement<Template>
-
 type Collection<T> = { [index: number]: T }

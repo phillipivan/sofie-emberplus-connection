@@ -320,7 +320,7 @@ export default class S101Codec extends EventEmitter {
 		}
 
 		const slot = frame.readUInt8()
-		var message = frame.readUInt8()
+		const message = frame.readUInt8()
 		if (slot != SLOT || message != MSG_EMBER) {
 			winston.error(
 				'dropping frame of length %d (not an ember frame; slot=%d, msg=%d)',
@@ -361,15 +361,12 @@ export default class S101Codec extends EventEmitter {
 			return
 		}
 
-		let glowMinor = 0
-		let glowMajor = 0
-
 		if (appBytes < 2) {
 			winston.warn('Frame missing Glow DTD version')
 			frame.skip(appBytes)
 		} else {
-			glowMinor = frame.readUInt8()
-			glowMajor = frame.readUInt8()
+			frame.readUInt8() // glowMinor
+			frame.readUInt8() // glowMajor
 			appBytes -= 2
 			if (appBytes > 0) {
 				frame.skip(appBytes)
@@ -472,32 +469,32 @@ export default class S101Codec extends EventEmitter {
 	}
 
 	// Overide EventEmitter.on() for stronger typings:
-	// @ts-ignore: ignore uninitialized as this is done by EventEmitter:
+	// Note: ignore uninitialized as this is done by EventEmitter:
 	on: ((event: 'emberPacket', listener: (packet: Buffer) => void) => this) &
 		((event: 'keepaliveReq', listener: () => void) => this) &
 		((event: 'keepaliveResp', listener: () => void) => this)
-	// @ts-ignore: ignore uninitialized as this is done by EventEmitter:
+	// Note: ignore uninitialized as this is done by EventEmitter:
 	emit: ((event: 'emberPacket', packet: Buffer) => boolean) &
 		((event: 'keepaliveReq') => boolean) &
 		((event: 'keepaliveResp') => boolean)
 
 	private _finalizeBuffer(smartbuf: SmartBuffer) {
 		const crc = ~this._calculateCRCCE(smartbuf.toBuffer().slice(1, smartbuf.length)) & 0xffff
-		const crc_hi = crc >> 8
-		const crc_lo = crc & 0xff
+		const crcHi = crc >> 8
+		const crcLo = crc & 0xff
 
-		if (crc_lo < S101_INV) {
-			smartbuf.writeUInt8(crc_lo)
+		if (crcLo < S101_INV) {
+			smartbuf.writeUInt8(crcLo)
 		} else {
 			smartbuf.writeUInt8(S101_CE)
-			smartbuf.writeUInt8(crc_lo ^ S101_XOR)
+			smartbuf.writeUInt8(crcLo ^ S101_XOR)
 		}
 
-		if (crc_hi < S101_INV) {
-			smartbuf.writeUInt8(crc_hi)
+		if (crcHi < S101_INV) {
+			smartbuf.writeUInt8(crcHi)
 		} else {
 			smartbuf.writeUInt8(S101_CE)
-			smartbuf.writeUInt8(crc_hi ^ S101_XOR)
+			smartbuf.writeUInt8(crcHi ^ S101_XOR)
 		}
 
 		smartbuf.writeUInt8(S101_EOF)

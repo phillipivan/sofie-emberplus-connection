@@ -6,13 +6,19 @@ import {
 	MatrixType,
 	MatrixAddressingMode
 } from '../../../model/Matrix'
-import { EmberTreeNode, RelativeOID } from '../../../types/types'
+import { EmberTreeNode, RelativeOID, Collection } from '../../../types/types'
 import { EmberElement } from '../../../model/EmberElement'
 import { decodeChildren } from './Tree'
 import { decodeConnection } from './Connection'
 import { decodeLabel } from './Label'
 import { MatrixBERID, QualifiedMatrixBERID, TargetBERID, SourceBERID } from '../constants'
-import { QualifiedElementImpl, NumberedTreeNodeImpl, TreeElement } from '../../../model/Tree'
+import {
+	QualifiedElementImpl,
+	NumberedTreeNodeImpl,
+	TreeElement,
+	QualifiedElement,
+	NumberedTreeNode
+} from '../../../model/Tree'
 import {
 	DecodeOptions,
 	defaultDecode,
@@ -40,7 +46,7 @@ function decodeMatrix(
 	let sources: Array<number> | undefined = undefined
 	let connections: Connections | undefined = undefined
 	let contents: Matrix | null = null
-	let kids: Array<EmberTreeNode<EmberElement>> | undefined = undefined
+	let kids: Collection<EmberTreeNode<EmberElement>> | undefined = undefined
 	const errors: Array<Error> = []
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
@@ -79,7 +85,7 @@ function decodeMatrix(
 	contents.sources = sources
 	contents.connections = connections
 
-	let el: TreeElement<Matrix>
+	let el: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>
 	if (isQualified) {
 		path = check(path, 'decode matrix', 'path', '', errors, options)
 		el = new QualifiedElementImpl(path, contents, kids)
@@ -89,7 +95,7 @@ function decodeMatrix(
 	}
 
 	if (kids) {
-		for (const kiddo of kids) {
+		for (const kiddo of Object.values(kids)) {
 			kiddo.parent = el
 		}
 	}

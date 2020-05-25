@@ -39,7 +39,7 @@ export interface RequestPromiseArguments<T> {
 	response?: Promise<T>
 }
 
-export interface IRequest {
+export interface Request {
 	reqId: string
 	node: RootElement
 	resolve: (res: any) => void
@@ -50,12 +50,12 @@ export interface IRequest {
 	lastSent: number
 }
 
-export interface ISubscription {
+export interface Subscription {
 	path: string | undefined // undefined implies root level
 	cb: (EmberNode: TreeElement<EmberElement>) => void
 }
 
-export interface IChange {
+export interface Change {
 	path: string | undefined
 	node: RootElement
 }
@@ -72,10 +72,10 @@ export class EmberClient extends EventEmitter {
 	port: number
 	tree: Collection<NumberedTreeNode<EmberElement>> = []
 
-	private _requests = new Map<string, IRequest>()
+	private _requests = new Map<string, Request>()
 	private _lastInvocation = 0
 	private _client: S101Client
-	private _subscriptions: Array<ISubscription> = []
+	private _subscriptions: Array<Subscription> = []
 
 	private _timeout = 3000
 	private _resendTimeout = 1000
@@ -101,7 +101,7 @@ export class EmberClient extends EventEmitter {
 		const findGcd = (a: number, b: number) => {
 			// assuming a and b are greater than 0
 			while (b) {
-				let t = b
+				const t = b
 				b = a % b
 				a = t
 			}
@@ -222,7 +222,7 @@ export class EmberClient extends EventEmitter {
 		const command: Unsubscribe = new UnsubscribeImpl()
 
 		const path = Array.isArray(node) ? '' : getPath(node)
-		for (let i in this._subscriptions) {
+		for (const i in this._subscriptions) {
 			if (this._subscriptions[i].path === path) {
 				this._subscriptions.splice(Number(i), 1)
 			}
@@ -321,6 +321,7 @@ export class EmberClient extends EventEmitter {
 		}
 	}
 	async getElementByPath(path: string, cb?: (EmberNode: TreeElement<EmberElement>) => void) {
+		console.log('get ' + path)
 		const getNext = (elements: Collection<NumberedTreeNode<EmberElement>>, i?: string) =>
 			Object.values(elements || {}).find(
 				(r) =>
@@ -331,14 +332,14 @@ export class EmberClient extends EventEmitter {
 		const getNextChild = (node: TreeElement<EmberElement>, i: string) =>
 			node.children && getNext(node.children, i)
 
-		let numberedPath: Array<number> = []
+		const numberedPath: Array<number> = []
 		const pathArr = path.split('.')
-		let i = pathArr.shift()
+		const i = pathArr.shift()
 		let tree: NumberedTreeNode<EmberElement> | undefined = getNext(this.tree, i)
 		if (tree?.number) numberedPath.push(tree?.number)
 
 		while (pathArr.length) {
-			let i = pathArr.shift()
+			const i = pathArr.shift()
 			if (!tree) throw new Error('Could not find node on given path')
 			if (!i) continue
 			let next = getNextChild(tree, i)
@@ -383,9 +384,9 @@ export class EmberClient extends EventEmitter {
 
 	private _sendCommand<T>(EmberNode: RootElement, command: Command, hasResponse?: boolean) {
 		// assert a qualified EmberNode
-		const qualifiedEmberNode = assertQualifiedEmberNode(EmberNode) // as QualifiedElements // kill me now
+		const qualifiedEmberNode = assertQualifiedEmberNode(EmberNode)
 		// insert command
-		const commandEmberNode = insertCommand(qualifiedEmberNode, command) // as QualifiedElements
+		const commandEmberNode = insertCommand(qualifiedEmberNode, command)
 		// send request
 		return this._sendRequest<T>(commandEmberNode, hasResponse)
 	}
@@ -401,7 +402,7 @@ export class EmberClient extends EventEmitter {
 
 		if (hasResponse) {
 			const p = new Promise<T>((resolve, reject) => {
-				const request: IRequest = {
+				const request: Request = {
 					reqId,
 					node,
 					resolve,
@@ -465,8 +466,8 @@ export class EmberClient extends EventEmitter {
 		incoming.errors?.forEach((e) => this.emit('warn', e))
 	}
 
-	private _applyRootToTree(node: Root): Array<IChange> {
-		let changes: Array<IChange> = []
+	private _applyRootToTree(node: Root): Array<Change> {
+		let changes: Array<Change> = []
 
 		if ('id' in node) {
 			// node is an InvocationResult
@@ -505,7 +506,7 @@ export class EmberClient extends EventEmitter {
 							changes = [...changes, { path: rootElement.path, node: rootElement }]
 							continue
 						} else {
-							let number = Number(rootElement.path)
+							const number = Number(rootElement.path)
 							// Insert node into root
 							this.tree[number] = new NumberedTreeNodeImpl(
 								number,
@@ -563,8 +564,8 @@ export class EmberClient extends EventEmitter {
 	private _updateTree(
 		update: TreeElement<EmberElement>,
 		tree: NumberedTreeNode<EmberElement>
-	): Array<IChange> {
-		let changes: Array<IChange> = []
+	): Array<Change> {
+		let changes: Array<Change> = []
 
 		if (update.contents.type === tree.contents.type) {
 			changes.push({ path: getPath(tree), node: tree })
@@ -629,7 +630,7 @@ export class EmberClient extends EventEmitter {
 					) {
 						// update is either generic, tally or modification
 						let exists = false
-						for (let i in matrix.connections) {
+						for (const i in matrix.connections) {
 							if (matrix.connections[i].target === connection.target) {
 								// found connection to update
 								exists = true
