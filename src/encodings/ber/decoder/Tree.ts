@@ -38,7 +38,8 @@ import {
 	appendErrors,
 	unknownApplication,
 	check,
-	unexpected
+	unexpected,
+	skipNext
 } from './DecodeResult'
 import { Command } from '../../../model/Command'
 import { EmberNodeImpl } from '../../../model/EmberNode'
@@ -47,20 +48,17 @@ export function decodeChildren(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<Collection<NumberedTreeNode<EmberElement>>> {
-	const ber = reader.getSequence(ElementCollectionBERID)
+	reader.readSequence(ElementCollectionBERID)
 	const kids = makeResult<Collection<NumberedTreeNode<EmberElement>>>(
 		{} as Collection<NumberedTreeNode<EmberElement>>
 	)
 
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-
-		if (tag !== Ber.CONTEXT(0)) {
-			unknownContext(kids, 'decode children', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
-		const kidEl = decodeGenericElement(seq, options) as DecodeResult<NumberedTreeNode<EmberElement>>
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		reader.readSequence()
+		const kidEl = decodeGenericElement(reader, options) as DecodeResult<
+			NumberedTreeNode<EmberElement>
+		>
 		safeSet(kidEl, kids, (x, y) => {
 			y[x.number] = x
 			return y
@@ -79,6 +77,7 @@ export function decodeGenericElement(
 
 	if (tag === null) {
 		unknownApplication(errors, 'decode generic element', tag, options)
+		skipNext(reader)
 		return makeResult(new NumberedTreeNodeImpl(-1, new EmberNodeImpl()), errors)
 	}
 	const isQualified = isTagQualified(tag)
@@ -97,26 +96,21 @@ export function decodeGenericElement(
 		)
 	}
 
-	const ber = reader.getSequence(tag)
+	reader.readSequence(tag)
 	let path: string | null = null
 	let number: number | null = null
 	let contents: EmberElement | null = null
 	let children: Collection<NumberedTreeNode<EmberElement>> | undefined
 
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode generic element', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
-
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				if (isQualified) {
-					path = seq.readRelativeOID()
+					path = reader.readRelativeOID()
 				} else {
-					number = seq.readInt()
+					number = reader.readInt()
 				}
 				break
 			case Ber.CONTEXT(1):
@@ -130,9 +124,10 @@ export function decodeGenericElement(
 							options
 						)
 						contents = new EmberNodeImpl()
+						skipNext(reader)
 						break
 					case ElementType.Function:
-						contents = appendErrors(decodeFunctionContent(seq, options), errors)
+						contents = appendErrors(decodeFunctionContent(reader, options), errors)
 						break
 					case ElementType.Matrix:
 						unknownApplication(
@@ -142,12 +137,13 @@ export function decodeGenericElement(
 							options
 						)
 						contents = new EmberNodeImpl()
+						skipNext(reader)
 						break
 					case ElementType.Node:
-						contents = appendErrors(decodeNode(seq, options), errors)
+						contents = appendErrors(decodeNode(reader, options), errors)
 						break
 					case ElementType.Parameter:
-						contents = appendErrors(decodeParameter(seq, options), errors)
+						contents = appendErrors(decodeParameter(reader, options), errors)
 						break
 					case ElementType.Template:
 						unknownApplication(
@@ -157,18 +153,21 @@ export function decodeGenericElement(
 							options
 						)
 						contents = new EmberNodeImpl()
+						skipNext(reader)
 						break
 					default:
 						unknownApplication(errors, 'decode generic element', tag, options)
 						contents = new EmberNodeImpl()
+						skipNext(reader)
 						break
 				}
 				break
 			case Ber.CONTEXT(2):
-				children = appendErrors(decodeChildren(seq, options), errors)
+				children = appendErrors(decodeChildren(reader, options), errors)
 				break
 			default:
 				unknownContext(errors, 'decode generic element', tag, options)
+				skipNext(reader)
 				break
 		}
 	}
@@ -203,15 +202,16 @@ export function decodeRootElements(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<Collection<RootElement>> {
-	const seq = reader.getSequence(RootElementsBERID)
+	reader.readSequence(RootElementsBERID)
 	const rootEls = makeResult<Collection<RootElement>>({})
-	while (seq.remain > 0) {
-		const tag = seq.peek()
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		if (tag !== Ber.CONTEXT(0)) {
 			unknownContext(rootEls, 'decode root elements', tag, options)
+			skipNext(reader)
+			continue
 		}
-		const data = seq.getSequence(Ber.CONTEXT(0))
-		const rootEl = decodeGenericElement(data, options) as DecodeResult<
+		const rootEl = decodeGenericElement(reader, options) as DecodeResult<
 			NumberedTreeNode<EmberElement>
 		>
 		console.log(rootEl.value.number)

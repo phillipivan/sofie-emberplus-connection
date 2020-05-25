@@ -69,20 +69,20 @@ function berDecode(b: Buffer, options: DecodeOptions = defaultDecode): DecodeRes
 		return makeResult([new NumberedTreeNodeImpl(-1, new EmberNodeImpl())], errors)
 	}
 
-	const rootSeq = reader.getSequence(tag)
-	const rootSeqType = rootSeq.peek()
+	reader.readSequence(tag)
+	const rootSeqType = reader.peek()
 
 	if (rootSeqType === RootElementsBERID) {
 		// RootElementCollection
-		const root: DecodeResult<Collection<RootElement>> = decodeRootElements(rootSeq, options)
+		const root: DecodeResult<Collection<RootElement>> = decodeRootElements(reader, options)
 		return root
 	} else if (rootSeqType === StreamEntriesBERID) {
 		// StreamCollection
-		const root: DecodeResult<Collection<StreamEntry>> = decodeStreamEntries(rootSeq, options)
+		const root: DecodeResult<Collection<StreamEntry>> = decodeStreamEntries(reader, options)
 		return root
 	} else if (rootSeqType === InvocationResultBERID) {
 		// InvocationResult
-		const root: DecodeResult<InvocationResult> = decodeInvocationResult(rootSeq, options)
+		const root: DecodeResult<InvocationResult> = decodeInvocationResult(reader, options)
 		return root
 	}
 

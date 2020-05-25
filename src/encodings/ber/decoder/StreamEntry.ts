@@ -9,7 +9,8 @@ import {
 	DecodeOptions,
 	defaultDecode,
 	safeSet,
-	check
+	check,
+	skipNext
 } from './DecodeResult'
 import { ParameterType } from '../../../model/Parameter'
 
@@ -19,15 +20,17 @@ function decodeStreamEntries(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<Array<StreamEntry>> {
-	const seq = reader.getSequence(StreamEntriesBERID)
+	reader.readSequence(StreamEntriesBERID)
 	const streamEntries = makeResult<Array<StreamEntry>>([])
-	while (seq.remain > 0) {
-		const tag = seq.peek()
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		if (tag !== Ber.CONTEXT(0)) {
 			unknownContext(streamEntries, 'decode stream entries', tag, options)
+			skipNext(reader)
+			continue
 		}
-		const data = seq.getSequence(Ber.CONTEXT(0))
-		const rootEl = decodeStreamEntry(data)
+		const rootEl = decodeStreamEntry(reader)
 		safeSet(rootEl, streamEntries, (x, y) => {
 			y.push(x)
 			return y
@@ -40,26 +43,23 @@ function decodeStreamEntry(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<StreamEntry> {
-	const ber = reader.getSequence(StreamEntryBERID)
+	reader.readSequence(StreamEntryBERID)
 	let identifier: number | null = null
 	let value: EmberTypedValue | null = null
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode stream entry', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				identifier = seq.readInt()
+				identifier = reader.readInt()
 				break
 			case Ber.CONTEXT(1):
-				value = seq.readValue()
+				value = reader.readValue()
 				break
 			default:
 				unknownContext(errors, 'decode stream entry', tag, options)
+				skipNext(reader)
 				break
 		}
 	}

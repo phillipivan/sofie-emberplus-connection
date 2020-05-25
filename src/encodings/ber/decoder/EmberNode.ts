@@ -5,7 +5,8 @@ import {
 	defaultDecode,
 	DecodeResult,
 	unknownContext,
-	makeResult
+	makeResult,
+	skipNext
 } from './DecodeResult'
 import { RelativeOID } from '../../../types/types'
 
@@ -15,7 +16,7 @@ function decodeNode(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<EmberNode> {
-	const ber = reader.getSequence(Ber.BERDataTypes.SET)
+	reader.readSequence(Ber.BERDataTypes.SET)
 	let identifier: string | undefined = undefined
 	let description: string | undefined = undefined
 	let isRoot: boolean | undefined = undefined
@@ -23,34 +24,31 @@ function decodeNode(
 	let schemaIdentifiers: string | undefined = undefined
 	let templateReference: RelativeOID | undefined = undefined
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode node', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				identifier = seq.readString(Ber.BERDataTypes.STRING)
+				identifier = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(1):
-				description = seq.readString(Ber.BERDataTypes.STRING)
+				description = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(2):
-				isRoot = seq.readBoolean()
+				isRoot = reader.readBoolean()
 				break
 			case Ber.CONTEXT(3):
-				isOnline = seq.readBoolean()
+				isOnline = reader.readBoolean()
 				break
 			case Ber.CONTEXT(4):
-				schemaIdentifiers = seq.readString(Ber.BERDataTypes.STRING)
+				schemaIdentifiers = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(5):
-				templateReference = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
+				templateReference = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				break
 			default:
 				unknownContext(errors, 'deocde node', tag, options)
+				skipNext(reader)
 				break
 		}
 	}

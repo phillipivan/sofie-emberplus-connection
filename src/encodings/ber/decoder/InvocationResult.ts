@@ -8,52 +8,47 @@ import {
 	DecodeResult,
 	makeResult,
 	unknownContext,
-	check
+	check,
+	skipNext
 } from './DecodeResult'
 
 export function decodeInvocationResult(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<InvocationResult> {
-	const ber = reader.getSequence(InvocationResultBERID)
+	reader.readSequence(InvocationResultBERID)
 	let id: number | null = null
 	let success: boolean | undefined = undefined
 	let result: Array<EmberTypedValue> | undefined = undefined
-	let resSeq: Ber.Reader
+	let seqOffset: number
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode invocation result', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				id = seq.readInt()
+				id = reader.readInt()
 				break
 			case Ber.CONTEXT(1):
-				success = seq.readBoolean()
+				success = reader.readBoolean()
 				break
 			case Ber.CONTEXT(2):
 				result = []
-				resSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
-				while (resSeq.remain > 0) {
-					const resTag = resSeq.peek()
-					if (resTag === null) {
+				reader.readSequence(Ber.BERDataTypes.SEQUENCE)
+				seqOffset = reader.offset + reader.length
+				while (reader.offset < seqOffset) {
+					const resTag = reader.readSequence()
+					if (resTag === null || resTag !== Ber.CONTEXT(0)) {
 						unknownContext(errors, 'decode invocation result: result', resTag, options)
+						skipNext(reader)
 						continue
 					}
-					const faSeq = resSeq.getSequence(resTag)
-					if (resTag !== Ber.CONTEXT(0)) {
-						unknownContext(errors, 'decode invoation result: result', resTag, options)
-						continue
-					}
-					result.push(faSeq.readValue())
+					result.push(reader.readValue())
 				}
 				break
 			default:
 				unknownContext(errors, 'decode invocation result', tag, options)
+				skipNext(reader)
 				break
 		}
 	}

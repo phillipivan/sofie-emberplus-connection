@@ -13,33 +13,31 @@ import {
 	check,
 	appendErrors,
 	makeResult,
-	unexpected
+	unexpected,
+	skipNext
 } from './DecodeResult'
 
 export function decodeStreamDescription(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<StreamDescription> {
-	const ber = reader.getSequence(StreamDescriptionBERID)
+	reader.readSequence(StreamDescriptionBERID)
 	let format: StreamFormat | null = null
 	let offset: number | null = null
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode stream description', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				format = appendErrors(readStreamFormat(seq.readInt(), options), errors)
+				format = appendErrors(readStreamFormat(reader.readInt(), options), errors)
 				break
 			case Ber.CONTEXT(1):
-				offset = seq.readInt()
+				offset = reader.readInt()
 				break
 			default:
 				unknownContext(errors, 'decode stream description', tag, options)
+				skipNext(reader)
 				break
 		}
 	}

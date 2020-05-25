@@ -1,4 +1,5 @@
 import { literal } from '../../../types/types'
+import * as Ber from '../../../Ber'
 
 export {
 	DecodeOptions,
@@ -13,7 +14,8 @@ export {
 	safeSet,
 	guarded,
 	appendErrors,
-	unexpected
+	unexpected,
+	skipNext
 }
 
 /**
@@ -268,5 +270,16 @@ function unexpected<T>(
 		}
 	} else {
 		throw err
+	}
+}
+
+/**
+ * Skip over a single value in the stream when it is not recognized.
+ * @param reader Reader to skip over the next tag for.
+ */
+function skipNext(reader: Ber.Reader): void {
+	const skipTag = reader.peek()
+	if (skipTag) {
+		reader.readString(skipTag, true)
 	}
 }

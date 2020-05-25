@@ -8,7 +8,8 @@ import {
 	makeResult,
 	unknownContext,
 	appendErrors,
-	check
+	check,
+	skipNext
 } from './DecodeResult'
 
 export { decodeStringIntegerCollection }
@@ -17,17 +18,18 @@ function decodeStringIntegerCollection(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<StringIntegerCollection> {
-	const seq = reader.getSequence(StringIntegerCollectionBERID)
+	reader.readSequence(StringIntegerCollectionBERID)
 	const collection: StringIntegerCollection = new Map<string, number>()
 	const errors: Array<Error> = []
-	while (seq.remain > 0) {
-		const tag = seq.peek()
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		if (tag !== Ber.CONTEXT(0)) {
 			unknownContext(errors, 'decode string integer collection', tag, options)
+			skipNext(reader)
 			continue
 		}
-		const data = seq.getSequence(Ber.CONTEXT(0))
-		const pair = appendErrors(decodeStringIntegerPair(data, options), errors)
+		const pair = appendErrors(decodeStringIntegerPair(reader, options), errors)
 		collection.set(pair.key, pair.value)
 	}
 	return makeResult(collection, errors)
@@ -40,23 +42,20 @@ function decodeStringIntegerPair(
 	let key: string | null = null
 	let value: number | null = null
 	const errors: Array<Error> = []
-	const seq = reader.getSequence(StringIntegerPairBERID)
-	while (seq.remain > 0) {
-		const tag = seq.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode string integer pair', tag, options)
-			continue
-		}
-		const dataSeq = seq.getSequence(tag)
+	reader.readSequence(StringIntegerPairBERID)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				key = dataSeq.readString(Ber.BERDataTypes.STRING)
+				key = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(1):
-				value = dataSeq.readInt()
+				value = reader.readInt()
 				break
 			default:
 				unknownContext(errors, 'deocde string integer pair', tag, options)
+				skipNext(reader)
 				break
 		}
 	}

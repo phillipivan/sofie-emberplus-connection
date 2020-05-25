@@ -21,7 +21,8 @@ import {
 	makeResult,
 	unexpected,
 	unknownContext,
-	check
+	check,
+	skipNext
 } from './DecodeResult'
 import { Label } from '../../../model/Label'
 
@@ -32,7 +33,7 @@ function decodeMatrix(
 	isQualified = false,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<TreeElement<Matrix>> {
-	const ber = reader.getSequence(isQualified ? QualifiedMatrixBERID : MatrixBERID)
+	reader.readSequence(isQualified ? QualifiedMatrixBERID : MatrixBERID)
 	let number: number | null = null
 	let path: RelativeOID | null = null
 	let targets: Array<number> | undefined = undefined
@@ -41,38 +42,35 @@ function decodeMatrix(
 	let contents: Matrix | null = null
 	let kids: Array<EmberTreeNode<EmberElement>> | undefined = undefined
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode matrix', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				if (isQualified) {
-					path = seq.readRelativeOID()
+					path = reader.readRelativeOID()
 				} else {
-					number = seq.readInt()
+					number = reader.readInt()
 				}
 				break
 			case Ber.CONTEXT(1):
-				contents = appendErrors(decodeMatrixContents(seq), errors)
+				contents = appendErrors(decodeMatrixContents(reader, options), errors)
 				break
 			case Ber.CONTEXT(2):
-				kids = appendErrors(decodeChildren(seq, options), errors)
+				kids = appendErrors(decodeChildren(reader, options), errors)
 				break
 			case Ber.CONTEXT(3):
-				targets = appendErrors(decodeTargets(seq, options), errors)
+				targets = appendErrors(decodeTargets(reader, options), errors)
 				break
 			case Ber.CONTEXT(4):
-				sources = appendErrors(decodeSources(seq, options), errors)
+				sources = appendErrors(decodeSources(reader, options), errors)
 				break
 			case Ber.CONTEXT(5):
-				connections = appendErrors(decodeConnections(seq, options), errors)
+				connections = appendErrors(decodeConnections(reader, options), errors)
 				break
 			default:
 				unknownContext(errors, 'decode matrix', tag, options)
+				skipNext(reader)
 				break
 		}
 	}
@@ -103,7 +101,7 @@ function decodeMatrixContents(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<Matrix> {
-	const ber = reader.getSequence(Ber.BERDataTypes.SET)
+	reader.readSequence(Ber.BERDataTypes.SET)
 	let plTag: number | null
 	let identifier: string | undefined = undefined
 	let description: string | undefined = undefined
@@ -118,68 +116,66 @@ function decodeMatrixContents(
 	let labels: Array<Label> | undefined = undefined
 	let schemaIdentifiers: string | undefined = undefined
 	let templateReference: string | undefined = undefined
-	let labelSeq: Ber.Reader
+	let seqOffset: number
 	const errors: Array<Error> = []
-	while (ber.remain > 0) {
-		const tag = ber.peek()
-		if (tag === null) {
-			unknownContext(errors, 'decode matrix contents', tag, options)
-			continue
-		}
-		const seq = ber.getSequence(tag)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				identifier = seq.readString(Ber.BERDataTypes.STRING)
+				identifier = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(1):
-				description = seq.readString(Ber.BERDataTypes.STRING)
+				description = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(2):
-				matrixType = appendErrors(readMatrixType(seq.readInt(), options), errors)
+				matrixType = appendErrors(readMatrixType(reader.readInt(), options), errors)
 				break
 			case Ber.CONTEXT(3):
-				addressingMode = appendErrors(readAddressingMode(seq.readInt(), options), errors)
+				addressingMode = appendErrors(readAddressingMode(reader.readInt(), options), errors)
 				break
 			case Ber.CONTEXT(4):
-				targetCount = seq.readInt()
+				targetCount = reader.readInt()
 				break
 			case Ber.CONTEXT(5):
-				sourceCount = seq.readInt()
+				sourceCount = reader.readInt()
 				break
 			case Ber.CONTEXT(6):
-				maximumTotalConnects = seq.readInt()
+				maximumTotalConnects = reader.readInt()
 				break
 			case Ber.CONTEXT(7):
-				maximumConnectsPerTarget = seq.readInt()
+				maximumConnectsPerTarget = reader.readInt()
 				break
 			case Ber.CONTEXT(8):
-				plTag = seq.peek()
+				plTag = reader.peek()
 				if (plTag === Ber.BERDataTypes.RELATIVE_OID) {
-					parametersLocation = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
+					parametersLocation = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				} else {
-					parametersLocation = seq.readInt()
+					parametersLocation = reader.readInt()
 				}
 				break
 			case Ber.CONTEXT(9):
-				gainParameterNumber = seq.readInt()
+				gainParameterNumber = reader.readInt()
 				break
 			case Ber.CONTEXT(10):
 				labels = []
-				labelSeq = seq.getSequence(Ber.BERDataTypes.SEQUENCE)
-				while (labelSeq.remain > 0) {
-					const lvSeq = labelSeq.getSequence(Ber.CONTEXT(0))
-					const lvVal = appendErrors(decodeLabel(lvSeq, options), errors)
+				reader.readSequence(Ber.BERDataTypes.SEQUENCE)
+				seqOffset = reader.offset + reader.length
+				while (reader.offset < seqOffset) {
+					reader.readSequence(Ber.CONTEXT(0))
+					const lvVal = appendErrors(decodeLabel(reader, options), errors)
 					labels.push(lvVal)
 				}
 				break
 			case Ber.CONTEXT(11):
-				schemaIdentifiers = seq.readString(Ber.BERDataTypes.STRING)
+				schemaIdentifiers = reader.readString(Ber.BERDataTypes.STRING)
 				break
 			case Ber.CONTEXT(12):
-				templateReference = seq.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
+				templateReference = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				break
 			default:
 				unknownContext(errors, 'decode mattric contents', tag, options)
+				skipNext(reader)
 				break
 		}
 	}
@@ -212,12 +208,13 @@ function decodeTargets(
 	_options: DecodeOptions = defaultDecode // eslint-disable-line @typescript-eslint/no-unused-vars
 ): DecodeResult<Array<number>> {
 	const targets: Array<number> = []
-	const ber = reader.getSequence(Ber.BERDataTypes.SEQUENCE)
-	while (ber.remain > 0) {
-		const seq1 = ber.getSequence(Ber.CONTEXT(0))
-		const seq2 = seq1.getSequence(TargetBERID)
-		const seq3 = seq2.getSequence(Ber.CONTEXT(0))
-		targets.push(seq3.readInt())
+	reader.readSequence(Ber.BERDataTypes.SEQUENCE)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		reader.readSequence(Ber.CONTEXT(0))
+		reader.readSequence(TargetBERID)
+		reader.readSequence(Ber.CONTEXT(0))
+		targets.push(reader.readInt())
 	}
 	return makeResult(targets)
 }
@@ -227,12 +224,13 @@ function decodeSources(
 	_options: DecodeOptions = defaultDecode // eslint-disable-line @typescript-eslint/no-unused-vars
 ): DecodeResult<Array<number>> {
 	const sources: Array<number> = []
-	const ber = reader.getSequence(Ber.BERDataTypes.SEQUENCE)
-	while (ber.remain > 0) {
-		const seq1 = ber.getSequence(Ber.CONTEXT(0))
-		const seq2 = seq1.getSequence(SourceBERID)
-		const seq3 = seq2.getSequence(Ber.CONTEXT(0))
-		sources.push(seq3.readInt())
+	reader.readSequence(Ber.BERDataTypes.SEQUENCE)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		reader.readSequence(Ber.CONTEXT(0))
+		reader.readSequence(SourceBERID)
+		reader.readSequence(Ber.CONTEXT(0))
+		sources.push(reader.readInt())
 	}
 	return makeResult(sources)
 }
@@ -242,10 +240,11 @@ function decodeConnections(
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<Connections> {
 	const connections = makeResult<Connections>({})
-	const seq = reader.getSequence(Ber.BERDataTypes.SEQUENCE)
-	while (seq.remain > 0) {
-		const conSeq = seq.getSequence(Ber.CONTEXT(0))
-		const connection = appendErrors(decodeConnection(conSeq, options), connections)
+	reader.readSequence(Ber.BERDataTypes.SEQUENCE)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		reader.readSequence(Ber.CONTEXT(0))
+		const connection = appendErrors(decodeConnection(reader, options), connections)
 		connections.value[connection.target] = connection
 	}
 	return connections
