@@ -214,7 +214,6 @@ export function decodeRootElements(
 		const rootEl = decodeGenericElement(reader, options) as DecodeResult<
 			NumberedTreeNode<EmberElement>
 		>
-		console.log(rootEl.value.number)
 		safeSet(rootEl, rootEls, (x, y) => {
 			if (x.number) {
 				y[x.number] = x
