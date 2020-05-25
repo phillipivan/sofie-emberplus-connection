@@ -71,7 +71,7 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 		writer.startSequence(Ber.CONTEXT(2)) // start children
 		writer.startSequence(ElementCollectionBERID) // start ElementCollection
 		if (el.children) {
-			for (const child of el.children) {
+			for (const child of Object.values(el.children)) {
 				writer.startSequence(Ber.CONTEXT(0)) // start child
 				encodeNumberedElement(child, writer)
 				writer.endSequence() // end child

@@ -1,4 +1,4 @@
-import { Root, RootType, RootElement } from '../../types/types'
+import { Root, RootType, RootElement, Collection } from '../../types/types'
 import * as Ber from '../../Ber'
 import { encodeInvocationResult } from './encoder/InvocationResult'
 import { InvocationResult } from '../../model/InvocationResult'
@@ -33,7 +33,7 @@ function berEncode(el: Root, rootType: RootType): Buffer {
 	switch (rootType) {
 		case RootType.Elements:
 			writer.startSequence(RootElementsBERID) // Start RootElementCollection
-			for (const rootEl of el as RootElement[]) {
+			for (const rootEl of Object.values(el as Collection<RootElement>)) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeRootElement(rootEl, writer)
 				writer.endSequence()
@@ -42,7 +42,7 @@ function berEncode(el: Root, rootType: RootType): Buffer {
 			break
 		case RootType.Streams:
 			writer.startSequence(StreamEntriesBERID) // Start StreamCollection
-			for (const entry of el as StreamEntry[]) {
+			for (const entry of Object.values(el as Collection<StreamEntry>)) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeStreamEntry(entry, writer)
 				writer.endSequence()
@@ -74,11 +74,11 @@ function berDecode(b: Buffer, options: DecodeOptions = defaultDecode): DecodeRes
 
 	if (rootSeqType === RootElementsBERID) {
 		// RootElementCollection
-		const root: DecodeResult<Array<RootElement>> = decodeRootElements(rootSeq, options)
+		const root: DecodeResult<Collection<RootElement>> = decodeRootElements(rootSeq, options)
 		return root
 	} else if (rootSeqType === StreamEntriesBERID) {
 		// StreamCollection
-		const root: DecodeResult<Array<StreamEntry>> = decodeStreamEntries(rootSeq, options)
+		const root: DecodeResult<Collection<StreamEntry>> = decodeStreamEntries(rootSeq, options)
 		return root
 	} else if (rootSeqType === InvocationResultBERID) {
 		// InvocationResult
