@@ -25,15 +25,15 @@ describe('model/EmberElement', () => {
 
 		describe('Parameter type', () => {
 			test('should be true when number property has a number value', () => {
-				const actual = isEmberElement({ type: ElementType.Parameter, number: 1 })
+				const actual = isEmberElement({ type: ElementType.Parameter })
 
 				expect(actual).toBe(true)
 			})
 
-			test('should be false when input has no number property', () => {
+			test('should be true when input has no number property', () => {
 				const actual = isEmberElement({ type: ElementType.Parameter })
 
-				expect(actual).toBe(false)
+				expect(actual).toBe(true)
 			})
 		})
 
@@ -44,10 +44,10 @@ describe('model/EmberElement', () => {
 				expect(actual).toBe(true)
 			})
 
-			test('should be false when input has no number property', () => {
+			test('should be true when input has no number property', () => {
 				const actual = isEmberElement({ type: ElementType.Parameter })
 
-				expect(actual).toBe(false)
+				expect(actual).toBe(true)
 			})
 		})
 

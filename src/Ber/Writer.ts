@@ -65,8 +65,8 @@ class ExtendedWriter extends Writer {
 
 		exponent = exponent.toNumber()
 
-		let { size: expSize, value: shortExp } = shorten(exponent)
-		let { size: sigSize, value: shortSig } = shortenLong(significand)
+		const { size: expSize, value: shortExp } = shorten(exponent)
+		const { size: sigSize, value: shortSig } = shortenLong(significand)
 
 		this.writeLength(1 + expSize + sigSize)
 
