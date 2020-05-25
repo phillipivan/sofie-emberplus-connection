@@ -469,14 +469,12 @@ export default class S101Codec extends EventEmitter {
 	}
 
 	// Overide EventEmitter.on() for stronger typings:
-	// Note: ignore uninitialized as this is done by EventEmitter:
 	on: ((event: 'emberPacket', listener: (packet: Buffer) => void) => this) &
 		((event: 'keepaliveReq', listener: () => void) => this) &
-		((event: 'keepaliveResp', listener: () => void) => this)
-	// Note: ignore uninitialized as this is done by EventEmitter:
+		((event: 'keepaliveResp', listener: () => void) => this) = super.on
 	emit: ((event: 'emberPacket', packet: Buffer) => boolean) &
 		((event: 'keepaliveReq') => boolean) &
-		((event: 'keepaliveResp') => boolean)
+		((event: 'keepaliveResp') => boolean) = super.emit
 
 	private _finalizeBuffer(smartbuf: SmartBuffer) {
 		const crc = ~this._calculateCRCCE(smartbuf.toBuffer().slice(1, smartbuf.length)) & 0xffff

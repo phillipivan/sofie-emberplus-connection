@@ -2,8 +2,7 @@ import { EventEmitter } from 'events'
 import { Socket } from 'net'
 
 import { S101Codec } from '../../S101'
-import { EmberTreeNode, Root } from '../../types/types'
-import { berDecode, berEncode } from '../..'
+import { berDecode } from '../..'
 
 export type Request = any
 
@@ -43,20 +42,18 @@ export default class S101Socket extends EventEmitter {
 	}
 
 	// Overide EventEmitter.on() for stronger typings:
-	// @ts-ignore: ignore uninitialized as this is done by EventEmitter:
 	on: ((event: 'emberPacket', listener: (packet: Buffer) => void) => this) &
 		((event: 'emberTree', listener: (root: any) => void) => this) &
 		((event: 'error', listener: (error: Error) => void) => this) &
 		((event: 'connecting', listener: () => void) => this) &
 		((event: 'connected', listener: () => void) => this) &
-		((event: 'disconnected', listener: () => void) => this)
-	// @ts-ignore: ignore uninitialized as this is done by EventEmitter:
+		((event: 'disconnected', listener: () => void) => this) = super.on
 	emit: ((event: 'emberPacket', packet: Buffer) => boolean) &
 		((event: 'emberTree', root: any) => boolean) &
 		((event: 'error', error: Error) => boolean) &
 		((event: 'connecting') => boolean) &
 		((event: 'connected') => boolean) &
-		((event: 'disconnected') => boolean)
+		((event: 'disconnected') => boolean) = super.emit
 
 	_initSocket() {
 		if (this.socket != null) {
