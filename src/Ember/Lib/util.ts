@@ -54,9 +54,9 @@ export function insertCommand(
 	command: Command
 ): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
 	return new QualifiedElementImpl<EmberElement>(
-		node.path,
-		node.contents,
-		[new NumberedTreeNodeImpl(0, command)]
+		node.path, node.contents, [
+			new NumberedTreeNodeImpl(0, command)
+		]
 	) as any
 }
 
