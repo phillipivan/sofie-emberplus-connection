@@ -6,17 +6,17 @@
 		"node": ">=10.20.1"
 	},
 	"files": [
-		"lib/**/*"
+		"dist/**/*"
 	],
-	"main": "lib/index.js",
-	"types": "lib/index.d.ts",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
 	"scripts": {
 		"build": "trash dist && yarn build:main",
 		"build:main": "tsc",
 		"lint": "eslint .",
 		"lint:fix": "yarn lint --fix",
 		"unit": "jest --rootDir ./src --passWithNoTests",
-		"test": "yarn lint && jest test",
+		"test": "yarn lint && jest test --rootDir ./src",
 		"test:coverage": "yarn test -- --coverage",
 		"cov": "jest --coverage; open-cli coverage/lcov-report/index.html",
 		"cov-open": "open-cli coverage/lcov-report/index.html",
