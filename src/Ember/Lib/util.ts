@@ -53,11 +53,7 @@ export function insertCommand(
 	node: Exclude<RootElement, NumberedTreeNode<EmberElement>>,
 	command: Command
 ): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
-	return new QualifiedElementImpl<EmberElement>(
-		node.path, node.contents, [
-			new NumberedTreeNodeImpl(0, command)
-		]
-	) as any
+	return new QualifiedElementImpl<EmberElement>(node.path, node.contents, [new NumberedTreeNodeImpl(0, command)]) as any
 }
 
 export function updateProps<T>(oldProps: T, newProps: T, props?: Array<keyof T>) {
