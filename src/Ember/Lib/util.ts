@@ -46,14 +46,16 @@ export function toQualifiedEmberNode(
 		path,
 		EmberNode.contents,
 		EmberNode.children // TODO - do we want the children?
-	) as any
+	) as Exclude<RootElement, NumberedTreeNode<EmberElement>>
 }
 
 export function insertCommand(
 	node: Exclude<RootElement, NumberedTreeNode<EmberElement>>,
 	command: Command
 ): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
-	return new QualifiedElementImpl<EmberElement>(node.path, node.contents, [new NumberedTreeNodeImpl(0, command)]) as any
+	return new QualifiedElementImpl<EmberElement>(node.path, node.contents, [
+		new NumberedTreeNodeImpl(0, command)
+	]) as Exclude<RootElement, NumberedTreeNode<EmberElement>>
 }
 
 export function updateProps<T>(oldProps: T, newProps: T, props?: Array<keyof T>) {
