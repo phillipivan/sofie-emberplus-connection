@@ -25,6 +25,7 @@ function decodeStreamEntries(
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
 		const tag = reader.readSequence()
+		if (tag === 0) continue
 		if (tag !== Ber.CONTEXT(0)) {
 			unknownContext(streamEntries, 'decode stream entries', tag, options)
 			skipNext(reader)
@@ -57,6 +58,8 @@ function decodeStreamEntry(
 			case Ber.CONTEXT(1):
 				value = reader.readValue()
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode stream entry', tag, options)
 				skipNext(reader)

@@ -55,7 +55,6 @@ export function decodeChildren(
 	)
 
 	const endOffset = reader.offset + reader.length
-	console.log(`Well hello my children ${reader.length}`)
 	while (reader.offset < endOffset) {
 		const tag = reader.readSequence()
 		if (tag === 0) continue
@@ -86,8 +85,6 @@ export function decodeGenericElement(
 	const isQualified = isTagQualified(tag)
 	const type = appendErrors(tagToElType(tag, options), errors)
 
-	console.log('++++ DANGER WILL ROBINSON +++++', tag, type)
-
 	if (tag === MatrixBERID || tag === QualifiedMatrixBERID) {
 		return decodeMatrix(reader, isQualified)
 	}
@@ -108,10 +105,8 @@ export function decodeGenericElement(
 	let children: Collection<NumberedTreeNode<EmberElement>> | undefined
 
 	const endOffset = reader.offset + reader.length
-	console.log(`Element length ${reader.length}`)
 	while (reader.offset < endOffset) {
 		const tag = reader.readSequence()
-		console.log(`Element with tag ${tag} has length ${reader.length}`)
 		switch (tag) {
 			case Ber.CONTEXT(0):
 				if (isQualified) {
@@ -148,7 +143,6 @@ export function decodeGenericElement(
 						break
 					case ElementType.Node:
 						contents = appendErrors(decodeNode(reader, options), errors)
-						console.dir(contents)
 						break
 					case ElementType.Parameter:
 						contents = appendErrors(decodeParameter(reader, options), errors)
@@ -174,8 +168,7 @@ export function decodeGenericElement(
 				children = appendErrors(decodeChildren(reader, options), errors)
 				break
 			case 0:
-				console.log('**** decodeGenericElement: Found a zero tag!!')
-				break
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode generic element', tag, options)
 				skipNext(reader)
@@ -227,7 +220,6 @@ export function decodeRootElements(
 	const rootEls = makeResult<Collection<RootElement>>({})
 
 	const endOffset = reader.offset + reader.length
-	console.log(`Root element BOO ${reader.length}`)
 	while (reader.offset < endOffset) {
 		const tag = reader.readSequence()
 		if (tag === 0) continue

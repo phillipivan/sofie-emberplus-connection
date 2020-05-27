@@ -24,6 +24,7 @@ function decodeStringIntegerCollection(
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
 		const tag = reader.readSequence()
+		if (tag === 0) continue
 		if (tag !== Ber.CONTEXT(0)) {
 			unknownContext(errors, 'decode string integer collection', tag, options)
 			skipNext(reader)
@@ -53,6 +54,8 @@ function decodeStringIntegerPair(
 			case Ber.CONTEXT(1):
 				value = reader.readInt()
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'deocde string integer pair', tag, options)
 				skipNext(reader)

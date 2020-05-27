@@ -52,6 +52,8 @@ export function decodeTemplate(
 			case Ber.CONTEXT(2):
 				description = reader.readString(Ber.BERDataTypes.STRING)
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode template', tag, options)
 				skipNext(reader)

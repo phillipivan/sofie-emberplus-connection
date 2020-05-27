@@ -106,6 +106,8 @@ function decodeParameter(
 			case Ber.CONTEXT(18):
 				templateReference = reader.readString(Ber.BERDataTypes.STRING)
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode parameter', tag, options)
 				skipNext(reader)

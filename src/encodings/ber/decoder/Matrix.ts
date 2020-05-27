@@ -74,6 +74,8 @@ function decodeMatrix(
 			case Ber.CONTEXT(5):
 				connections = appendErrors(decodeConnections(reader, options), errors)
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode matrix', tag, options)
 				skipNext(reader)
@@ -179,6 +181,8 @@ function decodeMatrixContents(
 			case Ber.CONTEXT(12):
 				templateReference = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode mattric contents', tag, options)
 				skipNext(reader)

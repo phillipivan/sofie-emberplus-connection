@@ -45,6 +45,7 @@ function decodeFunctionContent(
 				seqOffset = reader.offset + reader.length
 				while (reader.offset < seqOffset) {
 					const argTag = reader.readSequence()
+					if (argTag === 0) continue // indefinite length
 					if (argTag !== Ber.CONTEXT(0)) {
 						unknownContext(errors, 'decode function content: arguments', argTag, options)
 						skipNext(reader)
@@ -60,6 +61,7 @@ function decodeFunctionContent(
 				resOffset = reader.offset + reader.length
 				while (reader.offset < resOffset) {
 					const resTag = reader.readSequence()
+					if (resTag === 0) continue // indefinite length
 					if (resTag !== Ber.CONTEXT(0)) {
 						unknownContext(errors, 'decode function content: result', resTag, options)
 						skipNext(reader)
@@ -72,6 +74,8 @@ function decodeFunctionContent(
 			case Ber.CONTEXT(4):
 				templateReference = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				break
+			case 0:
+				break // Idefinite length
 			default:
 				unknownContext(errors, 'decode function content', tag, options)
 				skipNext(reader)

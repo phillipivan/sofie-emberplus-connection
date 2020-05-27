@@ -52,6 +52,8 @@ function decodeConnection(
 			case Ber.CONTEXT(3):
 				disposition = appendErrors(readConnectionDisposition(reader.readInt(), options), errors)
 				break
+			case 0:
+				break // Indefinite lengths
 			default:
 				unknownContext(errors, 'decode connection', tag, options)
 				skipNext(reader)

@@ -31,6 +31,8 @@ function decodeLabel(
 			case Ber.CONTEXT(1):
 				description = reader.readString(Ber.BERDataTypes.STRING)
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode label', tag, options)
 				skipNext(reader)

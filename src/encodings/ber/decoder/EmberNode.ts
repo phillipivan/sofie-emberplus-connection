@@ -47,8 +47,7 @@ function decodeNode(
 				templateReference = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				break
 			case 0:
-				console.log('*** decodeNode: found a zero tag')
-				break
+				break // indefinite length
 			default:
 				unknownContext(errors, 'deocde node', tag, options)
 				skipNext(reader)
