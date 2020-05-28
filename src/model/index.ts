@@ -1,4 +1,4 @@
-import { EmberElement } from './EmberElement'
+import { EmberElement, ElementType } from './EmberElement'
 import { EmberFunction, EmberFunctionImpl } from './EmberFunction'
 import { EmberNode, EmberNodeImpl } from './EmberNode'
 import { FunctionArgument, FunctionArgumentImpl } from './FunctionArgument'
@@ -20,6 +20,7 @@ import {
 
 export {
 	EmberElement,
+	ElementType,
 	EmberFunction,
 	EmberFunctionImpl,
 	EmberNode,
