@@ -43,6 +43,7 @@ import {
 } from './DecodeResult'
 import { Command } from '../../../model/Command'
 import { EmberNodeImpl } from '../../../model/EmberNode'
+import { ParameterImpl, ParameterType, EmberFunctionImpl } from '../../../model'
 
 export function decodeChildren(
 	reader: Ber.Reader,
@@ -55,7 +56,8 @@ export function decodeChildren(
 
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
-		reader.readSequence()
+		const tag = reader.readSequence()
+		if (tag === 0) continue
 		const kidEl = decodeGenericElement(reader, options) as DecodeResult<
 			NumberedTreeNode<EmberElement>
 		>
@@ -99,7 +101,7 @@ export function decodeGenericElement(
 	reader.readSequence(tag)
 	let path: string | null = null
 	let number: number | null = null
-	let contents: EmberElement | null = null
+	let contents: EmberElement | undefined = undefined
 	let children: Collection<NumberedTreeNode<EmberElement>> | undefined
 
 	const endOffset = reader.offset + reader.length
@@ -123,7 +125,7 @@ export function decodeGenericElement(
 							tag,
 							options
 						)
-						contents = new EmberNodeImpl()
+						// contents = new EmberNodeImpl()
 						skipNext(reader)
 						break
 					case ElementType.Function:
@@ -136,7 +138,7 @@ export function decodeGenericElement(
 							tag,
 							options
 						)
-						contents = new EmberNodeImpl()
+						// contents = new EmberNodeImpl()
 						skipNext(reader)
 						break
 					case ElementType.Node:
@@ -152,12 +154,12 @@ export function decodeGenericElement(
 							tag,
 							options
 						)
-						contents = new EmberNodeImpl()
+						// contents = new EmberNodeImpl()
 						skipNext(reader)
 						break
 					default:
 						unknownApplication(errors, 'decode generic element', tag, options)
-						contents = new EmberNodeImpl()
+						// contents = new EmberNodeImpl()
 						skipNext(reader)
 						break
 				}
@@ -165,6 +167,8 @@ export function decodeGenericElement(
 			case Ber.CONTEXT(2):
 				children = appendErrors(decodeChildren(reader, options), errors)
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode generic element', tag, options)
 				skipNext(reader)
@@ -172,15 +176,25 @@ export function decodeGenericElement(
 		}
 	}
 
+	if (!contents) {
+		switch (type) {
+			case ElementType.Node:
+				contents = new EmberNodeImpl()
+				break
+			case ElementType.Parameter:
+				contents = new ParameterImpl(ParameterType.Null)
+				break
+			case ElementType.Function:
+				contents = new EmberFunctionImpl()
+				break
+			default:
+				errors.push(new Error(`decodeGenericElement: No contents and unexpected type ${type}`))
+				contents = new EmberNodeImpl()
+				break
+		}
+	}
+
 	let el: TreeElement<EmberElement>
-	contents = check(
-		contents,
-		'decode generic element',
-		'contents',
-		new EmberNodeImpl(),
-		errors,
-		options
-	)
 	if (isQualified) {
 		path = check(path, 'decode generic element', 'path', '', errors, options)
 		el = new QualifiedElementImpl(path, contents, children)
@@ -208,6 +222,7 @@ export function decodeRootElements(
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
 		const tag = reader.readSequence()
+		if (tag === 0) continue
 		if (tag !== Ber.CONTEXT(0)) {
 			unknownContext(rootEls, 'decode root elements', tag, options)
 			skipNext(reader)

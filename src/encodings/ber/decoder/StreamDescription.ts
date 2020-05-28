@@ -35,6 +35,8 @@ export function decodeStreamDescription(
 			case Ber.CONTEXT(1):
 				offset = reader.readInt()
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode stream description', tag, options)
 				skipNext(reader)

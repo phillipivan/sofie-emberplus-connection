@@ -46,6 +46,8 @@ function decodeNode(
 			case Ber.CONTEXT(5):
 				templateReference = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'deocde node', tag, options)
 				skipNext(reader)

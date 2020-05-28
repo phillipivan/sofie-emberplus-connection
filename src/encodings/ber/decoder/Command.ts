@@ -65,6 +65,8 @@ function decodeCommand(
 			case Ber.CONTEXT(2):
 				invocation = appendErrors(decodeInvocation(reader, options), errors)
 				break
+			case 0:
+				break // Indefinite lengths
 			default:
 				unknownContext(errors, 'decode command', tag, options)
 				skipNext(reader)

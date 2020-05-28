@@ -34,6 +34,8 @@ function decodeFunctionArgument(
 			case Ber.CONTEXT(1):
 				name = reader.readString(Ber.BERDataTypes.STRING)
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode function context', tag, options)
 				skipNext(reader)

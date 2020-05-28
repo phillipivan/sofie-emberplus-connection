@@ -5,6 +5,113 @@ import { decodeNode } from '../decoder/EmberNode'
 import { ElementType } from '../../../model/EmberElement'
 import { literal } from '../../../types/types'
 import { guarded } from '../decoder/DecodeResult'
+import { berDecode } from '../'
+import { decodeGenericElement } from '../decoder/Tree'
+
+const indefiniteLength = Buffer.from([
+	0x60,
+	0x80, // Root - length 60
+	0x6b,
+	0x80, // RootElements -- length 56
+	0xa0,
+	0x80, // First element - 52
+	0x6a,
+	0x80, // Qualified Node - length 48
+	0xa0,
+	0x03,
+	0x0d,
+	0x01,
+	0x01,
+	0xa2,
+	0x80, // Children length 39
+	0x64,
+	0x80, // ElementCollection length 35
+	0xa0,
+	0x80, // Element length 31
+	0x63,
+	0x80, // Node length 27
+	0xa0,
+	0x03,
+	0x02,
+	0x01,
+	0x01,
+	0xa1,
+	0x80, // Node Content length 20
+	0x31,
+	0x80, // set length 16 - Ber library measures 18
+	0xa0,
+	0x09,
+	0x0c,
+	0x07,
+	0x53,
+	0x6f,
+	0x75,
+	0x72,
+	0x63,
+	0x65,
+	0x73,
+	0xa3,
+	0x03,
+	0x01,
+	0x01,
+	0xff,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00
+])
+
+const nodeOnly = Buffer.from([
+	0x63,
+	0x80, // Node length 27
+	0xa0,
+	0x03,
+	0x02,
+	0x01,
+	0x01,
+	0xa1,
+	0x80, // Node Content length 20
+	0x31,
+	0x80, // set length 16 - Ber library measures 18
+	0xa0,
+	0x09,
+	0x0c,
+	0x07,
+	0x53,
+	0x6f,
+	0x75,
+	0x72,
+	0x63,
+	0x65,
+	0x73,
+	0xa3,
+	0x03,
+	0x01,
+	0x01,
+	0xff,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00
+])
 
 describe('encodings/ber/EmberNode', () => {
 	const en = literal<EmberNode>({
@@ -25,5 +132,19 @@ describe('encodings/ber/EmberNode', () => {
 		const decoded = guarded(decodeNode(reader))
 
 		expect(decoded).toEqual(en)
+	})
+
+	test('decode indefinite length', () => {
+		const decoded = berDecode(indefiniteLength)
+
+		console.log(decoded.value)
+		expect(decoded.errors).toHaveLength(0)
+	})
+
+	test('decode indefinite node only', () => {
+		const reader = new Ber.Reader(nodeOnly)
+		const decoded = decodeGenericElement(reader)
+		console.log(decoded.value)
+		expect(decoded.errors).toHaveLength(0)
 	})
 })

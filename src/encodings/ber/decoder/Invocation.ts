@@ -38,6 +38,8 @@ function decodeInvocation(
 					args.push(reader.readValue())
 				}
 				break
+			case 0:
+				break // indefinite length
 			default:
 				unknownContext(errors, 'decode invocation', tag, options)
 				skipNext(reader)
