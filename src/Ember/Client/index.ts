@@ -339,7 +339,8 @@ export class EmberClient extends EventEmitter {
 
 		while (pathArr.length) {
 			const i = pathArr.shift()
-			if (!i) continue
+			if (!i) break
+			if (!tree) break
 			let next = getNextChild(tree, i)
 			if (!next) {
 				const req = await this.getDirectory(tree)
