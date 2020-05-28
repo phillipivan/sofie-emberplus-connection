@@ -584,10 +584,7 @@ export class EmberClient extends EventEmitter {
 			for (const child of Object.values(update.children)) {
 				const i = child.number
 				const oldChild = tree.children[i]
-				changes = {
-					...changes,
-					...this._updateTree(child, oldChild)
-				}
+				changes = [...changes, ...this._updateTree(child, oldChild)]
 			}
 		} else if (update.children) {
 			changes.push({ path: getPath(tree), node: tree })
