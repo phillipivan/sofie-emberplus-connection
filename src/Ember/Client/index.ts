@@ -339,7 +339,6 @@ export class EmberClient extends EventEmitter {
 
 		while (pathArr.length) {
 			const i = pathArr.shift()
-			if (!tree) throw new Error('Could not find node on given path')
 			if (!i) continue
 			let next = getNextChild(tree, i)
 			if (!next) {
@@ -348,6 +347,7 @@ export class EmberClient extends EventEmitter {
 				next = getNextChild(tree, i)
 			}
 			tree = next
+			if (!tree) throw new Error(`Could not find node ${i} on given path ${numberedPath.join()}`)
 			if (tree?.number) numberedPath.push(tree?.number)
 		}
 
