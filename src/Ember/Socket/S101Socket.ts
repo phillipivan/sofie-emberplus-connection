@@ -3,6 +3,7 @@ import { Socket } from 'net'
 
 import { S101Codec } from '../../S101'
 import { berDecode } from '../..'
+import { ConnectionStatus } from '../Client'
 
 export type Request = any
 
@@ -12,7 +13,7 @@ export default class S101Socket extends EventEmitter {
 	keepaliveIntervalTimer: NodeJS.Timer | undefined
 	pendingRequests: Array<Request> = []
 	activeRequest: Request | undefined
-	status: string
+	status: ConnectionStatus
 	codec = new S101Codec()
 
 	constructor(socket?: Socket) {
@@ -20,7 +21,7 @@ export default class S101Socket extends EventEmitter {
 		this.socket = socket
 		this.keepaliveIntervalTimer = undefined
 		this.activeRequest = undefined
-		this.status = this.isConnected() ? 'connected' : 'disconnected'
+		this.status = this.isConnected() ? ConnectionStatus.Connected : ConnectionStatus.Disconnected
 
 		this.codec.on('keepaliveReq', () => {
 			this.sendKeepaliveResponse()
@@ -63,7 +64,7 @@ export default class S101Socket extends EventEmitter {
 
 			this.socket.on('close', () => {
 				this.emit('disconnected')
-				this.status = 'disconnected'
+				this.status = ConnectionStatus.Connected
 				this.socket?.removeAllListeners()
 				this.socket = undefined
 			})
@@ -117,7 +118,7 @@ export default class S101Socket extends EventEmitter {
 				timer = setTimeout(cb, 100 * timeout)
 			}
 			this.socket!.end(cb)
-			this.status = 'disconnected'
+			this.status = ConnectionStatus.Disconnected
 		})
 	}
 
@@ -127,7 +128,7 @@ export default class S101Socket extends EventEmitter {
 	handleClose() {
 		this.socket = undefined
 		if (this.keepaliveIntervalTimer) clearInterval(this.keepaliveIntervalTimer)
-		this.status = 'disconnected'
+		this.status = ConnectionStatus.Disconnected
 		this.emit('disconnected')
 	}
 

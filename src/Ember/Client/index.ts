@@ -115,6 +115,7 @@ export class EmberClient extends EventEmitter {
 		this._client = new S101Client(this.host, this.port)
 		this._client.on('emberTree', (tree: DecodeResult<Root>) => this._handleIncoming(tree))
 
+		this._client.on('error', (e) => this.emit('error', e))
 		this._client.on('connected', () => this.emit('connected'))
 		this._client.on('disconnected', () => {
 			this._requests.forEach((req) => {
@@ -165,7 +166,7 @@ export class EmberClient extends EventEmitter {
 	}
 
 	get connected(): boolean {
-		return this._client.isConnected()
+		return this._client.status === ConnectionStatus.Connected
 	}
 
 	/** Ember+ commands: */
