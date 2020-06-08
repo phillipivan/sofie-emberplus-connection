@@ -92,13 +92,13 @@ export default class S101Socket extends EventEmitter {
 		if (!this.isConnected() || this.socket === undefined) {
 			return Promise.resolve()
 		}
-		return new Promise((resolve, reject) => {
+		return new Promise((resolve) => {
 			if (this.keepaliveIntervalTimer != null) {
 				clearInterval(this.keepaliveIntervalTimer)
 				this.keepaliveIntervalTimer = undefined
 			}
 			let done = false
-			const cb = (_data: any, error: Error) => {
+			const cb = () => {
 				if (done) {
 					return
 				}
@@ -107,13 +107,9 @@ export default class S101Socket extends EventEmitter {
 					clearTimeout(timer)
 					timer = undefined
 				}
-				if (error === undefined) {
-					resolve()
-				} else {
-					reject(error)
-				}
+				resolve()
 			}
-			let timer: number | undefined
+			let timer: NodeJS.Timeout | undefined
 			if (timeout != null && !isNaN(timeout) && timeout > 0) {
 				timer = setTimeout(cb, 100 * timeout)
 			}
