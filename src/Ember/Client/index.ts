@@ -175,6 +175,9 @@ export class EmberClient extends EventEmitter {
 		dirFieldMask?: FieldFlags,
 		cb?: (EmberNode: TreeElement<EmberElement>) => void
 	) {
+		if (!node) {
+			throw new Error('No node specified')
+		}
 		const command: GetDirectory = new GetDirectoryImpl(dirFieldMask)
 
 		if (!('number' in node || 'path' in node)) {
@@ -199,6 +202,10 @@ export class EmberClient extends EventEmitter {
 		node: RootElement | Array<RootElement>,
 		cb?: (EmberNode: TreeElement<EmberElement>) => void
 	) {
+		if (!node) {
+			throw new Error('No node specified')
+		}
+
 		const command: Subscribe = new SubscribeImpl()
 
 		if (Array.isArray(node)) {
@@ -220,6 +227,10 @@ export class EmberClient extends EventEmitter {
 		return this._sendCommand<void>(node, command, false)
 	}
 	unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>) {
+		if (!node) {
+			throw new Error('No node specified')
+		}
+
 		const command: Unsubscribe = new UnsubscribeImpl()
 
 		const path = Array.isArray(node) ? '' : getPath(node)
@@ -239,6 +250,10 @@ export class EmberClient extends EventEmitter {
 		node: NumberedTreeNode<EmberFunction> | QualifiedElement<EmberFunction>,
 		...args: Array<EmberTypedValue>
 	) {
+		if (!node) {
+			throw new Error('No node specified')
+		}
+
 		// TODO - validate arguments
 		const command: Invoke = {
 			type: ElementType.Command,
@@ -257,6 +272,10 @@ export class EmberClient extends EventEmitter {
 		value: EmberValue,
 		awaitResponse = true
 	): RequestPromise<TreeElement<Parameter>> {
+		if (!node) {
+			throw new Error('No node specified')
+		}
+
 		const qualifiedParam = assertQualifiedEmberNode(node) as QualifiedElement<Parameter>
 
 		// TODO - validate value
@@ -289,6 +308,10 @@ export class EmberClient extends EventEmitter {
 
 	/** Getting the tree: */
 	async expand(node: NumberedTreeNode<EmberElement> | Collection<RootElement>) {
+		if (!node) {
+			throw new Error('No node specified')
+		}
+
 		if (!('number' in node)) {
 			await (await this.getDirectory(node)).response
 			for (const root of Object.values(this.tree)) await this.expand(root)
@@ -369,6 +392,10 @@ export class EmberClient extends EventEmitter {
 		sources: Array<number>,
 		operation: ConnectionOperation
 	) {
+		if (!matrix) {
+			throw new Error('No matrix specified')
+		}
+
 		const qualifiedMatrix = assertQualifiedEmberNode(matrix) as QualifiedElement<Matrix>
 
 		const connection: Connection = {
