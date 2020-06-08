@@ -1,6 +1,6 @@
-const EventEmitter = require('events').EventEmitter
-const SmartBuffer = require('smart-buffer').SmartBuffer
-const winston = require('winston')
+import { EventEmitter } from 'events'
+import { SmartBuffer } from 'smart-buffer'
+import winston from 'winston'
 
 const S101_BOF = 0xfe
 const S101_EOF = 0xff
@@ -287,19 +287,12 @@ const CRC_TABLE = [
 	0x0f78
 ]
 
-class S101Codec extends EventEmitter {
-	constructor() {
-		super()
-		this.inbuf = new SmartBuffer()
-		this.emberbuf = new SmartBuffer()
-		this.escaped = false
-	}
+export default class S101Codec extends EventEmitter {
+	inbuf = new SmartBuffer()
+	emberbuf = new SmartBuffer()
+	escaped = false
 
-	/**
-	 *
-	 * @param {Buffer} buf
-	 */
-	dataIn(buf) {
+	dataIn(buf: Buffer) {
 		for (let i = 0; i < buf.length; i++) {
 			const b = buf.readUInt8(i)
 			if (this.escaped) {
@@ -320,18 +313,14 @@ class S101Codec extends EventEmitter {
 		}
 	}
 
-	/**
-	 *
-	 * @param {SmartBuffer} frame
-	 */
-	handleFrame(frame) {
+	handleFrame(frame: SmartBuffer) {
 		if (!this.validateFrame(frame.toBuffer())) {
 			winston.error('dropping frame of length %d with invalid CRC', frame.length)
 			return
 		}
 
 		const slot = frame.readUInt8()
-		var message = frame.readUInt8()
+		const message = frame.readUInt8()
 		if (slot != SLOT || message != MSG_EMBER) {
 			winston.error(
 				'dropping frame of length %d (not an ember frame; slot=%d, msg=%d)',
@@ -357,11 +346,7 @@ class S101Codec extends EventEmitter {
 		}
 	}
 
-	/**
-	 *
-	 * @param {SmartBuffer} frame
-	 */
-	handleEmberFrame(frame) {
+	handleEmberFrame(frame: SmartBuffer) {
 		const version = frame.readUInt8()
 		const flags = frame.readUInt8()
 		const dtd = frame.readUInt8()
@@ -376,15 +361,12 @@ class S101Codec extends EventEmitter {
 			return
 		}
 
-		let glowMinor = 0
-		let glowMajor = 0
-
 		if (appBytes < 2) {
 			winston.warn('Frame missing Glow DTD version')
 			frame.skip(appBytes)
 		} else {
-			glowMinor = frame.readUInt8()
-			glowMajor = frame.readUInt8()
+			frame.readUInt8() // glowMinor
+			frame.readUInt8() // glowMajor
 			appBytes -= 2
 			if (appBytes > 0) {
 				frame.skip(appBytes)
@@ -410,20 +392,12 @@ class S101Codec extends EventEmitter {
 		}
 	}
 
-	/**
-	 *
-	 * @param {SmartBuffer} packet
-	 */
-	handleEmberPacket(packet) {
+	handleEmberPacket(packet: SmartBuffer) {
 		winston.debug('ember packet')
 		this.emit('emberPacket', packet.toBuffer())
 	}
 
-	/**
-	 *
-	 * @param {Buffer} data
-	 */
-	encodeBER(data) {
+	encodeBER(data: Buffer) {
 		const frames = []
 		const encbuf = new SmartBuffer()
 		for (let i = 0; i < data.length; i++) {
@@ -474,20 +448,11 @@ class S101Codec extends EventEmitter {
 		return this._finalizeBuffer(packet)
 	}
 
-	/**
-	 *
-	 * @param {Buffer} buf
-	 */
-	validateFrame(buf) {
+	validateFrame(buf: Buffer) {
 		return this._calculateCRC(buf) == 0xf0b8
 	}
 
-	/**
-	 *
-	 * @param {number} flags
-	 * @param {Buffer} data
-	 */
-	_makeBERFrame(flags, data) {
+	private _makeBERFrame(flags: number, data: Buffer) {
 		const frame = new SmartBuffer()
 		frame.writeUInt8(S101_BOF)
 		frame.writeUInt8(SLOT)
@@ -503,38 +468,38 @@ class S101Codec extends EventEmitter {
 		return this._finalizeBuffer(frame)
 	}
 
-	/**
-	 *
-	 * @param {SmartBuffer} smartbuf
-	 */
-	_finalizeBuffer(smartbuf) {
-		const crc = ~this._calculateCRCCE(smartbuf.toBuffer().slice(1, smartbuf.length)) & 0xffff
-		const crc_hi = crc >> 8
-		const crc_lo = crc & 0xff
+	// Overide EventEmitter.on() for stronger typings:
+	on: ((event: 'emberPacket', listener: (packet: Buffer) => void) => this) &
+		((event: 'keepaliveReq', listener: () => void) => this) &
+		((event: 'keepaliveResp', listener: () => void) => this) = super.on
+	emit: ((event: 'emberPacket', packet: Buffer) => boolean) &
+		((event: 'keepaliveReq') => boolean) &
+		((event: 'keepaliveResp') => boolean) = super.emit
 
-		if (crc_lo < S101_INV) {
-			smartbuf.writeUInt8(crc_lo)
+	private _finalizeBuffer(smartbuf: SmartBuffer) {
+		const crc = ~this._calculateCRCCE(smartbuf.toBuffer().slice(1, smartbuf.length)) & 0xffff
+		const crcHi = crc >> 8
+		const crcLo = crc & 0xff
+
+		if (crcLo < S101_INV) {
+			smartbuf.writeUInt8(crcLo)
 		} else {
 			smartbuf.writeUInt8(S101_CE)
-			smartbuf.writeUInt8(crc_lo ^ S101_XOR)
+			smartbuf.writeUInt8(crcLo ^ S101_XOR)
 		}
 
-		if (crc_hi < S101_INV) {
-			smartbuf.writeUInt8(crc_hi)
+		if (crcHi < S101_INV) {
+			smartbuf.writeUInt8(crcHi)
 		} else {
 			smartbuf.writeUInt8(S101_CE)
-			smartbuf.writeUInt8(crc_hi ^ S101_XOR)
+			smartbuf.writeUInt8(crcHi ^ S101_XOR)
 		}
 
 		smartbuf.writeUInt8(S101_EOF)
 		return smartbuf.toBuffer()
 	}
 
-	/**
-	 *
-	 * @param {Buffer} buf
-	 */
-	_calculateCRC(buf) {
+	private _calculateCRC(buf: Buffer) {
 		let crc = 0xffff
 		for (let i = 0; i < buf.length; i++) {
 			const b = buf.readUInt8(i)
@@ -543,11 +508,7 @@ class S101Codec extends EventEmitter {
 		return crc
 	}
 
-	/**
-	 *
-	 * @param {Buffer} buf
-	 */
-	_calculateCRCCE(buf) {
+	private _calculateCRCCE(buf: Buffer) {
 		let crc = 0xffff
 		for (let i = 0; i < buf.length; i++) {
 			let b = buf.readUInt8(i)
@@ -559,5 +520,3 @@ class S101Codec extends EventEmitter {
 		return crc
 	}
 }
-
-module.exports = S101Codec
