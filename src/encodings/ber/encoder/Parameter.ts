@@ -28,7 +28,8 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer): void 
 			// case ParameterType.Trigger:
 			// 	break
 			case ParameterType.Enum:
-				writer.writeEnumeration(value as number, Ber.BERDataTypes.ENUMERATED)
+				// value is encoded as Int64, it refers to the line number of the enumeration
+				writer.writeInt(value as number, Ber.BERDataTypes.INTEGER)
 				break
 			case ParameterType.Octets:
 				writer.writeBuffer(value as Buffer, Ber.BERDataTypes.OCTETSTRING)
