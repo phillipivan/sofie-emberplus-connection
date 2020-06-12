@@ -1,4 +1,4 @@
-import { EmberElement, ElementType, isEmberElement } from './EmberElement'
+import { EmberBaseElement, ElementType, isEmberElement } from './EmberElement'
 import { EmberValue, MinMax, StringIntegerCollection, RelativeOID } from '../types/types'
 import { StreamDescription } from './StreamDescription'
 
@@ -29,7 +29,7 @@ enum ParameterAccess {
  *  A value may be _null_, allowing a provider to inform a consumer that a value
  *  is not currently present.
  */
-interface Parameter extends EmberElement {
+interface Parameter extends EmberBaseElement {
 	type: ElementType.Parameter
 	/** Hint to the parameter's type. */
 	parameterType: ParameterType

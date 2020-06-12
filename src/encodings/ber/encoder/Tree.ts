@@ -122,8 +122,6 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 			writer.endSequence()
 			writer.endSequence()
 		}
-	} else if (el.contents.type === ElementType.Template) {
-		encodeTemplate(el.contents as Template, writer)
 	}
 
 	writer.endSequence() // end node

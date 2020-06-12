@@ -1,4 +1,4 @@
-import { ElementType, EmberElement } from './EmberElement'
+import { ElementType, EmberBaseElement } from './EmberElement'
 import { Invocation } from './Invocation'
 
 export {
@@ -38,7 +38,7 @@ enum FieldFlags {
  *  A command - from a consumer to a provider - may be appended to a node,
  *  parameter or a matrix as child element.
  */
-interface Command extends EmberElement {
+interface Command extends EmberBaseElement {
 	type: ElementType.Command
 	number: CommandType
 }
