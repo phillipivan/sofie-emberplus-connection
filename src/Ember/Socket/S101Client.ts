@@ -110,6 +110,11 @@ export default class S101Client extends S101Socket {
 		return super.disconnect(timeout)
 	}
 
+	handleClose() {
+		if (this.keepaliveIntervalTimer) clearInterval(this.keepaliveIntervalTimer)
+		this.socket?.destroy()
+	}
+
 	_autoReconnectionAttempt() {
 		if (this._autoReconnect) {
 			if (this._reconnectAttempts > 0) {
@@ -140,6 +145,7 @@ export default class S101Client extends S101Socket {
 
 	private _onConnect() {
 		this._clearConnectionAttemptTimer()
+		this.startKeepAlive()
 		// this._sentKeepalive = Date.now()
 		// this._receivedKeepalive = this._sentKeepalive + 1 // for some reason keepalive doesn't return directly after conn.
 		this.status = ConnectionStatus.Connected
