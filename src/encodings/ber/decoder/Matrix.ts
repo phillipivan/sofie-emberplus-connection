@@ -253,9 +253,14 @@ function decodeConnections(
 	reader.readSequence(Ber.BERDataTypes.SEQUENCE)
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
-		reader.readSequence(Ber.CONTEXT(0))
-		const connection = appendErrors(decodeConnection(reader, options), connections)
-		connections.value[connection.target] = connection
+		const tag = reader.readSequence()
+		if (tag === Ber.CONTEXT(0)) {
+			const connection = appendErrors(decodeConnection(reader, options), connections)
+			connections.value[connection.target] = connection
+		} else {
+			// unknownContext(errors, 'decode invocation arguments', tag, options)
+			skipNext(reader)
+		}
 	}
 	return connections
 }
