@@ -5,8 +5,7 @@ A TyepScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plu
 It has been tested with Lawo Ruby, Lawo R3lay and Lawo MxGUI.
 
 The current version is very losely based on the original library and Mr Gilles Dufour's rewrites. It is however rewritten
-almost completely from scratch and bears little to no resemblance to earlier libraries. This version only has a consumer
-implementation.
+almost completely from scratch and bears little to no resemblance to earlier libraries.
 
 ## Example usage
 
@@ -100,4 +99,110 @@ await (await client.getDirectory()).response
 const fn = await client.getElementByPath('path.to.function')
 const req = await client.invoke(fn, 1, 2, 3)
 console.log('result', await req.response)
+```
+
+### Basic server
+
+```javascript
+const {
+	EmberServer,
+	NumberedTreeNodeImpl,
+	EmberNodeImpl,
+	ParameterImpl,
+	ParameterType,
+	EmberFunctionImpl,
+	ParameterAccess,
+	MatrixImpl,
+	MatrixType,
+	MatrixAddressingMode
+} = require('emberplus-connection')
+
+const s = new EmberServer(9000) // start server on port 9000
+
+s.onInvocation = (emberFunction, invocation) => {
+	// handle function invocations
+	return { id: invocation.contents.invocation.id, success: true }
+}
+s.onSetValue = async (node, value) => {
+	// handle setting values
+	s.update(node, { value })
+
+	return true
+}
+s.onMatrixOperation = (matrix, connections) => {
+	// handle matrix operations
+	for (const connection of Object.values(connections)) {
+		s.updateMatrixConnection(matrix, connection)
+	}
+}
+
+const tree = {
+	// create a tree for the provider
+	1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Root', undefined, undefined, true), {
+		1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Node', undefined, undefined, true), {
+			1: new NumberedTreeNodeImpl(
+				1,
+				new ParameterImpl(
+					ParameterType.Integer,
+					'Value1',
+					undefined,
+					2,
+					undefined,
+					undefined,
+					ParameterAccess.ReadWrite
+				)
+			),
+			2: new NumberedTreeNodeImpl(
+				2,
+				new ParameterImpl(
+					ParameterType.Integer,
+					'Value2',
+					undefined,
+					2,
+					undefined,
+					undefined,
+					ParameterAccess.ReadWrite
+				)
+			),
+			3: new NumberedTreeNodeImpl(
+				3,
+				new ParameterImpl(
+					ParameterType.Integer,
+					'Value3',
+					undefined,
+					2,
+					undefined,
+					undefined,
+					ParameterAccess.ReadWrite
+				)
+			)
+		}),
+
+		2: new NumberedTreeNodeImpl(2, new EmberNodeImpl('Functions', undefined, undefined, true), {
+			1: new NumberedTreeNodeImpl(
+				1,
+				new EmberFunctionImpl(undefined, undefined) //, [{ type: ParameterType.Boolean, name: 'Test' }])
+			)
+		}),
+
+		3: new NumberedTreeNodeImpl(3, new EmberNodeImpl('Matrices', undefined, undefined, true), {
+			1: new NumberedTreeNodeImpl(
+				1,
+				new MatrixImpl(
+					'Test Matrix',
+					[1, 2, 3, 4, 5],
+					[1, 2, 3, 4, 5],
+					{},
+					undefined,
+					MatrixType.NToN,
+					MatrixAddressingMode.NonLinear,
+					5,
+					5
+				)
+			)
+		})
+	})
+}
+
+s.init(tree) // initiate the provider with the tree
 ```
