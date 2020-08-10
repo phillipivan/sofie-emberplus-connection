@@ -63,6 +63,10 @@ class EmberServer extends EventEmitter {
 				this._handleIncoming(tree, client)
 			)
 
+			client.on('error', (e) => {
+				this.emit('clientError', client, e)
+			})
+
 			client.on('disconnected', () => {
 				this._clearSubscription(client)
 				this._clients.delete(client)
@@ -249,7 +253,6 @@ class EmberServer extends EventEmitter {
 
 	private async _handleCommand(path: string, el: NumberedTreeNode<Command>, client: S101Client) {
 		const tree = path ? this.getElementByPath(path) : this.tree
-		console.dir(tree, { depth: null })
 		if (!tree) return
 
 		if (el.contents.number === CommandType.Subscribe) {
