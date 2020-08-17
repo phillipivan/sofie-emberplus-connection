@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.3](https://github.com/nrkno/tv-automation-emberplus-connection/compare/v0.0.2...v0.0.3) (2020-08-17)
+
+
+### Features
+
+* emberplus provider ([babc51c](https://github.com/nrkno/tv-automation-emberplus-connection/commit/babc51c7b9f328d36fc0e327dfde2a60255d1ee6))
+
+
+### Bug Fixes
+
+* **provider:** catch and emit errors from clients ([cdece29](https://github.com/nrkno/tv-automation-emberplus-connection/commit/cdece29a4210381704bface783d227f3b8af857a))
+* client socket should send keepAlives ([88534e2](https://github.com/nrkno/tv-automation-emberplus-connection/commit/88534e2a77e5b39913f70136afa90863e67ae9da))
+* increase robustness in connection / invocation decoder ([ef28575](https://github.com/nrkno/tv-automation-emberplus-connection/commit/ef28575e0835f8e3f3d682898d4d24647fb8b8c1))
+* **ber:** enum value is encoded as int ([4e2267a](https://github.com/nrkno/tv-automation-emberplus-connection/commit/4e2267a0e9a5b4be02e62d628361666b7cbf7e8b))
+
 ### 0.0.2 (2020-06-08)
 
 
