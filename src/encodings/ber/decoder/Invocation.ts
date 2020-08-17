@@ -33,9 +33,13 @@ function decodeInvocation(
 				reader.readSequence(Ber.BERDataTypes.SEQUENCE)
 				seqOffset = reader.offset + reader.length
 				while (reader.offset < seqOffset) {
-					reader.readSequence(Ber.CONTEXT(0))
-					// const dataTag = dataSeq.peek() // TODO I think readValue gets the tag
-					args.push(reader.readValue())
+					const tag = reader.readSequence()
+					if (tag === Ber.CONTEXT(0)) {
+						args.push(reader.readValue())
+					} else {
+						unknownContext(errors, 'decode invocation arguments', tag, options)
+						skipNext(reader)
+					}
 				}
 				break
 			case 0:
