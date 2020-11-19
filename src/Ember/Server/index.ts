@@ -217,7 +217,7 @@ class EmberServer extends EventEmitter {
 			}
 		} else {
 			for (const c of children) {
-				this._handleNode(path + c.number, c, client)
+				this._handleNode(path + '.' + c.number, c, client)
 			}
 		}
 	}
