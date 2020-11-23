@@ -185,8 +185,10 @@ class EmberServer extends EventEmitter {
 			if (rootEl.contents.type === ElementType.Command) {
 				// command on root
 				this._handleCommand('', rootEl as NumberedTreeNode<Command>, client)
-			} else {
-				this._handleNode((rootEl as QualifiedElement<EmberElement>).path || '', rootEl, client)
+			} else if ('path' in rootEl) {
+				this._handleNode(rootEl.path || '', rootEl, client)
+			} else if ('number' in rootEl) {
+				this._handleNode(rootEl.number + '' || '', rootEl, client)
 			}
 		}
 	}
@@ -215,7 +217,7 @@ class EmberServer extends EventEmitter {
 			}
 		} else {
 			for (const c of children) {
-				this._handleNode(path + c.number, c, client)
+				this._handleNode(path + '.' + c.number, c, client)
 			}
 		}
 	}
