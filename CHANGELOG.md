@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.4](https://github.com/nrkno/tv-automation-emberplus-connection/compare/0.0.3...0.0.4) (2020-12-01)
+
+
+### Bug Fixes
+
+* **provider:** build correct path from children in request [publish] ([7dcfda5](https://github.com/nrkno/tv-automation-emberplus-connection/commit/7dcfda5937f85cb2cf8066620d6a1beb22da0e69))
+* **provider:** requests consisting of NumberedTreeNodes ([732e393](https://github.com/nrkno/tv-automation-emberplus-connection/commit/732e3935a252d668c7ca0eee569b34e20a4bd49a))
+
 ### [0.0.3](https://github.com/nrkno/tv-automation-emberplus-connection/compare/v0.0.2...v0.0.3) (2020-08-17)
 
 
