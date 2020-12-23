@@ -344,7 +344,11 @@ export class EmberClient extends EventEmitter {
 			}
 		}
 	}
-	async getElementByPath(path: string, cb?: (EmberNode: TreeElement<EmberElement>) => void) {
+	async getElementByPath(
+		path: string,
+		cb?: (EmberNode: TreeElement<EmberElement>) => void,
+		delimiter = '.'
+	) {
 		const getNext = (elements: Collection<NumberedTreeNode<EmberElement>>, i?: string) =>
 			Object.values(elements || {}).find(
 				(r) =>
@@ -356,7 +360,7 @@ export class EmberClient extends EventEmitter {
 			node.children && getNext(node.children, i)
 
 		const numberedPath: Array<number> = []
-		const pathArr = path.split('.')
+		const pathArr = path.split(delimiter)
 		const i = pathArr.shift()
 		let tree: NumberedTreeNode<EmberElement> | undefined = getNext(this.tree, i)
 		if (tree?.number) numberedPath.push(tree?.number)
@@ -419,7 +423,9 @@ export class EmberClient extends EventEmitter {
 	}
 
 	private async _sendRequest<T>(node: RootElement, hasResponse = true): RequestPromise<T> {
-		const reqId = Math.random().toString(24).substr(-4)
+		const reqId = Math.random()
+			.toString(24)
+			.substr(-4)
 		const requestPromise: RequestPromiseArguments<T> = {
 			reqId,
 			sentOk: false
