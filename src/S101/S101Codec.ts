@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events'
 import { SmartBuffer } from 'smart-buffer'
-import winston from 'winston'
+import Debug from 'debug'
+import { format } from 'util'
+const debug = Debug('emberplus-connection:S101Codec')
 
 const S101_BOF = 0xfe
 const S101_EOF = 0xff
@@ -315,34 +317,35 @@ export default class S101Codec extends EventEmitter {
 
 	handleFrame(frame: SmartBuffer) {
 		if (!this.validateFrame(frame.toBuffer())) {
-			winston.error('dropping frame of length %d with invalid CRC', frame.length)
-			return
+			throw new Error(format('dropping frame of length %d with invalid CRC', frame.length))
 		}
 
 		const slot = frame.readUInt8()
 		const message = frame.readUInt8()
 		if (slot != SLOT || message != MSG_EMBER) {
-			winston.error(
-				'dropping frame of length %d (not an ember frame; slot=%d, msg=%d)',
-				frame.length,
-				slot,
-				message
+			throw new Error(
+				format(
+					'dropping frame of length %d (not an ember frame; slot=%d, msg=%d)',
+					frame.length,
+					slot,
+					message
+				)
 			)
-			return
 		}
 
 		const command = frame.readUInt8()
 		if (command === CMD_KEEPALIVE_REQ) {
-			winston.debug('received keepalive request')
+			debug('received keepalive request')
 			this.emit('keepaliveReq')
 		} else if (command === CMD_KEEPALIVE_RESP) {
-			winston.debug('received keepalive response')
+			debug('received keepalive response')
 			this.emit('keepaliveResp')
 		} else if (command === CMD_EMBER) {
 			this.handleEmberFrame(frame)
 		} else {
-			winston.error('dropping frame of length %d with unknown command %d', frame.length, command)
-			return
+			throw new Error(
+				format('dropping frame of length %d with unknown command %d', frame.length, command)
+			)
 		}
 	}
 
@@ -353,16 +356,15 @@ export default class S101Codec extends EventEmitter {
 		let appBytes = frame.readUInt8()
 
 		if (version !== VERSION) {
-			winston.warn('Unknown ember frame version %d', version)
+			debug('Warning: Unknown ember frame version %d', version)
 		}
 
 		if (dtd !== DTD_GLOW) {
-			winston.error('Dropping frame with non-Glow DTD')
-			return
+			throw new Error('Dropping frame with non-Glow DTD')
 		}
 
 		if (appBytes < 2) {
-			winston.warn('Frame missing Glow DTD version')
+			debug('Warning: Frame missing Glow DTD version')
 			frame.skip(appBytes)
 		} else {
 			frame.readUInt8() // glowMinor
@@ -370,14 +372,14 @@ export default class S101Codec extends EventEmitter {
 			appBytes -= 2
 			if (appBytes > 0) {
 				frame.skip(appBytes)
-				winston.warn('App bytes with unknown meaning left over')
+				debug('Warning: App bytes with unknown meaning left over')
 			}
 		}
 
 		let payload = frame.readBuffer()
 		payload = payload.slice(0, payload.length - 2)
 		if (flags & FLAG_FIRST_MULTI_PACKET) {
-			winston.debug('multi ember packet start')
+			debug('multi ember packet start')
 			this.emberbuf.clear()
 		}
 		if ((flags & FLAG_EMPTY_PACKET) === 0) {
@@ -385,7 +387,7 @@ export default class S101Codec extends EventEmitter {
 			this.emberbuf.writeBuffer(payload)
 		}
 		if (flags & FLAG_LAST_MULTI_PACKET) {
-			winston.debug('multi ember packet end')
+			debug('multi ember packet end')
 			this.emberbuf.moveTo(0)
 			this.handleEmberPacket(this.emberbuf)
 			this.emberbuf.clear()
@@ -393,7 +395,7 @@ export default class S101Codec extends EventEmitter {
 	}
 
 	handleEmberPacket(packet: SmartBuffer) {
-		winston.debug('ember packet')
+		debug('ember packet')
 		this.emit('emberPacket', packet.toBuffer())
 	}
 
