@@ -27,6 +27,7 @@ function decodeParameter(
 	let identifier: string | undefined = undefined
 	let description: string | undefined = undefined
 	let value: EmberValue | undefined = undefined
+	let valueType: ParameterType | undefined = undefined
 	let minimum: number | null | undefined = undefined
 	let maximum: number | null | undefined = undefined
 	let access: ParameterAccess | undefined = undefined
@@ -55,9 +56,12 @@ function decodeParameter(
 			case Ber.CONTEXT(1):
 				description = reader.readString(Ber.BERDataTypes.STRING)
 				break
-			case Ber.CONTEXT(2):
-				value = reader.readValue().value
+			case Ber.CONTEXT(2): {
+				const decodedValue = reader.readValue()
+				value = decodedValue.value
+				valueType = decodedValue.type
 				break
+			}
 			case Ber.CONTEXT(3):
 				minimum = reader.readValue().value as number | null
 				break
@@ -114,6 +118,14 @@ function decodeParameter(
 				break
 		}
 	}
+	parameterType =
+		parameterType === ParameterType.Trigger
+			? ParameterType.Trigger
+			: !!enumMap || !!enumeration
+			? ParameterType.Enum
+			: valueType
+			? valueType
+			: parameterType
 	parameterType = check(
 		parameterType,
 		'decode parameter',
