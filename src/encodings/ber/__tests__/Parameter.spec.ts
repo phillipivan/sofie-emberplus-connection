@@ -95,6 +95,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - enumeration', () => {
 		const param: Parameter = {
 			...prm,
+			parameterType: ParameterType.Enum,
 			enumeration: '1\n2\n3\n4\n5\n'
 		}
 
@@ -149,6 +150,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - enumMap', () => {
 		const param: Parameter = {
 			...prm,
+			parameterType: ParameterType.Enum,
 			enumMap: new Map([
 				['Jim', 0],
 				['Pam', 1]
@@ -188,7 +190,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - all', () => {
 		const param: Parameter = {
 			...prm,
-			parameterType: ParameterType.Integer,
+			parameterType: ParameterType.Enum,
 			identifier: 'Angela',
 			description: 'This parameter is\nsupposed to be a good boy',
 			value: 24,
