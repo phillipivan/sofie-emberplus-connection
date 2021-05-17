@@ -22,6 +22,7 @@ describe('model/Parameter', () => {
 
 			test('should fail when missing type property', () => {
 				const invalid = Object.assign({}, validParameter)
+				// @ts-expect-error: delete non-optional for robustness testing
 				delete invalid.type
 
 				const actual = isParameter(invalid)
@@ -41,6 +42,7 @@ describe('model/Parameter', () => {
 
 			test('should fail when missing parameterType property', () => {
 				const invalid = Object.assign({}, validParameter)
+				// @ts-expect-error: delete non-optional for robustness testing
 				delete invalid.parameterType
 
 				const actual = isParameter(invalid)
