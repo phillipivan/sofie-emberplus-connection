@@ -1,21 +1,11 @@
 import * as Ber from '../../../Ber'
 import { EmberNode, EmberNodeImpl } from '../../../model/EmberNode'
-import {
-	DecodeOptions,
-	defaultDecode,
-	DecodeResult,
-	unknownContext,
-	makeResult,
-	skipNext
-} from './DecodeResult'
+import { DecodeOptions, defaultDecode, DecodeResult, unknownContext, makeResult, skipNext } from './DecodeResult'
 import { RelativeOID } from '../../../types/types'
 
 export { decodeNode }
 
-function decodeNode(
-	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<EmberNode> {
+function decodeNode(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<EmberNode> {
 	reader.readSequence(Ber.BERDataTypes.SET)
 	let identifier: string | undefined = undefined
 	let description: string | undefined = undefined
@@ -55,14 +45,7 @@ function decodeNode(
 		}
 	}
 	return makeResult(
-		new EmberNodeImpl(
-			identifier,
-			description,
-			isRoot,
-			isOnline,
-			schemaIdentifiers,
-			templateReference
-		),
+		new EmberNodeImpl(identifier, description, isRoot, isOnline, schemaIdentifiers, templateReference),
 		errors
 	)
 }

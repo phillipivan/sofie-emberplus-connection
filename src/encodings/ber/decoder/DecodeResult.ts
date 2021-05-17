@@ -15,7 +15,7 @@ export {
 	guarded,
 	appendErrors,
 	unexpected,
-	skipNext
+	skipNext,
 }
 
 /**
@@ -39,7 +39,7 @@ const defaultDecode = literal<DecodeOptions>({
 	skipApplicationTags: true,
 	skipContextTags: true,
 	substituteForRequired: true,
-	skipUnexpected: true
+	skipUnexpected: true,
 })
 
 /**
@@ -100,7 +100,7 @@ function guarded<T>(decres: DecodeResult<T>): T {
 function makeResult<T>(t: T, errors?: Array<Error>): DecodeResult<T> {
 	return literal<DecodeResult<T>>({
 		value: t,
-		errors: Array.isArray(errors) ? errors : []
+		errors: Array.isArray(errors) ? errors : [],
 	})
 }
 
@@ -166,11 +166,7 @@ function unknownApplication<T>(
  * @param update Value to be updated.
  * @param fn Function to use to update a value with the result.
  */
-function safeSet<S, T>(
-	result: DecodeResult<S>,
-	update: DecodeResult<T>,
-	fn: (s: S, t: T) => T
-): DecodeResult<T> {
+function safeSet<S, T>(result: DecodeResult<S>, update: DecodeResult<T>, fn: (s: S, t: T) => T): DecodeResult<T> {
 	if (result.errors && result.errors.length > 0) {
 		update.errors = update.errors ? update.errors.concat(result.errors) : result.errors
 	}

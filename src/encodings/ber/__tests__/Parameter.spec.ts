@@ -10,7 +10,7 @@ import { guarded } from '../decoder/DecodeResult'
 describe('encodings/ber/Parameter', () => {
 	const prm = literal<Parameter>({
 		type: ElementType.Parameter,
-		parameterType: ParameterType.String
+		parameterType: ParameterType.String,
 	})
 
 	function roundtripParameter(prm: Parameter): void {
@@ -30,7 +30,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - identifer', () => {
 		const param: Parameter = {
 			...prm,
-			identifier: 'Angela'
+			identifier: 'Angela',
 		}
 
 		roundtripParameter(param)
@@ -39,7 +39,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - description', () => {
 		const param: Parameter = {
 			...prm,
-			description: 'This parameter is\nsupposed to be a good boy'
+			description: 'This parameter is\nsupposed to be a good boy',
 		}
 
 		roundtripParameter(param)
@@ -48,7 +48,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - value', () => {
 		const param: Parameter = {
 			...prm,
-			value: 'Oscar'
+			value: 'Oscar',
 		}
 
 		roundtripParameter(param)
@@ -58,7 +58,7 @@ describe('encodings/ber/Parameter', () => {
 		const param: Parameter = {
 			...prm,
 			parameterType: ParameterType.Integer,
-			maximum: 150
+			maximum: 150,
 		}
 
 		roundtripParameter(param)
@@ -68,7 +68,7 @@ describe('encodings/ber/Parameter', () => {
 		const param: Parameter = {
 			...prm,
 			parameterType: ParameterType.Integer,
-			minimum: -22
+			minimum: -22,
 		}
 
 		roundtripParameter(param)
@@ -77,7 +77,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - access', () => {
 		const param: Parameter = {
 			...prm,
-			access: ParameterAccess.ReadWrite
+			access: ParameterAccess.ReadWrite,
 		}
 
 		roundtripParameter(param)
@@ -86,7 +86,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - format', () => {
 		const param: Parameter = {
 			...prm,
-			format: '2i%50%F20'
+			format: '2i%50%F20',
 		}
 
 		roundtripParameter(param)
@@ -95,7 +95,8 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - enumeration', () => {
 		const param: Parameter = {
 			...prm,
-			enumeration: '1\n2\n3\n4\n5\n'
+			parameterType: ParameterType.Enum,
+			enumeration: '1\n2\n3\n4\n5\n',
 		}
 
 		roundtripParameter(param)
@@ -104,7 +105,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - factor', () => {
 		const param: Parameter = {
 			...prm,
-			factor: 512
+			factor: 512,
 		}
 
 		roundtripParameter(param)
@@ -113,7 +114,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - isOnline', () => {
 		const param: Parameter = {
 			...prm,
-			isOnline: false
+			isOnline: false,
 		}
 
 		roundtripParameter(param)
@@ -122,7 +123,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - formula', () => {
 		const param: Parameter = {
 			...prm,
-			formula: '1\n1'
+			formula: '1\n1',
 		}
 
 		roundtripParameter(param)
@@ -131,7 +132,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - defaultValue', () => {
 		const param: Parameter = {
 			...prm,
-			defaultValue: 'Michael'
+			defaultValue: 'Michael',
 		}
 
 		roundtripParameter(param)
@@ -140,7 +141,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - streamIdentifier', () => {
 		const param: Parameter = {
 			...prm,
-			streamIdentifier: 33
+			streamIdentifier: 33,
 		}
 
 		roundtripParameter(param)
@@ -149,10 +150,11 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - enumMap', () => {
 		const param: Parameter = {
 			...prm,
+			parameterType: ParameterType.Enum,
 			enumMap: new Map([
 				['Jim', 0],
-				['Pam', 1]
-			])
+				['Pam', 1],
+			]),
 		}
 
 		roundtripParameter(param)
@@ -161,7 +163,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - streamDescriptor', () => {
 		const param: Parameter = {
 			...prm,
-			streamDescriptor: { format: StreamFormat.UInt8, offset: 22 }
+			streamDescriptor: { format: StreamFormat.UInt8, offset: 22 },
 		}
 
 		roundtripParameter(param)
@@ -170,7 +172,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - schemaIdentifiers', () => {
 		const param: Parameter = {
 			...prm,
-			schemaIdentifiers: '3.2.1.1'
+			schemaIdentifiers: '3.2.1.1',
 		}
 
 		roundtripParameter(param)
@@ -179,7 +181,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - templateReference', () => {
 		const param: Parameter = {
 			...prm,
-			templateReference: '3.2.1.1'
+			templateReference: '3.2.1.1',
 		}
 
 		roundtripParameter(param)
@@ -188,7 +190,7 @@ describe('encodings/ber/Parameter', () => {
 	test('write and read a parameter - all', () => {
 		const param: Parameter = {
 			...prm,
-			parameterType: ParameterType.Integer,
+			parameterType: ParameterType.Enum,
 			identifier: 'Angela',
 			description: 'This parameter is\nsupposed to be a good boy',
 			value: 24,
@@ -204,11 +206,11 @@ describe('encodings/ber/Parameter', () => {
 			streamIdentifier: 33,
 			enumMap: new Map([
 				['Jim', 0],
-				['Pam', 1]
+				['Pam', 1],
 			]),
 			streamDescriptor: new StreamDescriptionImpl(StreamFormat.UInt8, 22),
 			schemaIdentifiers: '3.2.1.1',
-			templateReference: '3.2.1.1'
+			templateReference: '3.2.1.1',
 		}
 
 		roundtripParameter(param)

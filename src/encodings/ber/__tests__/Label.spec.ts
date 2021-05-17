@@ -8,7 +8,7 @@ import { guarded } from '../decoder/DecodeResult'
 describe('encodings/ber/Label', () => {
 	const lbl = literal<Label>({
 		basePath: '1.1.2.1.3',
-		description: 'Oh what a lovely button'
+		description: 'Oh what a lovely button',
 	})
 
 	test('write and read a label', () => {
@@ -41,9 +41,7 @@ describe('encodings/ber/Label', () => {
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = decodeLabel(reader)
 
-		expect(decoded.value).toEqual(
-			literal<Label>({ basePath: lbl.basePath, description: '' })
-		)
+		expect(decoded.value).toEqual(literal<Label>({ basePath: lbl.basePath, description: '' }))
 		expect(decoded.errors).toHaveLength(2)
 	})
 })

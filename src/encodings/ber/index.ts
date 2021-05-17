@@ -8,19 +8,8 @@ import { encodeStreamEntry } from './encoder/StreamEntry'
 import { decodeInvocationResult } from './decoder/InvocationResult'
 import { decodeRootElements } from './decoder/Tree'
 import { decodeStreamEntries } from './decoder/StreamEntry'
-import {
-	DecodeResult,
-	DecodeOptions,
-	defaultDecode,
-	unknownApplication,
-	makeResult
-} from './decoder/DecodeResult'
-import {
-	RootBERID,
-	RootElementsBERID,
-	StreamEntriesBERID,
-	InvocationResultBERID
-} from './constants'
+import { DecodeResult, DecodeOptions, defaultDecode, unknownApplication, makeResult } from './decoder/DecodeResult'
+import { RootBERID, RootElementsBERID, StreamEntriesBERID, InvocationResultBERID } from './constants'
 import { NumberedTreeNodeImpl } from '../../model/Tree'
 import { EmberNodeImpl } from '../../model/EmberNode'
 

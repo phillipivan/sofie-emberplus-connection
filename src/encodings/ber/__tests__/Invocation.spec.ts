@@ -12,17 +12,17 @@ describe('encodings/ber/Invocation', () => {
 		args: [
 			{ type: ParameterType.Integer, value: -1 },
 			{ type: ParameterType.Boolean, value: false },
-			{ type: ParameterType.String, value: 'twotyfour' }
-		]
+			{ type: ParameterType.String, value: 'twotyfour' },
+		],
 	})
 
 	const noArgs = literal<Invocation>({
 		id: 234,
-		args: []
+		args: [],
 	})
 
 	const noId = literal<Invocation>({
-		args: [{ type: ParameterType.Integer, value: 47 }]
+		args: [{ type: ParameterType.Integer, value: 47 }],
 	})
 
 	test('write and read an invocation - 3 args', () => {

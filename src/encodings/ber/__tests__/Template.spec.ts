@@ -6,7 +6,7 @@ import {
 	TreeElement,
 	NumberedTreeNode,
 	QualifiedElement,
-	QualifiedElementImpl
+	QualifiedElementImpl,
 } from '../../../model/Tree'
 import { EmberNodeImpl } from '../../../model/EmberNode'
 import { encodeNumberedElement } from '../encoder/Tree'
@@ -36,9 +36,7 @@ describe('encodings/ber/Template', () => {
 		})
 
 		test('element', () => {
-			const template: Template = new TemplateImpl(
-				new NumberedTreeNodeImpl(0, new EmberNodeImpl('TestNode'))
-			)
+			const template: Template = new TemplateImpl(new NumberedTreeNodeImpl(0, new EmberNodeImpl('TestNode')))
 			const node: TreeElement<Template> = qualified
 				? new QualifiedElementImpl('1.2.3', template)
 				: new NumberedTreeNodeImpl(0, template)

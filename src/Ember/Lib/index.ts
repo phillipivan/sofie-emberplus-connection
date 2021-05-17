@@ -1,5 +1,5 @@
 const EmberLib = {
-	DecodeBuffer: null
+	DecodeBuffer: null,
 }
 
 export { EmberLib }

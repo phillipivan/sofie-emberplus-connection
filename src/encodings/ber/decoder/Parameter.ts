@@ -11,22 +11,20 @@ import {
 	unexpected,
 	appendErrors,
 	unknownContext,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 import { EmberValue, StringIntegerCollection, RelativeOID } from '../../../types/types'
 import { StreamDescription } from '../../../model/StreamDescription'
 
 export { decodeParameter, readParameterType }
 
-function decodeParameter(
-	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<Parameter> {
+function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Parameter> {
 	reader.readSequence(Ber.BERDataTypes.SET)
 
 	let identifier: string | undefined = undefined
 	let description: string | undefined = undefined
 	let value: EmberValue | undefined = undefined
+	let valueType: ParameterType | undefined = undefined
 	let minimum: number | null | undefined = undefined
 	let maximum: number | null | undefined = undefined
 	let access: ParameterAccess | undefined = undefined
@@ -55,9 +53,12 @@ function decodeParameter(
 			case Ber.CONTEXT(1):
 				description = reader.readString(Ber.BERDataTypes.STRING)
 				break
-			case Ber.CONTEXT(2):
-				value = reader.readValue().value
+			case Ber.CONTEXT(2): {
+				const decodedValue = reader.readValue()
+				value = decodedValue.value
+				valueType = decodedValue.type
 				break
+			}
 			case Ber.CONTEXT(3):
 				minimum = reader.readValue().value as number | null
 				break
@@ -114,14 +115,15 @@ function decodeParameter(
 				break
 		}
 	}
-	parameterType = check(
-		parameterType,
-		'decode parameter',
-		'parameterType',
-		ParameterType.Null,
-		errors,
-		options
-	)
+	parameterType =
+		parameterType === ParameterType.Trigger
+			? ParameterType.Trigger
+			: !!enumMap || !!enumeration
+			? ParameterType.Enum
+			: valueType
+			? valueType
+			: parameterType
+	parameterType = check(parameterType, 'decode parameter', 'parameterType', ParameterType.Null, errors, options)
 
 	return makeResult(
 		new ParameterImpl(
@@ -189,12 +191,6 @@ function readParameterType(value: number, options: DecodeOptions): DecodeResult<
 		case 7:
 			return makeResult(ParameterType.Octets)
 		default:
-			return unexpected(
-				[],
-				'read parameter type',
-				`unexpected parameter type '${value}'`,
-				ParameterType.Null,
-				options
-			)
+			return unexpected([], 'read parameter type', `unexpected parameter type '${value}'`, ParameterType.Null, options)
 	}
 }

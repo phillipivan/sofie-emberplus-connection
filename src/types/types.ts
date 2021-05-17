@@ -22,7 +22,7 @@ export {
 	RootType,
 	RelativeOID,
 	literal,
-	Collection
+	Collection,
 }
 
 type EmberTreeNode<T extends EmberElement> = NumberedTreeNode<T>
@@ -38,7 +38,7 @@ type Root = Collection<RootElement> | Collection<StreamEntry> | InvocationResult
 enum RootType {
 	Elements,
 	Streams,
-	InvocationResult
+	InvocationResult,
 }
 
 // number is either Integer64 or REAL

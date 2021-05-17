@@ -32,8 +32,8 @@ describe('encoders/Ber/index', () => {
 	test('Numbered tree', () => {
 		const res = {
 			0: new NumberedTreeNodeImpl(0, new EmberNodeImpl('Test node'), {
-				0: new NumberedTreeNodeImpl(0, new EmberNodeImpl('Test node 1'))
-			})
+				0: new NumberedTreeNodeImpl(0, new EmberNodeImpl('Test node 1')),
+			}),
 		}
 		if (!res[0].children) {
 			fail(`Tree must have children`)
@@ -44,8 +44,8 @@ describe('encoders/Ber/index', () => {
 	test('Qualified tree', () => {
 		const res = {
 			0: new QualifiedElementImpl('2.3.1', new EmberNodeImpl('Test node'), {
-				0: new NumberedTreeNodeImpl(0, new EmberNodeImpl('Node A'), {})
-			})
+				0: new NumberedTreeNodeImpl(0, new EmberNodeImpl('Node A'), {}),
+			}),
 		}
 		if (!res[0].children) {
 			fail(`Tree must have children`)

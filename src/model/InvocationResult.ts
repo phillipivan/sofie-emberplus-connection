@@ -15,9 +15,5 @@ interface InvocationResult {
 }
 
 class InvocationResultImpl implements InvocationResult {
-	constructor(
-		public id: number,
-		public success?: boolean,
-		public result?: Array<EmberTypedValue>
-	) {}
+	constructor(public id: number, public success?: boolean, public result?: Array<EmberTypedValue>) {}
 }

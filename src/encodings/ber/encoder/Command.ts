@@ -42,7 +42,7 @@ function writeDirFieldMask(fieldMask: FieldFlags, writer: Ber.Writer): void {
 		[FieldFlags.Description]: 2,
 		[FieldFlags.Tree]: 3,
 		[FieldFlags.Value]: 4,
-		[FieldFlags.Connections]: 5
+		[FieldFlags.Connections]: 5,
 	}
 
 	writer.writeInt(maskToInt[fieldMask])

@@ -10,7 +10,7 @@ describe('encodings/ber/Connection', () => {
 		target: 42,
 		sources: [89, 98],
 		operation: ConnectionOperation.Connect,
-		disposition: ConnectionDisposition.Tally
+		disposition: ConnectionDisposition.Tally,
 	})
 
 	test('write and read a connection', () => {

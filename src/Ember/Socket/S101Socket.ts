@@ -59,7 +59,11 @@ export default class S101Socket extends EventEmitter {
 	_initSocket() {
 		if (this.socket != null) {
 			this.socket.on('data', (data) => {
-				this.codec.dataIn(data)
+				try {
+					this.codec.dataIn(data)
+				} catch (e) {
+					this.emit('error', e)
+				}
 			})
 
 			this.socket.on('close', () => {
@@ -132,7 +136,7 @@ export default class S101Socket extends EventEmitter {
 		return this.socket !== undefined && !!this.socket
 	}
 
-	async sendBER(data: Buffer) {
+	sendBER(data: Buffer) {
 		if (this.isConnected()) {
 			try {
 				const frames = this.codec.encodeBER(data)

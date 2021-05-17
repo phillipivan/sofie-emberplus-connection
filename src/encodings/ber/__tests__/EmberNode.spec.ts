@@ -74,7 +74,7 @@ const indefiniteLength = Buffer.from([
 	0x00,
 	0x00,
 	0x00,
-	0x00
+	0x00,
 ])
 
 const nodeOnly = Buffer.from([
@@ -110,7 +110,7 @@ const nodeOnly = Buffer.from([
 	0x00,
 	0x00,
 	0x00,
-	0x00
+	0x00,
 ])
 
 describe('encodings/ber/EmberNode', () => {
@@ -121,7 +121,7 @@ describe('encodings/ber/EmberNode', () => {
 		isRoot: false,
 		isOnline: true,
 		schemaIdentifiers: `I'm a schema identifier\nand I'm OK`,
-		templateReference: '3.2.1.2'
+		templateReference: '3.2.1.2',
 	})
 
 	test('write and read a node', () => {

@@ -1,10 +1,5 @@
 import * as Ber from '../../../Ber'
-import {
-	Connection,
-	ConnectionOperation,
-	ConnectionDisposition,
-	ConnectionImpl
-} from '../../../model/Connection'
+import { Connection, ConnectionOperation, ConnectionDisposition, ConnectionImpl } from '../../../model/Connection'
 import { ConnectionBERID } from '../constants'
 import {
 	DecodeOptions,
@@ -15,15 +10,12 @@ import {
 	makeResult,
 	unexpected,
 	appendErrors,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 
 export { decodeConnection }
 
-function decodeConnection(
-	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<Connection> {
+function decodeConnection(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Connection> {
 	reader.readSequence(ConnectionBERID)
 	let target: number | null = null
 	let sources: Array<number> | undefined = undefined

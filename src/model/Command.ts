@@ -12,14 +12,14 @@ export {
 	SubscribeImpl,
 	UnsubscribeImpl,
 	GetDirectoryImpl,
-	InvokeImpl
+	InvokeImpl,
 }
 
 enum CommandType {
 	Subscribe = 30,
 	Unsubscribe = 31,
 	GetDirectory = 32,
-	Invoke = 33
+	Invoke = 33,
 }
 
 /** Parameters that a consumer is interested in. */
@@ -31,7 +31,7 @@ enum FieldFlags {
 	Description = 'DESCRIPTION',
 	Tree = 'TREE',
 	Value = 'VALUE',
-	Connections = 'CONNECTIONS'
+	Connections = 'CONNECTIONS',
 }
 
 /**

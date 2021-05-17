@@ -1,11 +1,6 @@
 import * as Ber from '../../../Ber'
 import { EmberElement, ElementType } from '../../../model/EmberElement'
-import {
-	NumberedTreeNode,
-	TreeElement,
-	QualifiedElementImpl,
-	NumberedTreeNodeImpl
-} from '../../../model/Tree'
+import { NumberedTreeNode, TreeElement, QualifiedElementImpl, NumberedTreeNodeImpl } from '../../../model/Tree'
 import { decodeFunctionContent } from './EmberFunction'
 import { decodeNode } from './EmberNode'
 import { decodeParameter } from './Parameter'
@@ -23,7 +18,7 @@ import {
 	ParameterBERID,
 	TemplateBERID,
 	RootElementsBERID,
-	ElementCollectionBERID
+	ElementCollectionBERID,
 } from '../constants'
 import { decodeMatrix } from './Matrix'
 import { decodeCommand } from './Command'
@@ -39,7 +34,7 @@ import {
 	unknownApplication,
 	check,
 	unexpected,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 import { Command } from '../../../model/Command'
 import { EmberNodeImpl } from '../../../model/EmberNode'
@@ -50,17 +45,13 @@ export function decodeChildren(
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<Collection<NumberedTreeNode<EmberElement>>> {
 	reader.readSequence(ElementCollectionBERID)
-	const kids = makeResult<Collection<NumberedTreeNode<EmberElement>>>(
-		{} as Collection<NumberedTreeNode<EmberElement>>
-	)
+	const kids = makeResult<Collection<NumberedTreeNode<EmberElement>>>({} as Collection<NumberedTreeNode<EmberElement>>)
 
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
 		const tag = reader.readSequence()
 		if (tag === 0) continue
-		const kidEl = decodeGenericElement(reader, options) as DecodeResult<
-			NumberedTreeNode<EmberElement>
-		>
+		const kidEl = decodeGenericElement(reader, options) as DecodeResult<NumberedTreeNode<EmberElement>>
 		safeSet(kidEl, kids, (x, y) => {
 			y[x.number] = x
 			return y
@@ -92,10 +83,7 @@ export function decodeGenericElement(
 		return decodeTemplate(reader, isQualified)
 	} else if (tag === CommandBERID) {
 		const commandResult: DecodeResult<Command> = decodeCommand(reader, options)
-		return makeResult(
-			new NumberedTreeNodeImpl(commandResult.value.number, commandResult.value),
-			commandResult.errors
-		)
+		return makeResult(new NumberedTreeNodeImpl(commandResult.value.number, commandResult.value), commandResult.errors)
 	}
 
 	reader.readSequence(tag)
@@ -119,12 +107,7 @@ export function decodeGenericElement(
 				// parse contents
 				switch (type) {
 					case ElementType.Command:
-						unknownApplication(
-							errors,
-							'decode generic element: command is not generic',
-							tag,
-							options
-						)
+						unknownApplication(errors, 'decode generic element: command is not generic', tag, options)
 						// contents = new EmberNodeImpl()
 						skipNext(reader)
 						break
@@ -132,12 +115,7 @@ export function decodeGenericElement(
 						contents = appendErrors(decodeFunctionContent(reader, options), errors)
 						break
 					case ElementType.Matrix:
-						unknownApplication(
-							errors,
-							'decode generic element: matrix is not generic',
-							tag,
-							options
-						)
+						unknownApplication(errors, 'decode generic element: matrix is not generic', tag, options)
 						// contents = new EmberNodeImpl()
 						skipNext(reader)
 						break
@@ -148,12 +126,7 @@ export function decodeGenericElement(
 						contents = appendErrors(decodeParameter(reader, options), errors)
 						break
 					case ElementType.Template:
-						unknownApplication(
-							errors,
-							'decode generic element: template is not generic',
-							tag,
-							options
-						)
+						unknownApplication(errors, 'decode generic element: template is not generic', tag, options)
 						// contents = new EmberNodeImpl()
 						skipNext(reader)
 						break
@@ -228,9 +201,7 @@ export function decodeRootElements(
 			skipNext(reader)
 			continue
 		}
-		const rootEl = decodeGenericElement(reader, options) as DecodeResult<
-			NumberedTreeNode<EmberElement>
-		>
+		const rootEl = decodeGenericElement(reader, options) as DecodeResult<NumberedTreeNode<EmberElement>>
 		safeSet(rootEl, rootEls, (x, y) => {
 			if (x.number) {
 				y[x.number] = x
@@ -249,16 +220,13 @@ function isTagQualified(tag: number): boolean {
 		QualifiedParameterBERID,
 		QualifiedNodeBERID,
 		QualifiedMatrixBERID,
-		QualifiedFunctionBERID
+		QualifiedFunctionBERID,
 	])
 
 	return qualifiedTags.has(tag)
 }
 
-function tagToElType(
-	tag: number,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<ElementType> {
+function tagToElType(tag: number, options: DecodeOptions = defaultDecode): DecodeResult<ElementType> {
 	const tags = {
 		[CommandBERID]: ElementType.Command,
 		[FunctionBERID]: ElementType.Function,
@@ -270,17 +238,11 @@ function tagToElType(
 		[QualifiedParameterBERID]: ElementType.Parameter,
 		[QualifiedNodeBERID]: ElementType.Node,
 		[QualifiedMatrixBERID]: ElementType.Matrix,
-		[QualifiedFunctionBERID]: ElementType.Function
+		[QualifiedFunctionBERID]: ElementType.Function,
 	}
 
 	if (!tags[tag]) {
-		return unexpected(
-			[],
-			'tag to element type',
-			`Unexpected element type tag '${tag}'`,
-			ElementType.Node,
-			options
-		)
+		return unexpected([], 'tag to element type', `Unexpected element type tag '${tag}'`, ElementType.Node, options)
 	}
 
 	return makeResult(tags[tag])

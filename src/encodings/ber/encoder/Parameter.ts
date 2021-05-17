@@ -95,19 +95,9 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer): void 
 		writer.endSequence()
 	}
 
-	writer.writeIfDefined(
-		parameter.schemaIdentifiers,
-		writer.writeString,
-		17,
-		Ber.BERDataTypes.STRING
-	)
+	writer.writeIfDefined(parameter.schemaIdentifiers, writer.writeString, 17, Ber.BERDataTypes.STRING)
 
-	writer.writeIfDefined(
-		parameter.templateReference,
-		writer.writeString,
-		18,
-		Ber.BERDataTypes.STRING
-	)
+	writer.writeIfDefined(parameter.templateReference, writer.writeString, 18, Ber.BERDataTypes.STRING)
 
 	writer.endSequence()
 }
@@ -117,7 +107,7 @@ function parameterAccessToInt(parameter: ParameterAccess): number {
 		[ParameterAccess.None]: 0,
 		[ParameterAccess.Read]: 1,
 		[ParameterAccess.Write]: 2,
-		[ParameterAccess.ReadWrite]: 3
+		[ParameterAccess.ReadWrite]: 3,
 	}
 
 	return paramToInt[parameter]
@@ -132,7 +122,7 @@ function parameterTypeToInt(pt: ParameterType): number {
 		[ParameterType.Boolean]: 4,
 		[ParameterType.Trigger]: 5,
 		[ParameterType.Enum]: 6,
-		[ParameterType.Octets]: 7
+		[ParameterType.Octets]: 7,
 	}
 
 	return paramTypeToInt[pt]

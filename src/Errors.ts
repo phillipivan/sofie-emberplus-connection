@@ -18,7 +18,7 @@ export {
 	InvalidMatrixSignal,
 	InvalidRequesrFormat,
 	InvalidStringPair,
-	PathDiscoveryFailure
+	PathDiscoveryFailure,
 }
 
 class UnimplementedEmberTypeError extends Error {

@@ -1,13 +1,7 @@
 import { EmberElement } from './EmberElement'
 import { RelativeOID, RootElement, Collection } from '../types/types'
 
-export {
-	TreeElement,
-	NumberedTreeNode,
-	QualifiedElement,
-	NumberedTreeNodeImpl,
-	QualifiedElementImpl
-}
+export { TreeElement, NumberedTreeNode, QualifiedElement, NumberedTreeNodeImpl, QualifiedElementImpl }
 
 interface TreeElement<T extends EmberElement> {
 	parent?: RootElement
@@ -32,8 +26,7 @@ abstract class TreeElementImpl<T extends EmberElement> implements TreeElement<T>
 	) {}
 }
 
-class NumberedTreeNodeImpl<T extends EmberElement> extends TreeElementImpl<T>
-	implements NumberedTreeNode<T> {
+class NumberedTreeNodeImpl<T extends EmberElement> extends TreeElementImpl<T> implements NumberedTreeNode<T> {
 	constructor(
 		public number: number,
 		contents: T,
@@ -44,15 +37,10 @@ class NumberedTreeNodeImpl<T extends EmberElement> extends TreeElementImpl<T>
 	}
 }
 
-class QualifiedElementImpl<T extends EmberElement> extends TreeElementImpl<T>
-	implements QualifiedElement<T> {
+class QualifiedElementImpl<T extends EmberElement> extends TreeElementImpl<T> implements QualifiedElement<T> {
 	parent = undefined
 
-	constructor(
-		public path: RelativeOID,
-		contents: T,
-		children?: Collection<NumberedTreeNode<EmberElement>>
-	) {
+	constructor(public path: RelativeOID, contents: T, children?: Collection<NumberedTreeNode<EmberElement>>) {
 		super(contents, children)
 	}
 }

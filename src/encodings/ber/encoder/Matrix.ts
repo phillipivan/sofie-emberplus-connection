@@ -25,21 +25,13 @@ export function encodeMatrix(matrix: Matrix, writer: Ber.Writer): void {
 	writer.writeIfDefined(matrix.targetCount, writer.writeInt, 4, Ber.BERDataTypes.INTEGER)
 	writer.writeIfDefined(matrix.sourceCount, writer.writeInt, 5, Ber.BERDataTypes.INTEGER)
 	writer.writeIfDefined(matrix.maximumTotalConnects, writer.writeInt, 6, Ber.BERDataTypes.INTEGER)
-	writer.writeIfDefined(
-		matrix.maximumConnectsPerTarget,
-		writer.writeInt,
-		7,
-		Ber.BERDataTypes.INTEGER
-	)
+	writer.writeIfDefined(matrix.maximumConnectsPerTarget, writer.writeInt, 7, Ber.BERDataTypes.INTEGER)
 
 	if (matrix.parametersLocation != null) {
 		writer.startSequence(Ber.CONTEXT(8))
 		const param = Number(matrix.parametersLocation)
 		if (isNaN(param)) {
-			writer.writeRelativeOID(
-				matrix.parametersLocation as RelativeOID,
-				Ber.BERDataTypes.RELATIVE_OID
-			)
+			writer.writeRelativeOID(matrix.parametersLocation as RelativeOID, Ber.BERDataTypes.RELATIVE_OID)
 		} else {
 			writer.writeInt(param)
 		}
@@ -94,7 +86,7 @@ export function elementTypeToInt(type: ElementType): number {
 		[ElementType.Command]: 2,
 		[ElementType.Matrix]: 3,
 		[ElementType.Function]: 4,
-		[ElementType.Template]: 5
+		[ElementType.Template]: 5,
 	}
 
 	return typeToInt[type]
@@ -104,7 +96,7 @@ export function matrixTypeToInt(type: MatrixType): number {
 	const typeToInt = {
 		[MatrixType.OneToN]: 0,
 		[MatrixType.OneToOne]: 1,
-		[MatrixType.NToN]: 2
+		[MatrixType.NToN]: 2,
 	}
 
 	return typeToInt[type]
@@ -113,7 +105,7 @@ export function matrixTypeToInt(type: MatrixType): number {
 export function matrixModeToInt(mode: MatrixAddressingMode): number {
 	const modeToInt = {
 		[MatrixAddressingMode.Linear]: 0,
-		[MatrixAddressingMode.NonLinear]: 1
+		[MatrixAddressingMode.NonLinear]: 1,
 	}
 
 	return modeToInt[mode]

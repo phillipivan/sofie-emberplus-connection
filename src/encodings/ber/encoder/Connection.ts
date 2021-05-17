@@ -31,7 +31,7 @@ function writeConnectionOperation(operation: ConnectionOperation, writer: Ber.Wr
 	const operationToInt: { [flag: string]: number } = {
 		[ConnectionOperation.Absolute]: 0,
 		[ConnectionOperation.Connect]: 1,
-		[ConnectionOperation.Disconnect]: 2
+		[ConnectionOperation.Disconnect]: 2,
 	}
 
 	writer.writeInt(operationToInt[operation])
@@ -42,7 +42,7 @@ function writeConnectionDisposition(operation: ConnectionDisposition, writer: Be
 		[ConnectionDisposition.Tally]: 0,
 		[ConnectionDisposition.Modified]: 1,
 		[ConnectionDisposition.Pending]: 2,
-		[ConnectionDisposition.Locked]: 3
+		[ConnectionDisposition.Locked]: 3,
 	}
 
 	writer.writeInt(operationToInt[operation])

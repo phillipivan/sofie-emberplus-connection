@@ -1,11 +1,5 @@
 import * as Ber from '../../../Ber'
-import {
-	Matrix,
-	MatrixImpl,
-	Connections,
-	MatrixType,
-	MatrixAddressingMode
-} from '../../../model/Matrix'
+import { Matrix, MatrixImpl, Connections, MatrixType, MatrixAddressingMode } from '../../../model/Matrix'
 import { EmberTreeNode, RelativeOID, Collection } from '../../../types/types'
 import { EmberElement } from '../../../model/EmberElement'
 import { decodeChildren } from './Tree'
@@ -17,7 +11,7 @@ import {
 	NumberedTreeNodeImpl,
 	TreeElement,
 	QualifiedElement,
-	NumberedTreeNode
+	NumberedTreeNode,
 } from '../../../model/Tree'
 import {
 	DecodeOptions,
@@ -28,7 +22,7 @@ import {
 	unexpected,
 	unknownContext,
 	check,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 import { Label } from '../../../model/Label'
 
@@ -105,10 +99,7 @@ function decodeMatrix(
 	return makeResult(el, errors)
 }
 
-function decodeMatrixContents(
-	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<Matrix> {
+function decodeMatrixContents(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Matrix> {
 	reader.readSequence(Ber.BERDataTypes.SET)
 	let plTag: number | null
 	let identifier: string | undefined = undefined
@@ -245,10 +236,7 @@ function decodeSources(
 	return makeResult(sources)
 }
 
-function decodeConnections(
-	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<Connections> {
+function decodeConnections(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Connections> {
 	const connections = makeResult<Connections>({})
 	reader.readSequence(Ber.BERDataTypes.SEQUENCE)
 	const endOffset = reader.offset + reader.length
@@ -265,10 +253,7 @@ function decodeConnections(
 	return connections
 }
 
-function readMatrixType(
-	value: number,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<MatrixType> {
+function readMatrixType(value: number, options: DecodeOptions = defaultDecode): DecodeResult<MatrixType> {
 	switch (value) {
 		case 0:
 			return makeResult(MatrixType.OneToN)
@@ -277,20 +262,11 @@ function readMatrixType(
 		case 2:
 			return makeResult(MatrixType.NToN)
 		default:
-			return unexpected(
-				[],
-				'read matrix type',
-				`unexpected matrix type '${value}'`,
-				MatrixType.NToN,
-				options
-			)
+			return unexpected([], 'read matrix type', `unexpected matrix type '${value}'`, MatrixType.NToN, options)
 	}
 }
 
-function readAddressingMode(
-	value: number,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<MatrixAddressingMode> {
+function readAddressingMode(value: number, options: DecodeOptions = defaultDecode): DecodeResult<MatrixAddressingMode> {
 	switch (value) {
 		case 0:
 			return makeResult(MatrixAddressingMode.Linear)

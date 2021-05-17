@@ -8,7 +8,7 @@ describe('encodings/ber/StringIntegerCollection', () => {
 	const sic: StringIntegerCollection = new Map<string, number>([
 		['first', 1],
 		['second', 2],
-		['third', 3]
+		['third', 3],
 	])
 
 	test('write and read string integer collection - 3 values', () => {

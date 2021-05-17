@@ -2,21 +2,11 @@ import * as Ber from '../../../Ber'
 import { Invocation, InvocationImpl } from '../../../model/Invocation'
 import { EmberTypedValue } from '../../../types/types'
 import { InvocationBERID } from '../constants'
-import {
-	DecodeOptions,
-	defaultDecode,
-	DecodeResult,
-	unknownContext,
-	makeResult,
-	skipNext
-} from './DecodeResult'
+import { DecodeOptions, defaultDecode, DecodeResult, unknownContext, makeResult, skipNext } from './DecodeResult'
 
 export { decodeInvocation }
 
-function decodeInvocation(
-	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<Invocation> {
+function decodeInvocation(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Invocation> {
 	reader.readSequence(InvocationBERID)
 	let id: number | undefined = undefined
 	const args: Array<EmberTypedValue> = []
