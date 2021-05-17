@@ -39,7 +39,7 @@ export class S101Server extends EventEmitter {
 				.on('listening', () => {
 					this.emit('listening')
 					this.status = 'listening'
-					resolve()
+					resolve(undefined)
 				})
 			this.server.listen(this.port, this.address)
 		})
