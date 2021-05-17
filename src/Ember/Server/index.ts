@@ -11,7 +11,7 @@ import {
 	Parameter,
 	MatrixImpl,
 	Matrix,
-	Connections
+	Connections,
 } from '../../model'
 import {
 	Collection,
@@ -20,7 +20,7 @@ import {
 	QualifiedElement,
 	RootType,
 	TreeElement,
-	EmberValue
+	EmberValue,
 } from '../../types/types'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
 import { toQualifiedEmberNode } from '../Lib/util'
@@ -59,9 +59,7 @@ class EmberServer extends EventEmitter {
 		this._server.on('connection', (client: S101Client) => {
 			this._clients.add(client)
 
-			client.on('emberTree', (tree: DecodeResult<Collection<RootElement>>) =>
-				this._handleIncoming(tree, client)
-			)
+			client.on('emberTree', (tree: DecodeResult<Collection<RootElement>>) => this._handleIncoming(tree, client))
 
 			client.on('error', (e) => {
 				this.emit('clientError', client, e)
@@ -75,10 +73,7 @@ class EmberServer extends EventEmitter {
 	}
 
 	init(tree: Collection<NumberedTreeNode<EmberElement>>) {
-		const setParent = (
-			parent: NumberedTreeNode<EmberElement>,
-			child: NumberedTreeNode<EmberElement>
-		) => {
+		const setParent = (parent: NumberedTreeNode<EmberElement>, child: NumberedTreeNode<EmberElement>) => {
 			child.parent = parent
 			if (child.children) {
 				for (const c of Object.values(child.children)) {
@@ -94,7 +89,7 @@ class EmberServer extends EventEmitter {
 			}
 		}
 		this.tree = tree
-		this._server.listen()
+		return this._server.listen()
 	}
 
 	discard() {
@@ -167,7 +162,7 @@ class EmberServer extends EventEmitter {
 
 		const qualified = toQualifiedEmberNode(element) as QualifiedElement<Matrix>
 		qualified.contents = new MatrixImpl(qualified.contents.identifier, undefined, undefined, {
-			[connection.target]: connection
+			[connection.target]: connection,
 		})
 		const data = berEncode([qualified], RootType.Elements)
 
@@ -184,7 +179,7 @@ class EmberServer extends EventEmitter {
 		for (const rootEl of Object.values(incoming.value)) {
 			if (rootEl.contents.type === ElementType.Command) {
 				// command on root
-				this._handleCommand('', rootEl as NumberedTreeNode<Command>, client)
+				this._handleCommand('', rootEl as NumberedTreeNode<Command>, client).catch((e) => this.emit('error', e))
 			} else if ('path' in rootEl) {
 				this._handleNode(rootEl.path || '', rootEl, client)
 			} else if ('number' in rootEl) {
@@ -201,18 +196,18 @@ class EmberServer extends EventEmitter {
 		const children = Object.values(el.children || {})
 
 		if (children[0] && children[0].contents.type === ElementType.Command) {
-			this._handleCommand(path, children[0] as NumberedTreeNode<Command>, client)
+			this._handleCommand(path, children[0] as NumberedTreeNode<Command>, client).catch((e) => this.emit('error', e))
 			return
 		} else if (el.contents.type === ElementType.Matrix && 'connections' in el.contents) {
-			this._handleMatrix(path, el as QualifiedElement<Matrix> | NumberedTreeNode<Matrix>)
+			this._handleMatrix(path, el as QualifiedElement<Matrix> | NumberedTreeNode<Matrix>).catch((e) =>
+				this.emit('error', e)
+			)
 		}
 
 		if (!el.children) {
 			if (el.contents.type === ElementType.Parameter) {
-				this._handleSetValue(
-					path,
-					el as QualifiedElement<Parameter> | NumberedTreeNode<Parameter>,
-					client
+				this._handleSetValue(path, el as QualifiedElement<Parameter> | NumberedTreeNode<Parameter>, client).catch((e) =>
+					this.emit('error', e)
 				)
 			}
 		} else {
@@ -222,12 +217,12 @@ class EmberServer extends EventEmitter {
 		}
 	}
 
-	private _handleMatrix(path: string, el: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>) {
+	private async _handleMatrix(path: string, el: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>) {
 		if (this.onMatrixOperation) {
 			const tree = this.getElementByPath(path)
 			if (!tree || tree.contents.type !== ElementType.Matrix || !el.contents.connections) return
 
-			this.onMatrixOperation(tree as NumberedTreeNode<Matrix>, el.contents.connections)
+			return this.onMatrixOperation(tree as NumberedTreeNode<Matrix>, el.contents.connections)
 		}
 	}
 
@@ -237,8 +232,7 @@ class EmberServer extends EventEmitter {
 		client: S101Client
 	) {
 		const tree = this.getElementByPath(path)
-		if (!tree || tree.contents.type !== ElementType.Parameter || el.contents.value === undefined)
-			return
+		if (!tree || tree.contents.type !== ElementType.Parameter || el.contents.value === undefined) return
 
 		let success = false
 		if (this.onSetValue) {
@@ -263,23 +257,13 @@ class EmberServer extends EventEmitter {
 			this._unsubscribe(path, client)
 		} else if (el.contents.number === CommandType.GetDirectory) {
 			this._subscribe(path, client) // send updates to client
-			this._handleGetDirectory(
-				tree,
-				(el.contents as GetDirectory).dirFieldMask || FieldFlags.Default,
-				client
-			)
+			this._handleGetDirectory(tree, (el.contents as GetDirectory).dirFieldMask || FieldFlags.Default, client)
 		} else if (el.contents.number === CommandType.Invoke) {
 			let result: InvocationResult
 			if (this.onInvocation) {
-				result = await this.onInvocation(
-					tree as NumberedTreeNode<EmberFunction>,
-					el as NumberedTreeNode<Invoke>
-				)
+				result = await this.onInvocation(tree as NumberedTreeNode<EmberFunction>, el as NumberedTreeNode<Invoke>)
 			} else {
-				result = new InvocationResultImpl(
-					(el as NumberedTreeNode<Invoke>).contents.invocation!.id || -1,
-					false
-				)
+				result = new InvocationResultImpl((el as NumberedTreeNode<Invoke>).contents.invocation!.id || -1, false)
 			}
 			const encoded = berEncode(result, RootType.InvocationResult)
 			client.sendBER(encoded)
@@ -294,8 +278,7 @@ class EmberServer extends EventEmitter {
 					(r.contents as EmberNode).identifier === i ||
 					(r.contents as EmberNode).description === i
 			)
-		const getNextChild = (node: TreeElement<EmberElement>, i: string) =>
-			node.children && getNext(node.children, i)
+		const getNextChild = (node: TreeElement<EmberElement>, i: string) => node.children && getNext(node.children, i)
 
 		const numberedPath: Array<number> = []
 		const pathArr = path.split('.')
@@ -347,10 +330,7 @@ class EmberServer extends EventEmitter {
 			// getDir on root
 			const response: Collection<NumberedTreeNode<EmberElement>> = { ...this.tree }
 			for (const [i, rootEl] of Object.entries(this.tree)) {
-				response[(i as unknown) as number] = new NumberedTreeNodeImpl(
-					rootEl.number,
-					rootEl.contents
-				)
+				response[i as unknown as number] = new NumberedTreeNodeImpl(rootEl.number, rootEl.contents)
 			}
 			const data = berEncode(response, RootType.Elements)
 			client.sendBER(data)
@@ -361,7 +341,7 @@ class EmberServer extends EventEmitter {
 				for (const [i, child] of Object.entries(tree.children)) {
 					if (child.contents.type === ElementType.Matrix) {
 						// matrix should not have connections, targets and sources:
-						qualified.children[(i as unknown) as number] = new NumberedTreeNodeImpl(
+						qualified.children[i as unknown as number] = new NumberedTreeNodeImpl(
 							child.number,
 							new MatrixImpl(
 								child.contents.identifier,
@@ -383,10 +363,7 @@ class EmberServer extends EventEmitter {
 							)
 						)
 					} else {
-						qualified.children[(i as unknown) as number] = new NumberedTreeNodeImpl(
-							child.number,
-							child.contents
-						)
+						qualified.children[i as unknown as number] = new NumberedTreeNodeImpl(child.number, child.contents)
 					}
 				}
 			}

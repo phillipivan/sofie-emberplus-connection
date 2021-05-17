@@ -7,14 +7,11 @@ import {
 	QualifiedMatrixBERID,
 	QualifiedNodeBERID,
 	QualifiedParameterBERID,
-	QualifiedTemplateBERID
+	QualifiedTemplateBERID,
 } from '../constants'
 
 // note, this no longer encodes a full element, only the start
-export function encodeQualifedElement(
-	el: QualifiedElement<EmberElement>,
-	writer: Ber.Writer
-): void {
+export function encodeQualifedElement(el: QualifiedElement<EmberElement>, writer: Ber.Writer): void {
 	switch (el.contents.type) {
 		case ElementType.Function:
 			writer.startSequence(QualifiedFunctionBERID)

@@ -32,7 +32,7 @@ export default class S101Client extends S101Socket {
 		this.autoConnect = !!autoConnect
 		this._shouldBeConnected = this.autoConnect
 
-		if (this.autoConnect) this.connect()
+		if (this.autoConnect) this.connect().catch(() => null) // errors are already emitted
 	}
 
 	connect(timeout = 5): Promise<Error | void> {
@@ -42,10 +42,7 @@ export default class S101Client extends S101Socket {
 				resolve()
 				return
 			}
-			if (
-				!this._lastConnectionAttempt ||
-				Date.now() - this._lastConnectionAttempt >= this._autoReconnectDelay
-			) {
+			if (!this._lastConnectionAttempt || Date.now() - this._lastConnectionAttempt >= this._autoReconnectDelay) {
 				// !_lastReconnectionAttempt means first attempt, OR > _reconnectionDelay since last attempt
 				// recreates client if new attempt
 				if (this.socket && this.socket.connecting) {
@@ -82,7 +79,7 @@ export default class S101Client extends S101Socket {
 						`Could not connect to ${this.address}:${this.port} after a timeout of ${timeout} seconds`
 					)
 					resolve(reason)
-					if (!this._connectionAttemptTimer) this.connect()
+					if (!this._connectionAttemptTimer) this.connect().catch(() => null)
 				}
 
 				const timer = setTimeout(() => connectTimeoutListener(), timeout * 1000)
@@ -97,10 +94,7 @@ export default class S101Client extends S101Socket {
 
 			// sets timer to retry when needed
 			if (!this._connectionAttemptTimer) {
-				this._connectionAttemptTimer = setInterval(
-					() => this._autoReconnectionAttempt(),
-					this._autoReconnectDelay
-				)
+				this._connectionAttemptTimer = setInterval(() => this._autoReconnectionAttempt(), this._autoReconnectDelay)
 			}
 		})
 	}
@@ -129,7 +123,7 @@ export default class S101Client extends S101Socket {
 				// new attempt if not already connected
 				if (this.status !== ConnectionStatus.Connected) {
 					this._reconnectAttempt++
-					this.connect()
+					this.connect().catch(() => null)
 				}
 			}
 		}
@@ -165,7 +159,7 @@ export default class S101Client extends S101Socket {
 
 		if (this._shouldBeConnected === true) {
 			this.emit('connecting')
-			this.connect()
+			this.connect().catch(() => null)
 		}
 	}
 }

@@ -7,7 +7,7 @@ enum ConnectionOperation {
 	/** Consumer request that the sources should be connected to the target. */
 	Connect = 'CONNECT',
 	/** Consumer requests that the sources should be disconnected from the target. */
-	Disconnect = 'DISCONNECT'
+	Disconnect = 'DISCONNECT',
 }
 
 /** Execution state of a connection operation. */
@@ -20,7 +20,7 @@ enum ConnectionDisposition {
 	Pending = 'PENDING',
 	/** Connect operation not executed as the target is locked.
 	 *  Sources property contains absolute set of current connections. */
-	Locked = 'LOCKED'
+	Locked = 'LOCKED',
 }
 
 /**

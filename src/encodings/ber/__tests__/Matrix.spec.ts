@@ -1,10 +1,5 @@
 import * as Ber from '../../../Ber'
-import {
-	NumberedTreeNode,
-	QualifiedElement,
-	QualifiedElementImpl,
-	NumberedTreeNodeImpl
-} from '../../../model/Tree'
+import { NumberedTreeNode, QualifiedElement, QualifiedElementImpl, NumberedTreeNodeImpl } from '../../../model/Tree'
 import { Matrix, MatrixImpl, MatrixType, MatrixAddressingMode } from '../../../model/Matrix'
 import { encodeNumberedElement } from '../encoder/Tree'
 import { encodeQualifedElement } from '../encoder/Qualified'
@@ -14,9 +9,7 @@ import { guarded } from '../decoder/DecodeResult'
 
 describe('encodings/ber/Matrix', () => {
 	function roundtripMatrix(matrix: Matrix, qualified = false): void {
-		const node = qualified
-			? new QualifiedElementImpl('1.2.3', matrix)
-			: new NumberedTreeNodeImpl(0, matrix)
+		const node = qualified ? new QualifiedElementImpl('1.2.3', matrix) : new NumberedTreeNodeImpl(0, matrix)
 		const writer = new Ber.Writer()
 		if (!qualified) encodeNumberedElement(node as NumberedTreeNode<Matrix>, writer)
 		else encodeQualifedElement(node as QualifiedElement<Matrix>, writer)
@@ -47,8 +40,8 @@ describe('encodings/ber/Matrix', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
 			matrix.connections = {
 				1: {
-					target: 1
-				}
+					target: 1,
+				},
 			}
 			roundtripMatrix(matrix, qualified)
 		})
@@ -58,8 +51,8 @@ describe('encodings/ber/Matrix', () => {
 				matrix.connections = {
 					1: {
 						target: 1,
-						sources: [2, 3]
-					}
+						sources: [2, 3],
+					},
 				}
 				roundtripMatrix(matrix, qualified)
 			})
@@ -68,22 +61,22 @@ describe('encodings/ber/Matrix', () => {
 				matrix.connections = {
 					1: {
 						target: 1,
-						operation: ConnectionOperation.Absolute
-					}
+						operation: ConnectionOperation.Absolute,
+					},
 				}
 				roundtripMatrix(matrix, qualified)
 				matrix.connections = {
 					1: {
 						target: 1,
-						operation: ConnectionOperation.Connect
-					}
+						operation: ConnectionOperation.Connect,
+					},
 				}
 				roundtripMatrix(matrix, qualified)
 				matrix.connections = {
 					1: {
 						target: 1,
-						operation: ConnectionOperation.Disconnect
-					}
+						operation: ConnectionOperation.Disconnect,
+					},
 				}
 				roundtripMatrix(matrix, qualified)
 			})
@@ -92,8 +85,8 @@ describe('encodings/ber/Matrix', () => {
 				matrix.connections = {
 					1: {
 						target: 1,
-						disposition: ConnectionDisposition.Locked
-					}
+						disposition: ConnectionDisposition.Locked,
+					},
 				}
 				roundtripMatrix(matrix, qualified)
 				matrix.connections[1].disposition = ConnectionDisposition.Modified

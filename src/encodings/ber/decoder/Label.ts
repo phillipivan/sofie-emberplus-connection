@@ -1,22 +1,11 @@
 import * as Ber from '../../../Ber'
 import { Label, LabelImpl } from '../../../model/Label'
 import { LabelBERID } from '../constants'
-import {
-	DecodeOptions,
-	defaultDecode,
-	DecodeResult,
-	unknownContext,
-	check,
-	makeResult,
-	skipNext
-} from './DecodeResult'
+import { DecodeOptions, defaultDecode, DecodeResult, unknownContext, check, makeResult, skipNext } from './DecodeResult'
 
 export { decodeLabel }
 
-function decodeLabel(
-	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<Label> {
+function decodeLabel(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Label> {
 	reader.readSequence(LabelBERID)
 	let basePath: string | null = null
 	let description: string | null = null

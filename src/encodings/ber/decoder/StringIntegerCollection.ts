@@ -9,7 +9,7 @@ import {
 	unknownContext,
 	appendErrors,
 	check,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 
 export { decodeStringIntegerCollection }
@@ -62,14 +62,7 @@ function decodeStringIntegerPair(
 				break
 		}
 	}
-	key = check(
-		key,
-		'decode string integer pair',
-		'key',
-		`key${(Math.random() * 1000000) | 0}`,
-		errors,
-		options
-	)
+	key = check(key, 'decode string integer pair', 'key', `key${(Math.random() * 1000000) | 0}`, errors, options)
 	value = check(value, 'decode string integer pair', 'value', -1, errors, options)
 	return makeResult({ key, value }, errors)
 }

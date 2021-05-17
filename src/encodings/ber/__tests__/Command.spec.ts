@@ -1,13 +1,5 @@
 import * as Ber from '../../../Ber'
-import {
-	Command,
-	CommandType,
-	Subscribe,
-	Unsubscribe,
-	GetDirectory,
-	FieldFlags,
-	Invoke
-} from '../../../model/Command'
+import { Command, CommandType, Subscribe, Unsubscribe, GetDirectory, FieldFlags, Invoke } from '../../../model/Command'
 import { encodeCommand } from '../encoder/Command'
 import { decodeCommand } from '../decoder/Command'
 import { ElementType } from '../../../model/EmberElement'
@@ -27,7 +19,7 @@ describe('encodings/ber/Command', () => {
 	test('Subscribe', () => {
 		const command: Subscribe = {
 			type: ElementType.Command,
-			number: CommandType.Subscribe
+			number: CommandType.Subscribe,
 		}
 		testCommand(command)
 	})
@@ -35,7 +27,7 @@ describe('encodings/ber/Command', () => {
 	test('Unsubscribe', () => {
 		const command: Unsubscribe = {
 			type: ElementType.Command,
-			number: CommandType.Unsubscribe
+			number: CommandType.Unsubscribe,
 		}
 		testCommand(command)
 	})
@@ -44,7 +36,7 @@ describe('encodings/ber/Command', () => {
 		const command: GetDirectory = {
 			type: ElementType.Command,
 			number: CommandType.GetDirectory,
-			dirFieldMask: FieldFlags.All
+			dirFieldMask: FieldFlags.All,
 		}
 		testCommand(command)
 	})
@@ -53,7 +45,7 @@ describe('encodings/ber/Command', () => {
 		const command: Invoke = {
 			type: ElementType.Command,
 			number: CommandType.Invoke,
-			invocation: { args: [] }
+			invocation: { args: [] },
 		}
 		testCommand(command)
 	})

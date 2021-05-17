@@ -18,7 +18,7 @@ enum StreamFormat {
 	Float32BE = 'Float32BE',
 	Float32LE = 'Float32LE',
 	Float64BE = 'Float64BE',
-	Float64LE = 'Float64LE'
+	Float64LE = 'Float64LE',
 }
 
 interface StreamDescription {

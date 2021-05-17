@@ -10,13 +10,7 @@ import { Parameter, ParameterType, ParameterAccess, ParameterImpl } from './Para
 import { StreamDescription, StreamFormat } from './StreamDescription'
 import { StreamEntry } from './StreamEntry'
 import { Template, TemplateImpl } from './Template'
-import {
-	TreeElement,
-	NumberedTreeNode,
-	QualifiedElement,
-	NumberedTreeNodeImpl,
-	QualifiedElementImpl
-} from './Tree'
+import { TreeElement, NumberedTreeNode, QualifiedElement, NumberedTreeNodeImpl, QualifiedElementImpl } from './Tree'
 
 export {
 	EmberElement,
@@ -48,5 +42,5 @@ export {
 	NumberedTreeNode,
 	QualifiedElement,
 	NumberedTreeNodeImpl,
-	QualifiedElementImpl
+	QualifiedElementImpl,
 }

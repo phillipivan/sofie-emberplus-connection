@@ -9,7 +9,7 @@ import {
 	unknownContext,
 	makeResult,
 	appendErrors,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 import { FunctionArgument } from '../../../model/FunctionArgument'
 import { RelativeOID } from '../../../types/types'
@@ -83,8 +83,5 @@ function decodeFunctionContent(
 		}
 	}
 
-	return makeResult(
-		new EmberFunctionImpl(identifier, description, args, result, templateReference),
-		errors
-	)
+	return makeResult(new EmberFunctionImpl(identifier, description, args, result, templateReference), errors)
 }

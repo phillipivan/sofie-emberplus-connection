@@ -15,13 +15,10 @@ import {
 	NodeBERID,
 	ParameterBERID,
 	TemplateBERID,
-	ElementCollectionBERID
+	ElementCollectionBERID,
 } from '../constants'
 
-export function encodeNumberedElement(
-	el: NumberedTreeNode<EmberElement>,
-	writer: Ber.Writer
-): void {
+export function encodeNumberedElement(el: NumberedTreeNode<EmberElement>, writer: Ber.Writer): void {
 	if (el.contents.type === ElementType.Command) {
 		// Command is a special case
 		if (isQualified(el)) throw new Error('Command cannot be qualified')

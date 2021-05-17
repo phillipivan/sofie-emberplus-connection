@@ -136,7 +136,7 @@ export default class S101Socket extends EventEmitter {
 		return this.socket !== undefined && !!this.socket
 	}
 
-	async sendBER(data: Buffer) {
+	sendBER(data: Buffer) {
 		if (this.isConnected()) {
 			try {
 				const frames = this.codec.encodeBER(data)

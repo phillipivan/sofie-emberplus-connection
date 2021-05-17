@@ -10,7 +10,7 @@ import {
 	defaultDecode,
 	safeSet,
 	check,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 import { ParameterType } from '../../../model/Parameter'
 
@@ -40,10 +40,7 @@ function decodeStreamEntries(
 	return streamEntries
 }
 
-function decodeStreamEntry(
-	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<StreamEntry> {
+function decodeStreamEntry(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<StreamEntry> {
 	reader.readSequence(StreamEntryBERID)
 	let identifier: number | null = null
 	let value: EmberTypedValue | null = null

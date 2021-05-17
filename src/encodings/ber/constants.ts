@@ -26,7 +26,7 @@ export {
 	InvocationBERID,
 	InvocationResultBERID,
 	TemplateBERID,
-	QualifiedTemplateBERID
+	QualifiedTemplateBERID,
 }
 
 const RootBERID = Ber.APPLICATION(0)

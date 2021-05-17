@@ -3,9 +3,7 @@ import { EmberElement, ElementType } from '../../model/EmberElement'
 import { Command } from '../../model/Command'
 import { QualifiedElementImpl, NumberedTreeNodeImpl, TreeElement } from '../../model/Tree'
 
-export function assertQualifiedEmberNode(
-	node: RootElement
-): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
+export function assertQualifiedEmberNode(node: RootElement): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
 	if ('path' in node) {
 		return node
 	} else {
@@ -54,7 +52,7 @@ export function insertCommand(
 	command: Command
 ): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
 	return new QualifiedElementImpl<EmberElement>(node.path, node.contents, [
-		new NumberedTreeNodeImpl(0, command)
+		new NumberedTreeNodeImpl(0, command),
 	]) as Exclude<RootElement, NumberedTreeNode<EmberElement>>
 }
 

@@ -16,7 +16,7 @@ import {
 	appendErrors,
 	check,
 	makeResult,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 
 export function decodeTemplate(
@@ -62,15 +62,9 @@ export function decodeTemplate(
 	}
 	if (isQualified) {
 		path = check(path, 'decode template', 'path', '', errors, options)
-		return makeResult(
-			new QualifiedElementImpl(path, new TemplateImpl(element, description)),
-			errors
-		)
+		return makeResult(new QualifiedElementImpl(path, new TemplateImpl(element, description)), errors)
 	} else {
 		number = check(number, 'decode tempalte', 'number', -1, errors, options)
-		return makeResult(
-			new NumberedTreeNodeImpl(number, new TemplateImpl(element, description)),
-			errors
-		)
+		return makeResult(new NumberedTreeNodeImpl(number, new TemplateImpl(element, description)), errors)
 	}
 }

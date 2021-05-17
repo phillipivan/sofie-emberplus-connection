@@ -8,7 +8,7 @@ import { guarded } from '../decoder/DecodeResult'
 describe('encodings/ber/StreamDescription', () => {
 	const sd = literal<StreamDescription>({
 		format: StreamFormat.Int32BE,
-		offset: 42
+		offset: 42,
 	})
 
 	test('write and read stream description', () => {

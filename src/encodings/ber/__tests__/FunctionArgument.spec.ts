@@ -9,7 +9,7 @@ import { guarded } from '../decoder/DecodeResult'
 describe('encoders/ber/FunctionArgument', () => {
 	const fa = literal<FunctionArgument>({
 		type: ParameterType.String,
-		name: 'fred'
+		name: 'fred',
 	})
 
 	test('write and read function argument', () => {
@@ -24,7 +24,7 @@ describe('encoders/ber/FunctionArgument', () => {
 
 	test('write and read function argument', () => {
 		const noName = literal<FunctionArgument>({
-			type: ParameterType.Boolean
+			type: ParameterType.Boolean,
 		})
 		const writer = new Ber.Writer()
 		encodeFunctionArgument(noName, writer)

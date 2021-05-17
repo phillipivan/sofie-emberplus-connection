@@ -11,20 +11,20 @@ import {
 	appendErrors,
 	unexpected,
 	DecodeOptions,
-	unknownApplication
+	unknownApplication,
 } from '../decoder/DecodeResult'
 
 describe('encodings/ver/DecodeResult - default settings', () => {
 	const goodResult = literal<DecodeResult<number>>({
-		value: 42
+		value: 42,
 	})
 	const resultEmptyErrors = literal<DecodeResult<number>>({
 		value: 42,
-		errors: []
+		errors: [],
 	})
 	const resultWithError = literal<DecodeResult<number>>({
 		value: 42,
-		errors: [new Error('decode wibbly wobble: tag was junk')]
+		errors: [new Error('decode wibbly wobble: tag was junk')],
 	})
 
 	test('whatever', () => {
@@ -114,7 +114,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 			})
 		).toEqual({
 			value: [41, 42],
-			errors: []
+			errors: [],
 		})
 	})
 
@@ -128,7 +128,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 			})
 		).toEqual({
 			value: [41, 42],
-			errors: []
+			errors: [],
 		})
 	})
 
@@ -142,7 +142,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 			})
 		).toEqual({
 			value: [41, 42],
-			errors: resultWithError.errors
+			errors: resultWithError.errors,
 		})
 	})
 
@@ -156,7 +156,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 			})
 		).toEqual({
 			value: [41, 42],
-			errors: [new Error(`Second error`)]
+			errors: [new Error(`Second error`)],
 		})
 	})
 
@@ -170,7 +170,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 			})
 		).toEqual({
 			value: [41, 42],
-			errors: [new Error(`Second error`), resultWithError.errors![0]] // eslint-disable-line @typescript-eslint/no-non-null-assertion
+			errors: [new Error(`Second error`), resultWithError.errors![0]], // eslint-disable-line @typescript-eslint/no-non-null-assertion
 		})
 		expect(resultWithError.errors).toHaveLength(1)
 	})
@@ -236,32 +236,30 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 
 	test('unexpected - decode result', () => {
 		const updateMe = Object.assign({}, goodResult)
-		expect(
-			unexpected(updateMe, 'decode wibbly wobble', 'a message to you', 99, defaultDecode)
-		).toEqual(makeResult(99, [new Error('decode wibbly wobble: a message to you')]))
+		expect(unexpected(updateMe, 'decode wibbly wobble', 'a message to you', 99, defaultDecode)).toEqual(
+			makeResult(99, [new Error('decode wibbly wobble: a message to you')])
+		)
 	})
 
 	test('unexpected - error array', () => {
 		const updateMe = new Array<Error>()
-		expect(
-			unexpected(updateMe, 'decode wibbly wobble', 'a message to you', 99, defaultDecode)
-		).toEqual(makeResult(99, [new Error('decode wibbly wobble: a message to you')]))
+		expect(unexpected(updateMe, 'decode wibbly wobble', 'a message to you', 99, defaultDecode)).toEqual(
+			makeResult(99, [new Error('decode wibbly wobble: a message to you')])
+		)
 	})
 
 	test('all equal in the end', () => {
-		expect(goodResult).toEqual(
-			literal<DecodeResult<number>>({ value: 42 })
-		)
+		expect(goodResult).toEqual(literal<DecodeResult<number>>({ value: 42 }))
 		expect(resultEmptyErrors).toEqual(
 			literal<DecodeResult<number>>({
 				value: 42,
-				errors: []
+				errors: [],
 			})
 		)
 		expect(resultWithError).toEqual(
 			literal<DecodeResult<number>>({
 				value: 42,
-				errors: [new Error('decode wibbly wobble: tag was junk')]
+				errors: [new Error('decode wibbly wobble: tag was junk')],
 			})
 		)
 	})
@@ -269,14 +267,14 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 
 describe('encodings/ver/DecodeResult - expect to throw', () => {
 	const goodResult = literal<DecodeResult<number>>({
-		value: 42
+		value: 42,
 	})
 
 	const triggerThrow = literal<DecodeOptions>({
 		skipApplicationTags: false,
 		skipContextTags: false,
 		substituteForRequired: false,
-		skipUnexpected: false
+		skipUnexpected: false,
 	})
 
 	test('unknownContext - decode result, number tag', () => {
@@ -365,15 +363,11 @@ describe('encodings/ver/DecodeResult - expect to throw', () => {
 
 	test('unexpected - decode result', () => {
 		const updateMe = Object.assign({}, goodResult)
-		expect(() =>
-			unexpected(updateMe, 'decode wibbly wobble', 'a message to you', 99, triggerThrow)
-		).toThrow()
+		expect(() => unexpected(updateMe, 'decode wibbly wobble', 'a message to you', 99, triggerThrow)).toThrow()
 	})
 
 	test('unexpected - error array', () => {
 		const updateMe = new Array<Error>()
-		expect(() =>
-			unexpected(updateMe, 'decode wibbly wobble', 'a message to you', 99, triggerThrow)
-		).toThrow()
+		expect(() => unexpected(updateMe, 'decode wibbly wobble', 'a message to you', 99, triggerThrow)).toThrow()
 	})
 })

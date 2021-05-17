@@ -11,17 +11,14 @@ import {
 	unexpected,
 	appendErrors,
 	unknownContext,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 import { EmberValue, StringIntegerCollection, RelativeOID } from '../../../types/types'
 import { StreamDescription } from '../../../model/StreamDescription'
 
 export { decodeParameter, readParameterType }
 
-function decodeParameter(
-	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<Parameter> {
+function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Parameter> {
 	reader.readSequence(Ber.BERDataTypes.SET)
 
 	let identifier: string | undefined = undefined
@@ -126,14 +123,7 @@ function decodeParameter(
 			: valueType
 			? valueType
 			: parameterType
-	parameterType = check(
-		parameterType,
-		'decode parameter',
-		'parameterType',
-		ParameterType.Null,
-		errors,
-		options
-	)
+	parameterType = check(parameterType, 'decode parameter', 'parameterType', ParameterType.Null, errors, options)
 
 	return makeResult(
 		new ParameterImpl(
@@ -201,12 +191,6 @@ function readParameterType(value: number, options: DecodeOptions): DecodeResult<
 		case 7:
 			return makeResult(ParameterType.Octets)
 		default:
-			return unexpected(
-				[],
-				'read parameter type',
-				`unexpected parameter type '${value}'`,
-				ParameterType.Null,
-				options
-			)
+			return unexpected([], 'read parameter type', `unexpected parameter type '${value}'`, ParameterType.Null, options)
 	}
 }

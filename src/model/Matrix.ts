@@ -17,7 +17,7 @@ enum MatrixType {
 	OneToOne = 'ONE_TO_ONE',
 	/** A source may be connected to n targets, and a target may have n sources
 	 *  connected to it. */
-	NToN = 'N_TO_N'
+	NToN = 'N_TO_N',
 }
 
 /**
@@ -27,7 +27,7 @@ enum MatrixAddressingMode {
 	/** Signal numbers are row/column indices. */
 	Linear = 'LINEAR',
 	/** Signle numbers are random. */
-	NonLinear = 'NON_LINEAR'
+	NonLinear = 'NON_LINEAR',
 }
 
 /**

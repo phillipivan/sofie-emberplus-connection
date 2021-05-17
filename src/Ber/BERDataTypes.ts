@@ -15,7 +15,7 @@ enum BERDataTypes {
 	STRING = 12,
 	RELATIVE_OID = 13,
 	SEQUENCE = 0x20 | 16,
-	SET = 0x20 | 17
+	SET = 0x20 | 17,
 }
 
 export { BERDataTypes }

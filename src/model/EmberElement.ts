@@ -14,7 +14,7 @@ enum ElementType {
 	Command = 'COMMAND',
 	Matrix = 'MATRIX',
 	Function = 'FUNCTION',
-	Template = 'TEMPLATE'
+	Template = 'TEMPLATE',
 }
 
 type EmberElement = Command | EmberFunction | EmberNode | Matrix | Parameter | Template

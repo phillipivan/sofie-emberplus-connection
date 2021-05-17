@@ -35,7 +35,7 @@ function formatToInt(format: StreamFormat): number {
 		[StreamFormat.Float32BE]: 20,
 		[StreamFormat.Float32LE]: 21,
 		[StreamFormat.Float64BE]: 22,
-		[StreamFormat.Float64LE]: 23
+		[StreamFormat.Float64LE]: 23,
 	}
 
 	return formatToInt[format]

@@ -7,7 +7,7 @@ import {
 	MinMax,
 	StringIntegerCollection,
 	RootType,
-	RelativeOID
+	RelativeOID,
 } from './types'
 
 export {
@@ -19,5 +19,5 @@ export {
 	MinMax,
 	StringIntegerCollection,
 	RootType,
-	RelativeOID
+	RelativeOID,
 }

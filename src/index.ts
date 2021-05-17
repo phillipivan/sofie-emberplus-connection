@@ -53,5 +53,5 @@ export {
 	// fromJSON,
 
 	Types,
-	Model
+	Model,
 }

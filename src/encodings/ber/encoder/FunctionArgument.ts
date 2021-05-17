@@ -29,7 +29,7 @@ function writeParameterType(type: ParameterType, writer: Ber.Writer): void {
 		[ParameterType.Boolean]: 4,
 		[ParameterType.Trigger]: 5,
 		[ParameterType.Enum]: 6,
-		[ParameterType.Octets]: 7
+		[ParameterType.Octets]: 7,
 	}
 
 	writer.writeInt(typeToInt[type])

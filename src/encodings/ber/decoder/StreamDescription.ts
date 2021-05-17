@@ -1,9 +1,5 @@
 import * as Ber from '../../../Ber'
-import {
-	StreamDescription,
-	StreamDescriptionImpl,
-	StreamFormat
-} from '../../../model/StreamDescription'
+import { StreamDescription, StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription'
 import { StreamDescriptionBERID } from '../constants'
 import {
 	DecodeOptions,
@@ -14,7 +10,7 @@ import {
 	appendErrors,
 	makeResult,
 	unexpected,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 
 export function decodeStreamDescription(
@@ -48,10 +44,7 @@ export function decodeStreamDescription(
 	return makeResult(new StreamDescriptionImpl(format, offset), errors)
 }
 
-function readStreamFormat(
-	value: number,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<StreamFormat> {
+function readStreamFormat(value: number, options: DecodeOptions = defaultDecode): DecodeResult<StreamFormat> {
 	switch (value) {
 		case 0:
 			return makeResult(StreamFormat.UInt8)
@@ -90,12 +83,6 @@ function readStreamFormat(
 		case 23:
 			return makeResult(StreamFormat.Float64LE)
 		default:
-			return unexpected(
-				[],
-				'read stream format',
-				`unexpected stream format '${value}'`,
-				StreamFormat.UInt8,
-				options
-			)
+			return unexpected([], 'read stream format', `unexpected stream format '${value}'`, StreamFormat.UInt8, options)
 	}
 }

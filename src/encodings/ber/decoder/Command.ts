@@ -6,7 +6,7 @@ import {
 	SubscribeImpl,
 	UnsubscribeImpl,
 	GetDirectoryImpl,
-	InvokeImpl
+	InvokeImpl,
 } from '../../../model/Command'
 import { Invocation } from '../../../model/Invocation'
 import { decodeInvocation } from './Invocation'
@@ -20,7 +20,7 @@ import {
 	makeResult,
 	appendErrors,
 	unexpected,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 
 export { decodeCommand }
@@ -34,16 +34,13 @@ function readDirFieldMask(reader: Ber.Reader): FieldFlags | undefined {
 		[2]: FieldFlags.Description,
 		[3]: FieldFlags.Tree,
 		[4]: FieldFlags.Value,
-		[5]: FieldFlags.Connections
+		[5]: FieldFlags.Connections,
 	}
 
 	return intToMask[reader.readInt()]
 }
 
-function decodeCommand(
-	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
-): DecodeResult<Command> {
+function decodeCommand(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Command> {
 	reader.readSequence(CommandBERID)
 	let type: CommandType | null = null
 	let dirFieldMask: FieldFlags | undefined = undefined

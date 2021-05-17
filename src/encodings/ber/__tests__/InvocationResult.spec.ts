@@ -12,13 +12,13 @@ describe('encodings/ber/InvocationResult', () => {
 		success: true,
 		result: [
 			{ type: ParameterType.String, value: 'fortytwo' },
-			{ type: ParameterType.Real, value: 42.1 }
-		]
+			{ type: ParameterType.Real, value: 42.1 },
+		],
 	})
 
 	const voidRes = literal<InvocationResult>({
 		id: 987654,
-		success: true
+		success: true,
 	})
 
 	test('write and read invocation result', () => {

@@ -12,14 +12,14 @@ enum ParameterType {
 	Boolean = 'BOOLEAN',
 	Trigger = 'TRIGGER',
 	Enum = 'ENUM',
-	Octets = 'OCTETS'
+	Octets = 'OCTETS',
 }
 
 enum ParameterAccess {
 	None = 'NONE',
 	Read = 'READ',
 	Write = 'WRITE',
-	ReadWrite = 'READ_WRITE'
+	ReadWrite = 'READ_WRITE',
 }
 
 // TODO break down further by ParamterType?

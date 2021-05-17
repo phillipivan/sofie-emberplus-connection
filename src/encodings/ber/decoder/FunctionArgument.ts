@@ -11,7 +11,7 @@ import {
 	unknownContext,
 	check,
 	appendErrors,
-	skipNext
+	skipNext,
 } from './DecodeResult'
 
 export { decodeFunctionArgument }
