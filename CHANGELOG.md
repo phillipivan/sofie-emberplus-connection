@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.2](https://github.com/nrkno/sofie-emberplus-connection/compare/v0.0.2...v0.1.2) (2022-01-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* drop node 10 support
+
+### Features
+
+* emberplus provider ([babc51c](https://github.com/nrkno/sofie-emberplus-connection/commit/babc51c7b9f328d36fc0e327dfde2a60255d1ee6))
+* optional path delimiter ([b7bf058](https://github.com/nrkno/sofie-emberplus-connection/commit/b7bf058ce192dfb863374eadbb783f706f01b777)), closes [#17](https://github.com/nrkno/sofie-emberplus-connection/issues/17)
+
+
+### Bug Fixes
+
+* **ber:** enum value is encoded as int ([4e2267a](https://github.com/nrkno/sofie-emberplus-connection/commit/4e2267a0e9a5b4be02e62d628361666b7cbf7e8b))
+* client socket should send keepAlives ([88534e2](https://github.com/nrkno/sofie-emberplus-connection/commit/88534e2a77e5b39913f70136afa90863e67ae9da))
+* codecov ([3db375b](https://github.com/nrkno/sofie-emberplus-connection/commit/3db375b03f72b25f41bc39a0dc2e6b817f8f779d))
+* empty parameter type ([d69e0d7](https://github.com/nrkno/sofie-emberplus-connection/commit/d69e0d72b86d7230bbf52dc55609c0850ced87a4))
+* increase robustness in connection / invocation decoder ([ef28575](https://github.com/nrkno/sofie-emberplus-connection/commit/ef28575e0835f8e3f3d682898d4d24647fb8b8c1))
+* **provider:** build correct path from children in request [publish] ([7dcfda5](https://github.com/nrkno/sofie-emberplus-connection/commit/7dcfda5937f85cb2cf8066620d6a1beb22da0e69))
+* **provider:** catch and emit errors from clients ([cdece29](https://github.com/nrkno/sofie-emberplus-connection/commit/cdece29a4210381704bface783d227f3b8af857a))
+* **provider:** requests consisting of NumberedTreeNodes ([732e393](https://github.com/nrkno/sofie-emberplus-connection/commit/732e3935a252d668c7ca0eee569b34e20a4bd49a))
+* Updated since the repo name has changed ([3917fc8](https://github.com/nrkno/sofie-emberplus-connection/commit/3917fc850dbc722655e17bcf11b002117ad0f758))
+
+
+* drop node 10 support ([2753c36](https://github.com/nrkno/sofie-emberplus-connection/commit/2753c3665ba649926511e11a3df8f58683e127fe))
+
 ### [0.1.1](https://github.com/nrkno/sofie-emberplus-connection/compare/0.1.0...0.1.1) (2022-01-17)
 
 
