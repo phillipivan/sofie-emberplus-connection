@@ -37,7 +37,7 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/nrkno/tv-automation-emberplus-connection"
+		"url": "git+https://github.com/nrkno/sofie-emberplus-connection"
 	},
 	"license": "MIT",
 	"resolutions": {
@@ -66,9 +66,9 @@
 		"typescript": "^4.2.4"
 	},
 	"bugs": {
-		"url": "https://github.com/nrkno/tv-automation-emberplus-connection/issues"
+		"url": "https://github.com/nrkno/sofie-emberplus-connection/issues"
 	},
-	"homepage": "https://github.com/nrkno/tv-automation-emberplus-connection#readme",
+	"homepage": "https://github.com/nrkno/sofie-emberplus-connection#readme",
 	"directories": {
 		"test": "test"
 	},
