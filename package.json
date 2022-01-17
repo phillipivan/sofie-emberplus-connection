@@ -17,7 +17,7 @@
 		"lint:raw": "eslint --ext .ts --ext .js --ext .tsx --ext .jsx --ignore-pattern dist",
 		"lint": "yarn lint:raw .",
 		"lint-fix": "yarn lint --fix",
-		"unit": "jest --rootDir ./src --passWithNoTests",
+		"unit": "jest --rootDir ./src --coverage",
 		"test": "yarn lint && jest test --rootDir ./src",
 		"test:coverage": "yarn test -- --coverage",
 		"cov": "jest --coverage; open-cli coverage/lcov-report/index.html",
