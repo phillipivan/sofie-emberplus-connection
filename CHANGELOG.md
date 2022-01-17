@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1](https://github.com/nrkno/sofie-emberplus-connection/compare/0.1.0...0.1.1) (2022-01-17)
+
+
+### Bug Fixes
+
+* codecov ([3db375b](https://github.com/nrkno/sofie-emberplus-connection/commit/3db375b03f72b25f41bc39a0dc2e6b817f8f779d))
+
 ## [0.1.0](https://github.com/nrkno/sofie-emberplus-connection/compare/0.0.4...0.1.0) (2022-01-17)
 
 ### ⚠ BREAKING CHANGES
