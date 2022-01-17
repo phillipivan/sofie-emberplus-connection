@@ -101,23 +101,25 @@ export default class S101Socket extends EventEmitter {
 				clearInterval(this.keepaliveIntervalTimer)
 				this.keepaliveIntervalTimer = undefined
 			}
-			let done = false
-			const cb = () => {
-				if (done) {
-					return
+			if (this.socket) {
+				let done = false
+				const cb = () => {
+					if (done) {
+						return
+					}
+					done = true
+					if (timer !== undefined) {
+						clearTimeout(timer)
+						timer = undefined
+					}
+					resolve()
 				}
-				done = true
-				if (timer !== undefined) {
-					clearTimeout(timer)
-					timer = undefined
+				let timer: NodeJS.Timeout | undefined
+				if (timeout != null && !isNaN(timeout) && timeout > 0) {
+					timer = setTimeout(cb, 100 * timeout)
 				}
-				resolve()
+				this.socket.end(cb)
 			}
-			let timer: NodeJS.Timeout | undefined
-			if (timeout != null && !isNaN(timeout) && timeout > 0) {
-				timer = setTimeout(cb, 100 * timeout)
-			}
-			this.socket!.end(cb)
 			this.status = ConnectionStatus.Disconnected
 		})
 	}
@@ -137,11 +139,11 @@ export default class S101Socket extends EventEmitter {
 	}
 
 	sendBER(data: Buffer) {
-		if (this.isConnected()) {
+		if (this.isConnected() && this.socket) {
 			try {
 				const frames = this.codec.encodeBER(data)
 				for (let i = 0; i < frames.length; i++) {
-					this.socket!.write(frames[i])
+					this.socket.write(frames[i])
 				}
 				return true
 			} catch (e) {
@@ -157,9 +159,9 @@ export default class S101Socket extends EventEmitter {
 	 *
 	 */
 	sendKeepaliveRequest() {
-		if (this.isConnected()) {
+		if (this.isConnected() && this.socket) {
 			try {
-				this.socket!.write(this.codec.keepAliveRequest())
+				this.socket.write(this.codec.keepAliveRequest())
 			} catch (e) {
 				this.handleClose()
 			}
@@ -170,9 +172,9 @@ export default class S101Socket extends EventEmitter {
 	 *
 	 */
 	sendKeepaliveResponse() {
-		if (this.isConnected()) {
+		if (this.isConnected() && this.socket) {
 			try {
-				this.socket!.write(this.codec.keepAliveResponse())
+				this.socket.write(this.codec.keepAliveResponse())
 			} catch (e) {
 				this.handleClose()
 			}

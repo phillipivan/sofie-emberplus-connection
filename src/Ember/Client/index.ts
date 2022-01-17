@@ -543,7 +543,7 @@ export class EmberClient extends EventEmitter {
 							inserted = true
 							break
 						}
-						tree = tree.children![Number(number)]
+						tree = tree.children[Number(number)]
 					}
 
 					if (inserted) continue

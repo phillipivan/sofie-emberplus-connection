@@ -22,7 +22,7 @@ describe('encoders/ber/FunctionArgument', () => {
 		expect(decoded).toEqual(fa)
 	})
 
-	test('write and read function argument', () => {
+	test('write and read function argument - boolean', () => {
 		const noName = literal<FunctionArgument>({
 			type: ParameterType.Boolean,
 		})

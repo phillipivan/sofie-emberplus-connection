@@ -1,3 +1,4 @@
+/* eslint-disable jest/expect-expect */
 import * as Ber from '../../../Ber'
 import { Template, TemplateImpl } from '../../../model/Template'
 import { decodeTemplate } from '../decoder/Template'

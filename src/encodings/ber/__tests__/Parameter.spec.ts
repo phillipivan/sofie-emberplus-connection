@@ -1,3 +1,4 @@
+/* eslint-disable jest/expect-expect */
 import * as Ber from '../../../Ber'
 import { Parameter, ParameterType, ParameterAccess } from '../../../model/Parameter'
 import { encodeParameter } from '../encoder/Parameter'
@@ -64,7 +65,7 @@ describe('encodings/ber/Parameter', () => {
 		roundtripParameter(param)
 	})
 
-	test('write and read a parameter - maximum', () => {
+	test('write and read a parameter - minimum', () => {
 		const param: Parameter = {
 			...prm,
 			parameterType: ParameterType.Integer,

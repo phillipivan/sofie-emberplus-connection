@@ -106,7 +106,7 @@ class EmberServer extends EventEmitter {
 			const matrixUpdate: Partial<Matrix> = update as Partial<Matrix>
 
 			if (matrixUpdate.connections) {
-				for (const connection of Object.values(matrixUpdate.connections!)) {
+				for (const connection of Object.values(matrixUpdate.connections)) {
 					this.updateMatrixConnection(matrix, connection)
 				}
 			}
@@ -137,21 +137,19 @@ class EmberServer extends EventEmitter {
 			element.contents.connections[update.target] = new ConnectionImpl(update.target, [])
 			connection = element.contents.connections[update.target]
 		}
+		if (!connection.sources) connection.sources = []
+
 		switch (update.operation) {
 			case ConnectionOperation.Connect:
 				for (const source of update.sources || []) {
-					if (!connection.sources!.find((v) => v === source)) {
-						connection.sources!.push(source)
+					if (!connection.sources.find((v) => v === source)) {
+						connection.sources.push(source)
 					}
 				}
 				break
 			case ConnectionOperation.Disconnect:
 				for (const source of update.sources || []) {
-					connection.sources?.forEach((oldSource, i) => {
-						if (source === oldSource) {
-							connection.sources!.splice(i, 1)
-						}
-					})
+					connection.sources = connection.sources.filter((oldSource) => oldSource !== source)
 				}
 				break
 			case ConnectionOperation.Absolute:
@@ -236,7 +234,7 @@ class EmberServer extends EventEmitter {
 
 		let success = false
 		if (this.onSetValue) {
-			success = await this.onSetValue(tree as NumberedTreeNode<Parameter>, el.contents.value!)
+			success = await this.onSetValue(tree as NumberedTreeNode<Parameter>, el.contents.value)
 		}
 
 		if (!success) {
@@ -263,7 +261,7 @@ class EmberServer extends EventEmitter {
 			if (this.onInvocation) {
 				result = await this.onInvocation(tree as NumberedTreeNode<EmberFunction>, el as NumberedTreeNode<Invoke>)
 			} else {
-				result = new InvocationResultImpl((el as NumberedTreeNode<Invoke>).contents.invocation!.id || -1, false)
+				result = new InvocationResultImpl((el as NumberedTreeNode<Invoke>).contents.invocation?.id || -1, false)
 			}
 			const encoded = berEncode(result, RootType.InvocationResult)
 			client.sendBER(encoded)

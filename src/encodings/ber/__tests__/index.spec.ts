@@ -1,3 +1,4 @@
+/* eslint-disable jest/expect-expect */
 import { InvocationResultImpl } from '../../../model/InvocationResult'
 import { ParameterType } from '../../../model/Parameter'
 import { Root, RootType, RootElement, Collection } from '../../../types/types'
@@ -36,7 +37,7 @@ describe('encoders/Ber/index', () => {
 			}),
 		}
 		if (!res[0].children) {
-			fail(`Tree must have children`)
+			throw new Error(`Tree must have children`)
 		}
 		res[0].children[0].parent = res[0]
 		roundTrip(res, RootType.Elements)
@@ -48,7 +49,7 @@ describe('encoders/Ber/index', () => {
 			}),
 		}
 		if (!res[0].children) {
-			fail(`Tree must have children`)
+			throw new Error(`Tree must have children`)
 		}
 		res[0].children[0].parent = res[0]
 		roundTrip(res, RootType.Elements)

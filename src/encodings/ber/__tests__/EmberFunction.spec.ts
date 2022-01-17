@@ -1,3 +1,4 @@
+/* eslint-disable jest/expect-expect */
 import * as Ber from '../../../Ber'
 import { EmberFunction, EmberFunctionImpl } from '../../../model/EmberFunction'
 import { encodeFunction } from '../encoder/EmberFunction'

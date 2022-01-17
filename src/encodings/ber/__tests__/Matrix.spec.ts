@@ -1,3 +1,4 @@
+/* eslint-disable jest/expect-expect */
 import * as Ber from '../../../Ber'
 import { NumberedTreeNode, QualifiedElement, QualifiedElementImpl, NumberedTreeNodeImpl } from '../../../model/Tree'
 import { Matrix, MatrixImpl, MatrixType, MatrixAddressingMode } from '../../../model/Matrix'

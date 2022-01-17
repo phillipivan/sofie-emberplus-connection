@@ -1,3 +1,4 @@
+/* eslint-disable jest/expect-expect */
 import * as Ber from '../../../Ber'
 import { Command, CommandType, Subscribe, Unsubscribe, GetDirectory, FieldFlags, Invoke } from '../../../model/Command'
 import { encodeCommand } from '../encoder/Command'
