@@ -80,9 +80,5 @@
 		"*.{ts,tsx,js,jsx}": [
 			"yarn lint:raw --fix"
 		]
-	},
-	"standard-version": {
-		"message": "chore(release): %s [skip ci]",
-		"tagPrefix": ""
 	}
 }
