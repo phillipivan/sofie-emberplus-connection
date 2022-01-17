@@ -11,9 +11,11 @@
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"scripts": {
-		"build": "trash dist && yarn build:main",
+		"prepare": "husky install",
+		"build": "rimraf dist && yarn build:main",
 		"build:main": "tsc -p tsconfig.build.json",
-		"lint": "eslint . --ext .ts --ext .js --ext .tsx --ext .jsx --ignore-pattern dist",
+		"lint:raw": "eslint --ext .ts --ext .js --ext .tsx --ext .jsx --ignore-pattern dist",
+		"lint": "yarn lint:raw .",
 		"lint-fix": "yarn lint --fix",
 		"unit": "jest --rootDir ./src --passWithNoTests",
 		"test": "yarn lint && jest test --rootDir ./src",
@@ -52,14 +54,14 @@
 		"tslib": "^2.3.1"
 	},
 	"devDependencies": {
-		"@sofie-automation/code-standard-preset": "^0.2.5",
+		"@sofie-automation/code-standard-preset": "^0.5.1",
 		"@types/debug": "^4.1.7",
 		"@types/jest": "^25.2.1",
 		"@types/long": "^4.0.1",
 		"jest": "^26.6.3",
+		"rimraf": "^3.0.2",
 		"sinon": "^7.4.1",
 		"standard-version": "^9.3.2",
-		"trash-cli": "^3.0.0",
 		"ts-jest": "^26.5.6",
 		"typescript": "~4.2"
 	},
@@ -75,17 +77,12 @@
 		"lawo"
 	],
 	"prettier": "@sofie-automation/code-standard-preset/.prettierrc.json",
-	"husky": {
-		"hooks": {
-			"pre-commit": "lint-staged"
-		}
-	},
 	"lint-staged": {
 		"*.{css,json,md,scss}": [
 			"prettier --write"
 		],
 		"*.{ts,tsx,js,jsx}": [
-			"yarn lint-fix"
+			"yarn lint:raw --fix"
 		]
 	},
 	"standard-version": {
