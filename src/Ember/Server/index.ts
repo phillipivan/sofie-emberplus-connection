@@ -268,7 +268,7 @@ class EmberServer extends EventEmitter {
 		}
 	}
 
-	getElementByPath(path: string) {
+	getElementByPath(path: string, delimiter = '.') {
 		const getNext = (elements: Collection<NumberedTreeNode<EmberElement>>, i?: string) =>
 			Object.values(elements || {}).find(
 				(r) =>
@@ -279,7 +279,7 @@ class EmberServer extends EventEmitter {
 		const getNextChild = (node: TreeElement<EmberElement>, i: string) => node.children && getNext(node.children, i)
 
 		const numberedPath: Array<number> = []
-		const pathArr = path.split('.')
+		const pathArr = path.split(delimiter)
 		const i = pathArr.shift()
 		let tree: NumberedTreeNode<EmberElement> | undefined = getNext(this.tree, i)
 		if (tree?.number) numberedPath.push(tree?.number)
