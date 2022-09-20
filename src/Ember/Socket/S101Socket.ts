@@ -15,16 +15,22 @@ export default class S101Socket extends EventEmitter {
 	activeRequest: Request | undefined
 	status: ConnectionStatus
 	codec = new S101Codec()
+	keepaliveResponseWindowTimer: NodeJS.Timer | null
 
 	constructor(socket?: Socket) {
 		super()
 		this.socket = socket
 		this.keepaliveIntervalTimer = undefined
+		this.keepaliveResponseWindowTimer = null
 		this.activeRequest = undefined
 		this.status = this.isConnected() ? ConnectionStatus.Connected : ConnectionStatus.Disconnected
 
 		this.codec.on('keepaliveReq', () => {
 			this.sendKeepaliveResponse()
+		})
+
+		this.codec.on('keepaliveResp', () => {
+			clearInterval(<NodeJS.Timeout>this.keepaliveResponseWindowTimer)
 		})
 
 		this.codec.on('emberPacket', (packet) => {
@@ -162,6 +168,9 @@ export default class S101Socket extends EventEmitter {
 		if (this.isConnected() && this.socket) {
 			try {
 				this.socket.write(this.codec.keepAliveRequest())
+				this.keepaliveResponseWindowTimer = setTimeout(() => {
+					this.handleClose()
+				}, 500)
 			} catch (e) {
 				this.handleClose()
 			}
