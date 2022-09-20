@@ -16,13 +16,13 @@ export class S101Server extends EventEmitter {
 		this.status = 'disconnected'
 	}
 
-	addClient(socket: Socket) {
+	addClient(socket: Socket): void {
 		// Wrap the tcp socket into an S101Socket.
 		const client = new S101Socket(socket)
 		this.emit('connection', client)
 	}
 
-	listen() {
+	async listen(): Promise<void> {
 		return new Promise((resolve, reject) => {
 			if (this.status !== 'disconnected') {
 				return reject(new Error('Already listening'))
@@ -45,7 +45,7 @@ export class S101Server extends EventEmitter {
 		})
 	}
 
-	discard() {
+	discard(): void {
 		this.server?.close()
 	}
 }

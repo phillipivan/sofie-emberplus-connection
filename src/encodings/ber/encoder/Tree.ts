@@ -3,7 +3,6 @@ import * as Ber from '../../../Ber'
 import { ElementType, EmberElement } from '../../../model/EmberElement'
 import { encodeEmberElement } from './EmberElement'
 import { encodeCommand } from './Command'
-import { Command } from '../../../model/Command'
 import { encodeTemplate } from './Template'
 import { Template } from '../../../model/Template'
 import { Matrix } from '../../../model/Matrix'
@@ -23,7 +22,7 @@ export function encodeNumberedElement(el: NumberedTreeNode<EmberElement>, writer
 		// Command is a special case
 		if (isQualified(el)) throw new Error('Command cannot be qualified')
 
-		encodeCommand(el.contents as Command, writer)
+		encodeCommand(el.contents, writer)
 		return
 	}
 
@@ -54,7 +53,7 @@ export function encodeNumberedElement(el: NumberedTreeNode<EmberElement>, writer
 
 export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): void {
 	if (isTemplate(el.contents)) {
-		encodeTemplate(el.contents as Template, writer)
+		encodeTemplate(el.contents, writer)
 		writer.endSequence() // end node
 		return
 	}

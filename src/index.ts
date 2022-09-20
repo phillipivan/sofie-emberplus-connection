@@ -51,7 +51,6 @@ export {
 	// isValid,
 	// toJSON,
 	// fromJSON,
-
 	Types,
 	Model,
 }

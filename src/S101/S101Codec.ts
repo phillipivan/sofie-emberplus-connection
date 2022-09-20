@@ -57,7 +57,7 @@ export default class S101Codec extends EventEmitter {
 	emberbuf = new SmartBuffer()
 	escaped = false
 
-	dataIn(buf: Buffer) {
+	dataIn(buf: Buffer): void {
 		for (let i = 0; i < buf.length; i++) {
 			const b = buf.readUInt8(i)
 			if (this.escaped) {
@@ -78,7 +78,7 @@ export default class S101Codec extends EventEmitter {
 		}
 	}
 
-	handleFrame(frame: SmartBuffer) {
+	handleFrame(frame: SmartBuffer): void {
 		if (!this.validateFrame(frame.toBuffer())) {
 			throw new Error(format('dropping frame of length %d with invalid CRC', frame.length))
 		}
@@ -105,7 +105,7 @@ export default class S101Codec extends EventEmitter {
 		}
 	}
 
-	handleEmberFrame(frame: SmartBuffer) {
+	handleEmberFrame(frame: SmartBuffer): void {
 		const version = frame.readUInt8()
 		const flags = frame.readUInt8()
 		const dtd = frame.readUInt8()
@@ -150,12 +150,12 @@ export default class S101Codec extends EventEmitter {
 		}
 	}
 
-	handleEmberPacket(packet: SmartBuffer) {
+	handleEmberPacket(packet: SmartBuffer): void {
 		debug('ember packet')
 		this.emit('emberPacket', packet.toBuffer())
 	}
 
-	encodeBER(data: Buffer) {
+	encodeBER(data: Buffer): Buffer[] {
 		const frames = []
 		const encbuf = new SmartBuffer()
 		for (let i = 0; i < data.length; i++) {
@@ -186,7 +186,7 @@ export default class S101Codec extends EventEmitter {
 		return frames
 	}
 
-	keepAliveRequest() {
+	keepAliveRequest(): Buffer {
 		const packet = new SmartBuffer()
 		packet.writeUInt8(S101_BOF)
 		packet.writeUInt8(SLOT)
@@ -196,7 +196,7 @@ export default class S101Codec extends EventEmitter {
 		return this._finalizeBuffer(packet)
 	}
 
-	keepAliveResponse() {
+	keepAliveResponse(): Buffer {
 		const packet = new SmartBuffer()
 		packet.writeUInt8(S101_BOF)
 		packet.writeUInt8(SLOT)
@@ -206,7 +206,7 @@ export default class S101Codec extends EventEmitter {
 		return this._finalizeBuffer(packet)
 	}
 
-	validateFrame(buf: Buffer) {
+	validateFrame(buf: Buffer): boolean {
 		return this._calculateCRC(buf) == 0xf0b8
 	}
 

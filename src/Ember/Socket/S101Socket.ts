@@ -63,7 +63,7 @@ export default class S101Socket extends EventEmitter {
 		((event: 'connected') => boolean) &
 		((event: 'disconnected') => boolean) = super.emit
 
-	_initSocket() {
+	_initSocket(): void {
 		if (this.socket != null) {
 			this.socket.on('data', (data) => {
 				try {
@@ -89,7 +89,7 @@ export default class S101Socket extends EventEmitter {
 	/**
 	 * @returns {string} - ie: "10.1.1.1:9000"
 	 */
-	remoteAddress() {
+	remoteAddress(): string {
 		if (this.socket === undefined) {
 			return 'not connected'
 		}
@@ -99,7 +99,7 @@ export default class S101Socket extends EventEmitter {
 	/**
 	 * @param {number} timeout=2
 	 */
-	disconnect(timeout = 2): Promise<void> {
+	async disconnect(timeout = 2): Promise<void> {
 		if (!this.isConnected() || this.socket === undefined) {
 			return Promise.resolve()
 		}
@@ -134,7 +134,7 @@ export default class S101Socket extends EventEmitter {
 	/**
 	 *
 	 */
-	handleClose() {
+	handleClose(): void {
 		this.socket = undefined
 		if (this.keepaliveIntervalTimer) clearInterval(this.keepaliveIntervalTimer)
 		this.status = ConnectionStatus.Disconnected
@@ -145,7 +145,7 @@ export default class S101Socket extends EventEmitter {
 		return this.socket !== undefined && !!this.socket
 	}
 
-	sendBER(data: Buffer) {
+	sendBER(data: Buffer): boolean {
 		if (this.isConnected() && this.socket) {
 			try {
 				const frames = this.codec.encodeBER(data)
@@ -165,7 +165,7 @@ export default class S101Socket extends EventEmitter {
 	/**
 	 *
 	 */
-	sendKeepaliveRequest() {
+	sendKeepaliveRequest(): void {
 		if (this.isConnected() && this.socket) {
 			try {
 				this.socket.write(this.codec.keepAliveRequest())
@@ -181,7 +181,7 @@ export default class S101Socket extends EventEmitter {
 	/**
 	 *
 	 */
-	sendKeepaliveResponse() {
+	sendKeepaliveResponse(): void {
 		if (this.isConnected() && this.socket) {
 			try {
 				this.socket.write(this.codec.keepAliveResponse())
@@ -197,7 +197,7 @@ export default class S101Socket extends EventEmitter {
 	// 	this.sendBER(ber)
 	// }
 
-	startKeepAlive() {
+	startKeepAlive(): void {
 		this.keepaliveIntervalTimer = setInterval(() => {
 			try {
 				this.sendKeepaliveRequest()

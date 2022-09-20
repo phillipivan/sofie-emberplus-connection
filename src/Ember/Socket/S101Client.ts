@@ -35,7 +35,7 @@ export default class S101Client extends S101Socket {
 		if (this.autoConnect) this.connect().catch(() => null) // errors are already emitted
 	}
 
-	connect(timeout = 5): Promise<Error | void> {
+	async connect(timeout = 5): Promise<Error | void> {
 		return new Promise((resolve) => {
 			if (this.status !== ConnectionStatus.Disconnected) {
 				// TODO - perhaps we should reconnect when addresses/ports have changed
@@ -99,17 +99,17 @@ export default class S101Client extends S101Socket {
 		})
 	}
 
-	async disconnect(timeout?: number) {
+	async disconnect(timeout?: number): Promise<void> {
 		this._shouldBeConnected = false
 		return super.disconnect(timeout)
 	}
 
-	handleClose() {
+	handleClose(): void {
 		if (this.keepaliveIntervalTimer) clearInterval(this.keepaliveIntervalTimer)
 		this.socket?.destroy()
 	}
 
-	_autoReconnectionAttempt() {
+	_autoReconnectionAttempt(): void {
 		if (this._autoReconnect) {
 			if (this._reconnectAttempts > 0) {
 				// no reconnection if no valid reconnectionAttemps is set

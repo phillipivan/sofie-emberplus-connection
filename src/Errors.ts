@@ -118,11 +118,11 @@ class PathDiscoveryFailure extends Error {
 		super(PathDiscoveryFailure.getMessage(path))
 	}
 
-	setPath(path: string) {
+	setPath(path: string): void {
 		this.message = PathDiscoveryFailure.getMessage(path)
 	}
 
-	static getMessage(path: string) {
+	static getMessage(path: string): string {
 		return `Failed path discovery at ${path}`
 	}
 }

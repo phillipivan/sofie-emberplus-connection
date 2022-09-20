@@ -72,7 +72,7 @@ class EmberServer extends EventEmitter {
 		})
 	}
 
-	init(tree: Collection<NumberedTreeNode<EmberElement>>) {
+	async init(tree: Collection<NumberedTreeNode<EmberElement>>): Promise<void> {
 		const setParent = (parent: NumberedTreeNode<EmberElement>, child: NumberedTreeNode<EmberElement>) => {
 			child.parent = parent
 			if (child.children) {
@@ -92,7 +92,7 @@ class EmberServer extends EventEmitter {
 		return this._server.listen()
 	}
 
-	discard() {
+	discard(): void {
 		this._clients.forEach((c) => {
 			c.removeAllListeners()
 		})
@@ -100,7 +100,7 @@ class EmberServer extends EventEmitter {
 		this._server.server?.close()
 	}
 
-	update<T extends EmberElement>(element: NumberedTreeNode<T>, update: Partial<T>) {
+	update<T extends EmberElement>(element: NumberedTreeNode<T>, update: Partial<T>): void {
 		if (element.contents.type === ElementType.Matrix) {
 			const matrix: NumberedTreeNode<Matrix> = element as NumberedTreeNode<Matrix>
 			const matrixUpdate: Partial<Matrix> = update as Partial<Matrix>
@@ -130,7 +130,7 @@ class EmberServer extends EventEmitter {
 		}
 	}
 
-	updateMatrixConnection(element: NumberedTreeNode<Matrix>, update: Connection) {
+	updateMatrixConnection(element: NumberedTreeNode<Matrix>, update: Connection): void {
 		if (!element.contents.connections) element.contents.connections = {}
 		let connection = element.contents.connections[update.target]
 		if (!connection) {
@@ -268,7 +268,7 @@ class EmberServer extends EventEmitter {
 		}
 	}
 
-	getElementByPath(path: string, delimiter = '.') {
+	getElementByPath(path: string, delimiter = '.'): NumberedTreeNode<EmberElement> | undefined {
 		const getNext = (elements: Collection<NumberedTreeNode<EmberElement>>, i?: string) =>
 			Object.values(elements || {}).find(
 				(r) =>

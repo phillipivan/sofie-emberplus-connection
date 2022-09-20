@@ -23,12 +23,14 @@ interface EmberBaseElement {
 	type: ElementType
 }
 
-function isEmberElement(obj: any): obj is EmberElement {
+function isEmberElement(obj: unknown): obj is EmberElement {
 	if (obj === undefined || obj === null) {
 		return false
 	}
 
-	const { type } = obj
+	if (!(typeof obj === 'object' && 'type' in obj)) return false
+
+	const { type } = obj as { type: unknown }
 
 	if (!type || !Object.values(ElementType as any).includes(type)) {
 		return false

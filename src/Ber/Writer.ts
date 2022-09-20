@@ -191,24 +191,6 @@ class ExtendedWriter extends Writer {
 			this.endSequence()
 		}
 	}
-
-	writeIfDefinedEnum(
-		property: any,
-		type: any,
-		writer: (value: number, tag: number) => void,
-		outer: number,
-		inner: number
-	): void {
-		if (property != null) {
-			this.startSequence(CONTEXT(outer))
-			if (property.value != null) {
-				writer.call(this, property.value, inner)
-			} else {
-				writer.call(this, type.get(property), inner)
-			}
-			this.endSequence()
-		}
-	}
 }
 
 function shorten(value: number): { size: number; value: number } {

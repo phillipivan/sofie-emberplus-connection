@@ -83,7 +83,7 @@ interface Parameter extends EmberBaseElement {
  * @param obj - object to check
  * @returns true if object is a valid Parameter, false if not
  */
-function isParameter(obj: any): obj is Parameter {
+function isParameter(obj: unknown): obj is Parameter {
 	if (!isEmberElement(obj)) {
 		return false
 	}

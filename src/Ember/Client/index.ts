@@ -122,7 +122,7 @@ export class EmberClient extends EventEmitter {
 	 * @param host The host of the emberplus provider
 	 * @param port Port of the provider
 	 */
-	connect(host?: string, port?: number) {
+	async connect(host?: string, port?: number): Promise<void | Error> {
 		if (host) this.host = host
 		if (port) this.port = port
 
@@ -137,7 +137,7 @@ export class EmberClient extends EventEmitter {
 	/**
 	 * Closes the s101 socket to the provider
 	 */
-	disconnect() {
+	async disconnect(): Promise<void> {
 		return this._client.disconnect()
 	}
 
@@ -146,7 +146,7 @@ export class EmberClient extends EventEmitter {
 	 *
 	 * This is destructive, using this class after discarding will cause errors.
 	 */
-	discard() {
+	discard(): void {
 		this.disconnect().catch(() => null) // we're not worried about errors after this
 		this._client.removeAllListeners()
 		// @ts-expect-error: after using this method, properties are no longer expected to always exist
@@ -163,11 +163,11 @@ export class EmberClient extends EventEmitter {
 	}
 
 	/** Ember+ commands: */
-	getDirectory(
+	async getDirectory(
 		node: RootElement | Collection<RootElement>,
 		dirFieldMask?: FieldFlags,
 		cb?: (EmberNode: TreeElement<EmberElement>) => void
-	) {
+	): RequestPromise<Root | RootElement> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -191,7 +191,10 @@ export class EmberClient extends EventEmitter {
 
 		return this._sendCommand<RootElement>(node, command)
 	}
-	subscribe(node: RootElement | Array<RootElement>, cb?: (EmberNode: TreeElement<EmberElement>) => void) {
+	async subscribe(
+		node: RootElement | Array<RootElement>,
+		cb?: (EmberNode: TreeElement<EmberElement>) => void
+	): RequestPromise<Root | void> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -216,7 +219,7 @@ export class EmberClient extends EventEmitter {
 
 		return this._sendCommand<void>(node, command, false)
 	}
-	unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>) {
+	async unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>): RequestPromise<Root | void> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -236,7 +239,10 @@ export class EmberClient extends EventEmitter {
 
 		return this._sendCommand<void>(node, command, false)
 	}
-	invoke(node: NumberedTreeNode<EmberFunction> | QualifiedElement<EmberFunction>, ...args: Array<EmberTypedValue>) {
+	async invoke(
+		node: NumberedTreeNode<EmberFunction> | QualifiedElement<EmberFunction>,
+		...args: Array<EmberTypedValue>
+	): RequestPromise<InvocationResult> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -254,7 +260,7 @@ export class EmberClient extends EventEmitter {
 	}
 
 	/** Sending ember+ values */
-	setValue(
+	async setValue(
 		node: QualifiedElement<Parameter> | NumberedTreeNode<Parameter>,
 		value: EmberValue,
 		awaitResponse = true
@@ -271,21 +277,21 @@ export class EmberClient extends EventEmitter {
 
 		return this._sendRequest<TreeElement<Parameter>>(qualifiedParam, awaitResponse)
 	}
-	matrixConnect(
+	async matrixConnect(
 		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
 		sources: Array<number>
 	): RequestPromise<TreeElement<Matrix>> {
 		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Connect)
 	}
-	matrixDisconnect(
+	async matrixDisconnect(
 		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
 		sources: Array<number>
 	): RequestPromise<TreeElement<Matrix>> {
 		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Disconnect)
 	}
-	matrixSetConnection(
+	async matrixSetConnection(
 		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
 		sources: Array<number>
@@ -294,7 +300,7 @@ export class EmberClient extends EventEmitter {
 	}
 
 	/** Getting the tree: */
-	async expand(node: NumberedTreeNode<EmberElement> | Collection<RootElement>) {
+	async expand(node: NumberedTreeNode<EmberElement> | Collection<RootElement>): Promise<void> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -330,7 +336,11 @@ export class EmberClient extends EventEmitter {
 			}
 		}
 	}
-	async getElementByPath(path: string, cb?: (EmberNode: TreeElement<EmberElement>) => void, delimiter = '.') {
+	async getElementByPath(
+		path: string,
+		cb?: (EmberNode: TreeElement<EmberElement>) => void,
+		delimiter = '.'
+	): Promise<TreeElement<EmberElement> | undefined> {
 		const getNext = (elements: Collection<NumberedTreeNode<EmberElement>>, i?: string) =>
 			Object.values(elements || {}).find(
 				(r) =>
@@ -371,7 +381,7 @@ export class EmberClient extends EventEmitter {
 		return tree
 	}
 
-	private _matrixMutation(
+	private async _matrixMutation(
 		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
 		sources: Array<number>,
@@ -394,7 +404,7 @@ export class EmberClient extends EventEmitter {
 		return this._sendRequest<TreeElement<Matrix>>(qualifiedMatrix)
 	}
 
-	private _sendCommand<T>(EmberNode: RootElement, command: Command, hasResponse?: boolean) {
+	private async _sendCommand<T>(EmberNode: RootElement, command: Command, hasResponse?: boolean) {
 		// assert a qualified EmberNode
 		const qualifiedEmberNode = assertQualifiedEmberNode(EmberNode)
 		// insert command
@@ -433,7 +443,7 @@ export class EmberClient extends EventEmitter {
 			requestPromise.response = p
 		}
 
-		const sentOk = await this._client.sendBER(message) // TODO - if sending multiple values to same path, should we do synchronous requests?
+		const sentOk = this._client.sendBER(message) // TODO - if sending multiple values to same path, should we do synchronous requests?
 
 		if (!sentOk && requestPromise.cancel) {
 			this._requests.get(reqId)?.reject(new Error('Request was not sent correctly'))
@@ -575,13 +585,13 @@ export class EmberClient extends EventEmitter {
 			changes.push({ path: getPath(tree), node: tree })
 			switch (tree.contents.type) {
 				case ElementType.Node:
-					this._updateEmberNode(update.contents as EmberNode, tree.contents as EmberNode)
+					this._updateEmberNode(update.contents as EmberNode, tree.contents)
 					break
 				case ElementType.Parameter:
-					this._updateParameter(update.contents as Parameter, tree.contents as Parameter)
+					this._updateParameter(update.contents as Parameter, tree.contents)
 					break
 				case ElementType.Matrix:
-					this._updateMatrix(update.contents as Matrix, tree.contents as Matrix)
+					this._updateMatrix(update.contents as Matrix, tree.contents)
 					break
 			}
 		}
