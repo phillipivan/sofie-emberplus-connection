@@ -10,12 +10,13 @@ export type Request = any
 export default class S101Socket extends EventEmitter {
 	socket: Socket | undefined
 	keepaliveInterval = 10
+	keepaliveMaxResponseTime = 500
 	keepaliveIntervalTimer: NodeJS.Timer | undefined
+	keepaliveResponseWindowTimer: NodeJS.Timer | null
 	pendingRequests: Array<Request> = []
 	activeRequest: Request | undefined
 	status: ConnectionStatus
 	codec = new S101Codec()
-	keepaliveResponseWindowTimer: NodeJS.Timer | null
 
 	constructor(socket?: Socket) {
 		super()
@@ -170,7 +171,7 @@ export default class S101Socket extends EventEmitter {
 				this.socket.write(this.codec.keepAliveRequest())
 				this.keepaliveResponseWindowTimer = setTimeout(() => {
 					this.handleClose()
-				}, 500)
+				}, this.keepaliveMaxResponseTime)
 			} catch (e) {
 				this.handleClose()
 			}
