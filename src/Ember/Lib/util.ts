@@ -65,3 +65,14 @@ export function updateProps<T>(oldProps: T, newProps: T, props?: Array<keyof T>)
 		}
 	}
 }
+
+/**
+ * Check if a value is an error, or wrap it in one
+ */
+export function normalizeError(e: unknown): Error {
+	if (e instanceof Error) {
+		return e
+	}
+
+	return new Error(typeof e === 'string' ? e : e?.toString())
+}

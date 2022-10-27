@@ -4,6 +4,7 @@ import { Socket } from 'net'
 import { S101Codec } from '../../S101'
 import { berDecode } from '../..'
 import { ConnectionStatus } from '../Client'
+import { normalizeError } from '../Lib/util'
 
 export type Request = any
 
@@ -42,7 +43,7 @@ export default class S101Socket extends EventEmitter {
 					this.emit('emberTree', root)
 				}
 			} catch (e) {
-				this.emit('error', e)
+				this.emit('error', normalizeError(e))
 			}
 		})
 
@@ -69,7 +70,7 @@ export default class S101Socket extends EventEmitter {
 				try {
 					this.codec.dataIn(data)
 				} catch (e) {
-					this.emit('error', e)
+					this.emit('error', normalizeError(e))
 				}
 			})
 
@@ -202,7 +203,7 @@ export default class S101Socket extends EventEmitter {
 			try {
 				this.sendKeepaliveRequest()
 			} catch (e) {
-				this.emit('error', e)
+				this.emit('error', normalizeError(e))
 			}
 		}, 1000 * this.keepaliveInterval)
 	}

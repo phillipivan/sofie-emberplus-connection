@@ -1,6 +1,7 @@
 import net from 'net'
 import S101Socket from './S101Socket'
 import { ConnectionStatus } from '../Client'
+import { normalizeError } from '../Lib/util'
 
 const DEFAULT_PORT = 9000
 const RECONNECT_ATTEMPTS = 60
@@ -61,7 +62,7 @@ export default class S101Client extends S101Socket {
 						try {
 							this.codec.dataIn(data)
 						} catch (e) {
-							this.emit('error', e)
+							this.emit('error', normalizeError(e))
 						}
 					})
 					this.socket.on('error', (error) => this._onError(error))
