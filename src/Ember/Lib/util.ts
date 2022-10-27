@@ -74,5 +74,5 @@ export function normalizeError(e: unknown): Error {
 		return e
 	}
 
-	return new Error(typeof e === 'string' ? e : e?.toString())
+	return new Error(typeof e === 'string' ? e : (e as any)?.toString())
 }

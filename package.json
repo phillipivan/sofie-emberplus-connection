@@ -1,6 +1,6 @@
 {
 	"name": "emberplus-connection",
-	"version": "0.1.1",
+	"version": "0.2.0-0",
 	"description": "Javascript implementation of the Ember+ automation protocol",
 	"engines": {
 		"node": ">=14.18"
@@ -27,7 +27,7 @@
 		"reset": "git clean -dfx && git reset --hard && yarn",
 		"validate:dependencies": "yarn audit --groups dependencies && yarn license-validate",
 		"validate:dev-dependencies": "yarn audit --groups devDependencies",
-		"license-validate": "yarn sofie-licensecheck --allowPackages caniuse-lite@1.0.30001300"
+		"license-validate": "yarn sofie-licensecheck --allowPackages caniuse-lite@1.0.30001426"
 	},
 	"contributors": [
 		"Gilles Dufour <dufour.gilles@gmail.com> (www.gdnet.be)",
