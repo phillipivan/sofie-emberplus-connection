@@ -536,7 +536,7 @@ export class EmberClient extends EventEmitter {
 					}
 
 					for (const number of path) {
-						if (!tree.children) tree.children = []
+						if (!tree.children) tree.children = {}
 						if (!tree.children[Number(number)]) {
 							tree.children[Number(number)] = {
 								...rootElement,
