@@ -546,7 +546,7 @@ export class EmberClient extends EventEmitter {
 							changes = [
 								...changes,
 								{
-									path: rootElement.path.substr(0, rootElement.path.length - 2),
+									path: rootElement.path.split('.').slice(0, -1).join('.'),
 									node: tree,
 								},
 							]
