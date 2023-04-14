@@ -543,13 +543,10 @@ export class EmberClient extends EventEmitter {
 								number: Number(number),
 								parent: tree,
 							}
-							const newPath1 = rootElement.path.split('.');
-							newPath1.length = newPath1.length-1;
-							let newPath2 = newPath1.join('.') ;
 							changes = [
 								...changes,
 								{
-									path: newPath2,
+									path: rootElement.path.split('.').slice(0, -1).join('.'),
 									node: tree,
 								},
 							]
