@@ -12,22 +12,26 @@
 	"types": "dist/index.d.ts",
 	"scripts": {
 		"prepare": "husky install",
-		"build": "rimraf dist && yarn build:main",
+		"build": "rimraf dist && run build:main",
 		"build:main": "tsc -p tsconfig.build.json",
-		"lint:raw": "eslint --ext .ts --ext .js --ext .tsx --ext .jsx --ignore-pattern dist",
-		"lint": "yarn lint:raw .",
-		"lint-fix": "yarn lint --fix",
+		"lint:raw": "run eslint --ext .ts --ext .js --ext .tsx --ext .jsx --ignore-pattern dist",
+		"lint": "run lint:raw .",
+		"lint-fix": "run lint --fix",
 		"unit": "jest --coverage",
-		"test": "yarn lint && jest test",
-		"test:coverage": "yarn test -- --coverage",
+		"test": "run lint && jest test",
+		"test:coverage": "run test -- --coverage",
 		"cov": "jest --coverage; open-cli coverage/lcov-report/index.html",
 		"cov-open": "open-cli coverage/lcov-report/index.html",
-		"changelog": "yarn sofie-version",
-		"release": "yarn reset && yarn test && yarn sofie-version",
+		"changelog": "sofie-version",
+		"release": "run reset && run test && sofie-version",
 		"reset": "git clean -dfx && git reset --hard && yarn",
-		"validate:dependencies": "yarn audit --groups dependencies && yarn license-validate",
-		"validate:dev-dependencies": "yarn audit --groups devDependencies",
-		"license-validate": "yarn sofie-licensecheck --allowPackages caniuse-lite@1.0.30001426"
+		"validate:dependencies": "yarn npm audit --environment production && run license-validate",
+		"validate:dev-dependencies": "yarn npm audit --environment development",
+		"license-validate": "sofie-licensecheck --allowPackages caniuse-lite@1.0.30001541",
+
+		"eslint": "./node_modules/.bin/eslint",
+		"prettier": "./node_modules/.bin/prettier",
+		"lint-staged": "./node_modules/.bin/lint-staged"
 	},
 	"contributors": [
 		"Gilles Dufour <dufour.gilles@gmail.com> (www.gdnet.be)",
@@ -62,9 +66,6 @@
 		"url": "https://github.com/nrkno/sofie-emberplus-connection/issues"
 	},
 	"homepage": "https://github.com/nrkno/sofie-emberplus-connection#readme",
-	"directories": {
-		"test": "test"
-	},
 	"keywords": [
 		"emberplus",
 		"lawo"
@@ -72,10 +73,11 @@
 	"prettier": "@sofie-automation/code-standard-preset/.prettierrc.json",
 	"lint-staged": {
 		"*.{css,json,md,scss}": [
-			"prettier --write"
+			"yarn prettier --write"
 		],
 		"*.{ts,tsx,js,jsx}": [
 			"yarn lint:raw --fix"
 		]
-	}
+	},
+	"packageManager": "yarn@3.6.3"
 }
