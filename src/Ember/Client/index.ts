@@ -80,7 +80,7 @@ export class EmberClient extends EventEmitter {
 	private _timeout = 3000
 	private _resendTimeout = 1000
 	private _resends = false
-	private _timer: NodeJS.Timer
+	private _timer: NodeJS.Timeout
 
 	constructor(host: string, port = 9000, timeout = 3000, enableResends = false, resendTimeout = 1000) {
 		super()
@@ -309,7 +309,7 @@ export class EmberClient extends EventEmitter {
 			await (
 				await this.getDirectory(node)
 			).response
-			for (const root of Object.values(this.tree)) await this.expand(root)
+			for (const root of Object.values<NumberedTreeNode<EmberElement>>(this.tree)) await this.expand(root)
 			return
 		}
 
@@ -325,13 +325,15 @@ export class EmberClient extends EventEmitter {
 		let curEmberNode
 		while ((curEmberNode = emberNodes.shift())) {
 			if (curEmberNode.children) {
-				emberNodes.push(...Object.values(curEmberNode.children).filter(canBeExpanded))
+				emberNodes.push(...Object.values<NumberedTreeNode<EmberElement>>(curEmberNode.children).filter(canBeExpanded))
 			} else {
 				const req = await this.getDirectory(curEmberNode)
 				if (!req.response) continue
 				const res = (await req.response) as RootElement
 				if (res.children) {
-					Object.values(res.children).forEach((c) => canBeExpanded(c) && emberNodes.push(c))
+					Object.values<NumberedTreeNode<EmberElement>>(res.children).forEach(
+						(c) => canBeExpanded(c) && emberNodes.push(c)
+					)
 				}
 			}
 		}
@@ -342,7 +344,7 @@ export class EmberClient extends EventEmitter {
 		delimiter = '.'
 	): Promise<TreeElement<EmberElement> | undefined> {
 		const getNext = (elements: Collection<NumberedTreeNode<EmberElement>>, i?: string) =>
-			Object.values(elements || {}).find(
+			Object.values<NumberedTreeNode<EmberElement>>(elements || {}).find(
 				(r) =>
 					r.number === Number(i) ||
 					(r.contents as EmberNode).identifier === i ||
@@ -511,7 +513,7 @@ export class EmberClient extends EventEmitter {
 			// EmberNode is not an InvocationResult
 
 			// walk tree
-			for (const rootElement of Object.values(node as Collection<RootElement>)) {
+			for (const rootElement of Object.values<RootElement>(node as Collection<RootElement>)) {
 				if ('identifier' in rootElement) {
 					// rootElement is a StreamEntry
 					continue
@@ -597,7 +599,7 @@ export class EmberClient extends EventEmitter {
 		}
 		if (update.children && tree.children) {
 			// Update children
-			for (const child of Object.values(update.children)) {
+			for (const child of Object.values<NumberedTreeNode<EmberElement>>(update.children)) {
 				const i = child.number
 				const oldChild = tree.children[i]
 				changes = [...changes, ...this._updateTree(child, oldChild)]
@@ -625,7 +627,7 @@ export class EmberClient extends EventEmitter {
 		if (update.connections) {
 			if (matrix.connections) {
 				// matrix already has connections
-				for (const connection of Object.values(update.connections)) {
+				for (const connection of Object.values<Connection>(update.connections)) {
 					if (
 						!connection.disposition ||
 						!(

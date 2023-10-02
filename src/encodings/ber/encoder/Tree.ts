@@ -16,6 +16,7 @@ import {
 	TemplateBERID,
 	ElementCollectionBERID,
 } from '../constants'
+import { Connection } from '../../../model/Connection'
 
 export function encodeNumberedElement(el: NumberedTreeNode<EmberElement>, writer: Ber.Writer): void {
 	if (el.contents.type === ElementType.Command) {
@@ -59,7 +60,7 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 	}
 
 	// Encode Contents:
-	if (Object.values(el.contents).filter((v: EmberElement) => v !== undefined).length > 1) {
+	if (Object.values<any>(el.contents).filter((v) => v !== undefined).length > 1) {
 		writer.startSequence(Ber.CONTEXT(1)) // start contents
 		encodeEmberElement(el.contents, writer)
 		writer.endSequence() // end contents
@@ -69,7 +70,7 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 		writer.startSequence(Ber.CONTEXT(2)) // start children
 		writer.startSequence(ElementCollectionBERID) // start ElementCollection
 		if (el.children) {
-			for (const child of Object.values(el.children)) {
+			for (const child of Object.values<NumberedTreeNode<EmberElement>>(el.children)) {
 				writer.startSequence(Ber.CONTEXT(0)) // start child
 				encodeNumberedElement(child, writer)
 				writer.endSequence() // end child
@@ -110,7 +111,7 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 			writer.startSequence(Ber.CONTEXT(5))
 			writer.startSequence(Ber.BERDataTypes.SEQUENCE)
 			// write connections collection
-			for (const connection of Object.values(el.contents.connections)) {
+			for (const connection of Object.values<Connection>(el.contents.connections as { [target: string]: Connection })) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeConnection(connection, writer)
 				writer.endSequence()

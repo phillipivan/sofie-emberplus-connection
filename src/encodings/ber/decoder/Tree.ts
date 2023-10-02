@@ -177,7 +177,7 @@ export function decodeGenericElement(
 	}
 
 	if (children) {
-		for (const kid of Object.values(children)) {
+		for (const kid of Object.values<NumberedTreeNode<EmberElement>>(children)) {
 			kid.parent = el as RootElement
 		}
 	}
@@ -206,7 +206,7 @@ export function decodeRootElements(
 			if (x.number) {
 				y[x.number] = x
 			} else {
-				y[Object.values(y).length] = x
+				y[Object.values<RootElement>(y).length] = x
 			}
 			return y
 		})

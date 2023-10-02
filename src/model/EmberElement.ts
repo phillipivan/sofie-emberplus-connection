@@ -32,7 +32,7 @@ function isEmberElement(obj: unknown): obj is EmberElement {
 
 	const { type } = obj as { type: unknown }
 
-	if (!type || !Object.values(ElementType as any).includes(type)) {
+	if (!type || !Object.values<ElementType>(ElementType).includes(type as any)) {
 		return false
 	}
 

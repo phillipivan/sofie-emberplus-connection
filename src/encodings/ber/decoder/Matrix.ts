@@ -91,7 +91,7 @@ function decodeMatrix(
 	}
 
 	if (kids) {
-		for (const kiddo of Object.values(kids)) {
+		for (const kiddo of Object.values<EmberTreeNode<EmberElement>>(kids)) {
 			kiddo.parent = el
 		}
 	}

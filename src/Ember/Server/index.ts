@@ -76,14 +76,14 @@ class EmberServer extends EventEmitter {
 		const setParent = (parent: NumberedTreeNode<EmberElement>, child: NumberedTreeNode<EmberElement>) => {
 			child.parent = parent
 			if (child.children) {
-				for (const c of Object.values(child.children)) {
+				for (const c of Object.values<NumberedTreeNode<EmberElement>>(child.children)) {
 					setParent(child, c)
 				}
 			}
 		}
-		for (const rootEl of Object.values(tree)) {
+		for (const rootEl of Object.values<NumberedTreeNode<EmberElement>>(tree)) {
 			if (rootEl.children) {
-				for (const c of Object.values(rootEl.children)) {
+				for (const c of Object.values<NumberedTreeNode<EmberElement>>(rootEl.children)) {
 					setParent(rootEl, c)
 				}
 			}
@@ -106,12 +106,12 @@ class EmberServer extends EventEmitter {
 			const matrixUpdate: Partial<Matrix> = update as Partial<Matrix>
 
 			if (matrixUpdate.connections) {
-				for (const connection of Object.values(matrixUpdate.connections)) {
+				for (const connection of Object.values<Connection>(matrixUpdate.connections)) {
 					this.updateMatrixConnection(matrix, connection)
 				}
 			}
 		}
-		for (const [key, value] of Object.entries(update)) {
+		for (const [key, value] of Object.entries<any>(update)) {
 			element.contents[key as keyof T] = value
 		}
 		const el = toQualifiedEmberNode(element)
@@ -121,7 +121,7 @@ class EmberServer extends EventEmitter {
 			elPath = elPath.slice(0, -2) // remove the last element number
 		}
 
-		for (const [path, clients] of Object.entries(this._subscriptions)) {
+		for (const [path, clients] of Object.entries<S101Client[]>(this._subscriptions)) {
 			if (elPath === path) {
 				clients.forEach((client) => {
 					client.sendBER(data)
@@ -164,7 +164,7 @@ class EmberServer extends EventEmitter {
 		})
 		const data = berEncode([qualified], RootType.Elements)
 
-		for (const [path, clients] of Object.entries(this._subscriptions)) {
+		for (const [path, clients] of Object.entries<S101Client[]>(this._subscriptions)) {
 			if (qualified.path === path) {
 				clients.forEach((client) => {
 					client.sendBER(data)
@@ -174,7 +174,7 @@ class EmberServer extends EventEmitter {
 	}
 
 	private _handleIncoming(incoming: DecodeResult<Collection<RootElement>>, client: S101Client) {
-		for (const rootEl of Object.values(incoming.value)) {
+		for (const rootEl of Object.values<RootElement>(incoming.value)) {
 			if (rootEl.contents.type === ElementType.Command) {
 				// command on root
 				this._handleCommand('', rootEl as NumberedTreeNode<Command>, client).catch((e) => this.emit('error', e))
@@ -191,7 +191,7 @@ class EmberServer extends EventEmitter {
 		el: QualifiedElement<EmberElement> | NumberedTreeNode<EmberElement>,
 		client: S101Client
 	) {
-		const children = Object.values(el.children || {})
+		const children = Object.values<NumberedTreeNode<EmberElement>>(el.children || {})
 
 		if (children[0] && children[0].contents.type === ElementType.Command) {
 			this._handleCommand(path, children[0] as NumberedTreeNode<Command>, client).catch((e) => this.emit('error', e))
@@ -270,7 +270,7 @@ class EmberServer extends EventEmitter {
 
 	getElementByPath(path: string, delimiter = '.'): NumberedTreeNode<EmberElement> | undefined {
 		const getNext = (elements: Collection<NumberedTreeNode<EmberElement>>, i?: string) =>
-			Object.values(elements || {}).find(
+			Object.values<NumberedTreeNode<EmberElement>>(elements || {}).find(
 				(r) =>
 					r.number === Number(i) ||
 					(r.contents as EmberNode).identifier === i ||
@@ -327,7 +327,7 @@ class EmberServer extends EventEmitter {
 		if (tree === this.tree) {
 			// getDir on root
 			const response: Collection<NumberedTreeNode<EmberElement>> = { ...this.tree }
-			for (const [i, rootEl] of Object.entries(this.tree)) {
+			for (const [i, rootEl] of Object.entries<NumberedTreeNode<EmberElement>>(this.tree)) {
 				response[i as unknown as number] = new NumberedTreeNodeImpl(rootEl.number, rootEl.contents)
 			}
 			const data = berEncode(response, RootType.Elements)
@@ -336,7 +336,7 @@ class EmberServer extends EventEmitter {
 			const qualified = toQualifiedEmberNode(tree as NumberedTreeNode<EmberElement>)
 			qualified.children = {} // destroy ref to this.tree
 			if ('children' in tree && tree.children) {
-				for (const [i, child] of Object.entries(tree.children)) {
+				for (const [i, child] of Object.entries<NumberedTreeNode<EmberElement>>(tree.children)) {
 					if (child.contents.type === ElementType.Matrix) {
 						// matrix should not have connections, targets and sources:
 						qualified.children[i as unknown as number] = new NumberedTreeNodeImpl(

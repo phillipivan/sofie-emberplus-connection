@@ -22,7 +22,7 @@ function berEncode(el: Root, rootType: RootType): Buffer {
 	switch (rootType) {
 		case RootType.Elements:
 			writer.startSequence(RootElementsBERID) // Start RootElementCollection
-			for (const rootEl of Object.values(el as Collection<RootElement>)) {
+			for (const rootEl of Object.values<RootElement>(el as Collection<RootElement>)) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeRootElement(rootEl, writer)
 				writer.endSequence()
@@ -31,7 +31,7 @@ function berEncode(el: Root, rootType: RootType): Buffer {
 			break
 		case RootType.Streams:
 			writer.startSequence(StreamEntriesBERID) // Start StreamCollection
-			for (const entry of Object.values(el as Collection<StreamEntry>)) {
+			for (const entry of Object.values<StreamEntry>(el as Collection<StreamEntry>)) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeStreamEntry(entry, writer)
 				writer.endSequence()
