@@ -12,7 +12,7 @@ export default class S101Socket extends EventEmitter {
 	socket: Socket | undefined
 	keepaliveInterval = 10
 	keepaliveMaxResponseTime = 500
-	keepaliveIntervalTimer: NodeJS.Timer | undefined
+	keepaliveIntervalTimer: NodeJS.Timeout | undefined
 	keepaliveResponseWindowTimer: NodeJS.Timer | null
 	pendingRequests: Array<Request> = []
 	activeRequest: Request | undefined

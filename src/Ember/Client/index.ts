@@ -627,7 +627,7 @@ export class EmberClient extends EventEmitter {
 		if (update.connections) {
 			if (matrix.connections) {
 				// matrix already has connections
-				for (const connection of Object.values<Connection>(update.connections)) {
+				for (const connection of Object.values<Connection>(update.connections as { [target: number]: Connection })) {
 					if (
 						!connection.disposition ||
 						!(

@@ -56,7 +56,7 @@ export function insertCommand(
 	]) as Exclude<RootElement, NumberedTreeNode<EmberElement>>
 }
 
-export function updateProps<T>(oldProps: T, newProps: T, props?: Array<keyof T>): void {
+export function updateProps<T extends object>(oldProps: T, newProps: T, props?: Array<keyof T>): void {
 	if (!props) props = Object.keys(newProps) as Array<keyof T>
 
 	for (const key of props) {

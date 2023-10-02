@@ -106,7 +106,9 @@ class EmberServer extends EventEmitter {
 			const matrixUpdate: Partial<Matrix> = update as Partial<Matrix>
 
 			if (matrixUpdate.connections) {
-				for (const connection of Object.values<Connection>(matrixUpdate.connections)) {
+				for (const connection of Object.values<Connection>(
+					matrixUpdate.connections as { [target: number]: Connection }
+				)) {
 					this.updateMatrixConnection(matrix, connection)
 				}
 			}

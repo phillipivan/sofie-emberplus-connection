@@ -14,7 +14,7 @@ export default class S101Client extends S101Socket {
 
 	private _autoReconnect = true
 	private _autoReconnectDelay: number = AUTO_RECONNECT_DELAY
-	private _connectionAttemptTimer: NodeJS.Timer | undefined = undefined
+	private _connectionAttemptTimer: NodeJS.Timeout | undefined = undefined
 	private _reconnectAttempt = 0
 	private _reconnectAttempts: number = RECONNECT_ATTEMPTS
 	private _shouldBeConnected: boolean
