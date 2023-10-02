@@ -1,6 +1,5 @@
-import { EventEmitter } from 'events'
+import { EventEmitter } from 'eventemitter3'
 import { S101Server } from '../Socket/S101Server'
-import { S101Client } from '../Socket'
 import {
 	EmberElement,
 	NumberedTreeNodeImpl,
@@ -28,12 +27,14 @@ import { berEncode } from '../../encodings/ber'
 import { Command, CommandType, FieldFlags, GetDirectory, Invoke } from '../../model/Command'
 import { Connection, ConnectionOperation, ConnectionImpl } from '../../model/Connection'
 import { InvocationResultImpl } from '../../model/InvocationResult'
+import S101Socket from '../Socket/S101Socket'
 
-const ServerEvents = null
+export type EmberServerEvents = {
+	error: [Error]
+	clientError: [client: S101Socket, error: Error]
+}
 
-export { EmberServer, ServerEvents }
-
-class EmberServer extends EventEmitter {
+export class EmberServer extends EventEmitter<EmberServerEvents> {
 	address: string | undefined
 	port: number
 	tree: Collection<NumberedTreeNode<EmberElement>> = {}
@@ -46,8 +47,8 @@ class EmberServer extends EventEmitter {
 	onMatrixOperation?: (Matrix: NumberedTreeNode<Matrix>, connection: Connections) => Promise<void>
 
 	private _server: S101Server
-	private _clients: Set<S101Client> = new Set()
-	private _subscriptions: { [path: string]: Array<S101Client> } = {}
+	private _clients: Set<S101Socket> = new Set()
+	private _subscriptions: { [path: string]: Array<S101Socket> } = {}
 
 	constructor(port: number, address?: string) {
 		super()
@@ -56,7 +57,7 @@ class EmberServer extends EventEmitter {
 		this.port = port
 		this._server = new S101Server(port, address)
 
-		this._server.on('connection', (client: S101Client) => {
+		this._server.on('connection', (client: S101Socket) => {
 			this._clients.add(client)
 
 			client.on('emberTree', (tree: DecodeResult<Collection<RootElement>>) => this._handleIncoming(tree, client))
@@ -123,7 +124,7 @@ class EmberServer extends EventEmitter {
 			elPath = elPath.slice(0, -2) // remove the last element number
 		}
 
-		for (const [path, clients] of Object.entries<S101Client[]>(this._subscriptions)) {
+		for (const [path, clients] of Object.entries<S101Socket[]>(this._subscriptions)) {
 			if (elPath === path) {
 				clients.forEach((client) => {
 					client.sendBER(data)
@@ -166,7 +167,7 @@ class EmberServer extends EventEmitter {
 		})
 		const data = berEncode([qualified], RootType.Elements)
 
-		for (const [path, clients] of Object.entries<S101Client[]>(this._subscriptions)) {
+		for (const [path, clients] of Object.entries<S101Socket[]>(this._subscriptions)) {
 			if (qualified.path === path) {
 				clients.forEach((client) => {
 					client.sendBER(data)
@@ -175,7 +176,7 @@ class EmberServer extends EventEmitter {
 		}
 	}
 
-	private _handleIncoming(incoming: DecodeResult<Collection<RootElement>>, client: S101Client) {
+	private _handleIncoming(incoming: DecodeResult<Collection<RootElement>>, client: S101Socket) {
 		for (const rootEl of Object.values<RootElement>(incoming.value)) {
 			if (rootEl.contents.type === ElementType.Command) {
 				// command on root
@@ -191,7 +192,7 @@ class EmberServer extends EventEmitter {
 	private _handleNode(
 		path: string,
 		el: QualifiedElement<EmberElement> | NumberedTreeNode<EmberElement>,
-		client: S101Client
+		client: S101Socket
 	) {
 		const children = Object.values<NumberedTreeNode<EmberElement>>(el.children || {})
 
@@ -229,7 +230,7 @@ class EmberServer extends EventEmitter {
 	private async _handleSetValue(
 		path: string,
 		el: QualifiedElement<Parameter> | NumberedTreeNode<Parameter>,
-		client: S101Client
+		client: S101Socket
 	) {
 		const tree = this.getElementByPath(path)
 		if (!tree || tree.contents.type !== ElementType.Parameter || el.contents.value === undefined) return
@@ -247,7 +248,7 @@ class EmberServer extends EventEmitter {
 		}
 	}
 
-	private async _handleCommand(path: string, el: NumberedTreeNode<Command>, client: S101Client) {
+	private async _handleCommand(path: string, el: NumberedTreeNode<Command>, client: S101Socket) {
 		const tree = path ? this.getElementByPath(path) : this.tree
 		if (!tree) return
 
@@ -303,10 +304,10 @@ class EmberServer extends EventEmitter {
 		return tree
 	}
 
-	private _subscribe(path: string, client: S101Client) {
+	private _subscribe(path: string, client: S101Socket) {
 		this._subscriptions[path] = [...(this._subscriptions[path] || []), client]
 	}
-	private _unsubscribe(path: string, client: S101Client) {
+	private _unsubscribe(path: string, client: S101Socket) {
 		if (!this._subscriptions[path]) return
 
 		this._subscriptions[path].forEach((c, i) => {
@@ -315,7 +316,7 @@ class EmberServer extends EventEmitter {
 			}
 		})
 	}
-	private _clearSubscription(client: S101Client) {
+	private _clearSubscription(client: S101Socket) {
 		for (const path of Object.keys(this._subscriptions)) {
 			this._unsubscribe(path, client)
 		}
@@ -324,7 +325,7 @@ class EmberServer extends EventEmitter {
 	private _handleGetDirectory(
 		tree: Collection<NumberedTreeNode<EmberElement>> | NumberedTreeNode<EmberElement>,
 		_dirFieldMasks: FieldFlags,
-		client: S101Client
+		client: S101Socket
 	) {
 		if (tree === this.tree) {
 			// getDir on root

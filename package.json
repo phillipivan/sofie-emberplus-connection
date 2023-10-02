@@ -28,7 +28,6 @@
 		"validate:dependencies": "yarn npm audit --environment production && run license-validate",
 		"validate:dev-dependencies": "yarn npm audit --environment development",
 		"license-validate": "sofie-licensecheck --allowPackages caniuse-lite@1.0.30001541",
-
 		"eslint": "./node_modules/.bin/eslint",
 		"prettier": "./node_modules/.bin/prettier",
 		"lint-staged": "./node_modules/.bin/lint-staged"
@@ -48,6 +47,7 @@
 	"dependencies": {
 		"asn1": "evs-broadcast/node-asn1",
 		"debug": "^4.3.4",
+		"eventemitter3": "^4.0.7",
 		"long": "^3.2.0",
 		"smart-buffer": "^3.0.3",
 		"tslib": "^2.6.2"

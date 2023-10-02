@@ -1,6 +1,6 @@
-import { EmberClient } from './Ember/Client/index'
+import { EmberClient, EmberClientEvents } from './Ember/Client/index'
 import { EmberLib } from './Ember/Lib/index'
-import { EmberServer, ServerEvents } from './Ember/Server/index'
+import { EmberServer, EmberServerEvents } from './Ember/Server/index'
 import { S101Codec } from './S101/index'
 import { S101Client } from './Ember/Socket/index'
 // import { EmberTreeNode, TreeElement } from './types/types'
@@ -40,10 +40,11 @@ const Decoder = EmberLib.DecodeBuffer
 
 export {
 	EmberClient,
+	EmberClientEvents,
 	Decoder,
 	EmberLib,
 	EmberServer,
-	ServerEvents,
+	EmberServerEvents,
 	S101Codec,
 	S101Client,
 	berEncode,

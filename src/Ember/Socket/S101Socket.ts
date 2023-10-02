@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events'
+import { EventEmitter } from 'eventemitter3'
 import { Socket } from 'net'
 
 import { S101Codec } from '../../S101'
@@ -8,7 +8,16 @@ import { normalizeError } from '../Lib/util'
 
 export type Request = any
 
-export default class S101Socket extends EventEmitter {
+export type S101SocketEvents = {
+	error: [Error]
+	emberPacket: [packet: Buffer]
+	emberTree: [root: any]
+	connecting: []
+	connected: []
+	disconnected: []
+}
+
+export default class S101Socket extends EventEmitter<S101SocketEvents> {
 	socket: Socket | undefined
 	keepaliveInterval = 10
 	keepaliveMaxResponseTime = 500
@@ -49,20 +58,6 @@ export default class S101Socket extends EventEmitter {
 
 		this._initSocket()
 	}
-
-	// Overide EventEmitter.on() for stronger typings:
-	on: ((event: 'emberPacket', listener: (packet: Buffer) => void) => this) &
-		((event: 'emberTree', listener: (root: any) => void) => this) &
-		((event: 'error', listener: (error: Error) => void) => this) &
-		((event: 'connecting', listener: () => void) => this) &
-		((event: 'connected', listener: () => void) => this) &
-		((event: 'disconnected', listener: () => void) => this) = super.on
-	emit: ((event: 'emberPacket', packet: Buffer) => boolean) &
-		((event: 'emberTree', root: any) => boolean) &
-		((event: 'error', error: Error) => boolean) &
-		((event: 'connecting') => boolean) &
-		((event: 'connected') => boolean) &
-		((event: 'disconnected') => boolean) = super.emit
 
 	_initSocket(): void {
 		if (this.socket != null) {

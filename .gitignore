@@ -7,6 +7,7 @@ package-lock.json
 yarn-error.log
 /lib
 /dist
+/scratch
 
 .pnp.*
 .yarn/*

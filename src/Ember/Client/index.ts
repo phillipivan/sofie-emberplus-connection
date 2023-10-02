@@ -23,7 +23,7 @@ import { ConnectionOperation } from '../../model/Connection'
 import { Root } from '../../types/types'
 import { EmberNode } from '../../model/EmberNode'
 
-import { EventEmitter } from 'events'
+import { EventEmitter } from 'eventemitter3'
 import { S101Client } from '../Socket'
 import { getPath, assertQualifiedEmberNode, insertCommand, updateProps } from '../Lib/util'
 import { berEncode } from '../..'
@@ -67,7 +67,15 @@ export enum ConnectionStatus {
 	Connected,
 }
 
-export class EmberClient extends EventEmitter {
+export type EmberClientEvents = {
+	error: [Error]
+	warn: [Error]
+
+	connected: []
+	disconnected: []
+}
+
+export class EmberClient extends EventEmitter<EmberClientEvents> {
 	host: string
 	port: number
 	tree: Collection<NumberedTreeNode<EmberElement>> = []

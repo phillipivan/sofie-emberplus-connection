@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events'
+import { EventEmitter } from 'eventemitter3'
 import { SmartBuffer } from 'smart-buffer'
 import Debug from 'debug'
 import { format } from 'util'
@@ -52,7 +52,13 @@ const CRC_TABLE = [
 	0x3de3, 0x2c6a, 0x1ef1, 0x0f78,
 ]
 
-export default class S101Codec extends EventEmitter {
+export type S101CodecEvents = {
+	emberPacket: [packet: Buffer]
+	keepaliveReq: []
+	keepaliveResp: []
+}
+
+export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	inbuf = new SmartBuffer()
 	emberbuf = new SmartBuffer()
 	escaped = false
@@ -225,14 +231,6 @@ export default class S101Codec extends EventEmitter {
 		frame.writeBuffer(data)
 		return this._finalizeBuffer(frame)
 	}
-
-	// Overide EventEmitter.on() for stronger typings:
-	on: ((event: 'emberPacket', listener: (packet: Buffer) => void) => this) &
-		((event: 'keepaliveReq', listener: () => void) => this) &
-		((event: 'keepaliveResp', listener: () => void) => this) = super.on
-	emit: ((event: 'emberPacket', packet: Buffer) => boolean) &
-		((event: 'keepaliveReq') => boolean) &
-		((event: 'keepaliveResp') => boolean) = super.emit
 
 	private _finalizeBuffer(smartbuf: SmartBuffer) {
 		const crc = ~this._calculateCRCCE(smartbuf.toBuffer().slice(1, smartbuf.length)) & 0xffff

@@ -1,8 +1,13 @@
-import { EventEmitter } from 'events'
+import { EventEmitter } from 'eventemitter3'
 import { Socket, createServer, Server } from 'net'
 import S101Socket from './S101Socket'
 
-export class S101Server extends EventEmitter {
+export type S101ServerEvents = {
+	error: [Error]
+	listening: []
+	connection: [client: S101Socket]
+}
+export class S101Server extends EventEmitter<S101ServerEvents> {
 	port: number
 	address: string | undefined
 	server: Server | null
