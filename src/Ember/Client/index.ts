@@ -7,22 +7,26 @@ import {
 	EmberTypedValue,
 	RootType,
 	Collection,
+	Root,
 } from '../../types/types'
 import { InvocationResult } from '../../model/InvocationResult'
 import { Matrix } from '../../model/Matrix'
-import { EmberElement } from '../../model/EmberElement'
-import { Command, GetDirectoryImpl, SubscribeImpl, UnsubscribeImpl } from '../../model/Command'
-import { GetDirectory, CommandType, FieldFlags } from '../../model/Command'
-import { ElementType } from '../../model/EmberElement'
-import { Subscribe } from '../../model/Command'
-import { Unsubscribe } from '../../model/Command'
-import { Invoke } from '../../model/Command'
+import { EmberElement, ElementType } from '../../model/EmberElement'
+import {
+	Command,
+	GetDirectoryImpl,
+	SubscribeImpl,
+	UnsubscribeImpl,
+	Unsubscribe,
+	GetDirectory,
+	CommandType,
+	FieldFlags,
+	Subscribe,
+	Invoke,
+} from '../../model/Command'
 import { Parameter } from '../../model/Parameter'
-import { Connection, ConnectionDisposition } from '../../model/Connection'
-import { ConnectionOperation } from '../../model/Connection'
-import { Root } from '../../types/types'
+import { Connection, ConnectionDisposition, ConnectionOperation } from '../../model/Connection'
 import { EmberNode } from '../../model/EmberNode'
-
 import { EventEmitter } from 'eventemitter3'
 import { S101Client } from '../Socket'
 import { getPath, assertQualifiedEmberNode, insertCommand, updateProps } from '../Lib/util'
