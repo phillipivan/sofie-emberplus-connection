@@ -502,7 +502,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	}
 
 	private _applyRootToTree(node: Root): Array<Change> {
-		let changes: Array<Change> = []
+		const changes: Array<Change> = []
 
 		if ('id' in node) {
 			// node is an InvocationResult
@@ -538,13 +538,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					if (!tree) {
 						if (path.length) {
 							// Assuming this means that no get directory was done on the root of the tree.
-							changes = [...changes, { path: rootElement.path, node: rootElement }]
+							changes.push({ path: rootElement.path, node: rootElement })
 							continue
 						} else {
 							const number = Number(rootElement.path)
 							// Insert node into root
 							this.tree[number] = new NumberedTreeNodeImpl(number, rootElement.contents, rootElement.children)
-							changes = [...changes, { path: undefined, node: this.tree[number] }]
+							changes.push({ path: undefined, node: this.tree[number] })
 							continue
 						}
 					}
@@ -557,13 +557,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 								number: Number(number),
 								parent: tree,
 							}
-							changes = [
-								...changes,
-								{
-									path: rootElement.path.split('.').slice(0, -1).join('.'),
-									node: tree,
-								},
-							]
+							changes.push({
+								path: rootElement.path.split('.').slice(0, -1).join('.'),
+								node: tree,
+							})
 							inserted = true
 							break
 						}
@@ -571,19 +568,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					}
 
 					if (inserted) continue
-					changes = [...changes, ...this._updateTree(rootElement, tree)]
+					changes.push(...this._updateTree(rootElement, tree))
 				} else {
 					if (this.tree[rootElement.number]) {
-						changes = [
-							...changes,
-							...this._updateTree(
-								rootElement as NumberedTreeNode<EmberElement>,
-								this.tree[(rootElement as NumberedTreeNode<EmberElement>).number]
-							),
-						]
+						changes.push(...this._updateTree(rootElement, this.tree[rootElement.number]))
 					} else {
 						this.tree[rootElement.number] = rootElement
-						changes = [...changes, { path: undefined, node: rootElement }]
+						changes.push({ path: undefined, node: rootElement })
 					}
 				}
 			}
@@ -593,7 +584,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	}
 
 	private _updateTree(update: TreeElement<EmberElement>, tree: NumberedTreeNode<EmberElement>): Array<Change> {
-		let changes: Array<Change> = []
+		const changes: Array<Change> = []
 
 		if (update.contents.type === tree.contents.type) {
 			changes.push({ path: getPath(tree), node: tree })
@@ -613,8 +604,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			// Update children
 			for (const child of Object.values<NumberedTreeNode<EmberElement>>(update.children)) {
 				const i = child.number
-				const oldChild = tree.children[i]
-				changes = [...changes, ...this._updateTree(child, oldChild)]
+				const oldChild = tree.children[i] // as NumberedTreeNode<EmberElement> | undefined // TODO
+				changes.push(...this._updateTree(child, oldChild))
 			}
 		} else if (update.children) {
 			changes.push({ path: getPath(tree), node: tree })
