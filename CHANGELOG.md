@@ -1,6 +1,20 @@
 # Changelog
 
-All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+All notable changes to this project will be documented in this file. See [Convential Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) for commit guidelines.
+
+## [0.2.0](https://github.com/nrkno/sofie-emberplus-connection/compare/v0.1.2...v0.2.0) (Mon Oct 16 2023)
+
+
+### Fixes
+
+* Setting 2 full path properties fails SOFIE-2628 (#34) [3d756ae](https://github.com/nrkno/sofie-emberplus-connection/commit/3d756aec59998015d4f0f331720dcb517d677b43)
+* children should be stored in object [ee926d2](https://github.com/nrkno/sofie-emberplus-connection/commit/ee926d21cafc3368dac152daa122b35310aa2c6a)
+* :bug: relative to issue #32 [70e8333](https://github.com/nrkno/sofie-emberplus-connection/commit/70e8333294a79db518729604fb0ac7e8e68cc9bb)
+* implement timeout for keepalive requests [d59b7b2](https://github.com/nrkno/sofie-emberplus-connection/commit/d59b7b2a0418ce16fcf3f7ed384beb0346562f63)
+
+### Features
+
+* use typed eventemitter3 [ff3551e](https://github.com/nrkno/sofie-emberplus-connection/commit/ff3551e3667ffd39148745184058f8664adbde03)
 
 ### [0.1.2](https://github.com/nrkno/sofie-emberplus-connection/compare/v0.0.2...v0.1.2) (2022-01-17)
 
