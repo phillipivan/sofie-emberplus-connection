@@ -11,7 +11,7 @@
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"scripts": {
-		"prepare": "husky install",
+		"prepare": "run husky install",
 		"build": "rimraf dist && run build:main",
 		"build:main": "tsc -p tsconfig.build.json",
 		"lint:raw": "run eslint --ext .ts --ext .js --ext .tsx --ext .jsx --ignore-pattern dist",
@@ -28,6 +28,7 @@
 		"validate:dependencies": "yarn npm audit --environment production && run license-validate",
 		"validate:dev-dependencies": "yarn npm audit --environment development",
 		"license-validate": "sofie-licensecheck --allowPackages caniuse-lite@1.0.30001541",
+		"husky": "./node_modules/.bin/husky",
 		"eslint": "./node_modules/.bin/eslint",
 		"prettier": "./node_modules/.bin/prettier",
 		"lint-staged": "./node_modules/.bin/lint-staged"
