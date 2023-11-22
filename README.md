@@ -1,6 +1,6 @@
 # Sofie Ember+ Connection
 
-This is the _Ember+ Connection_ library of the [**Sofie** TV Automation System](https://github.com/nrkno/Sofie-TV-automation/), a TypeScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plus) control protocol for Node.js. It has been tested with _Lawo Ruby_, _Lawo R3lay_, and _Lawo MxGUI_.
+This is the _Ember+ Connection_ library of the [**Sofie** TV Automation System](https://github.com/nrkno/Sofie-TV-automation/), a TypeScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plus) control protocol for _Node.js_. It has been tested with _Lawo Ruby_, _Lawo R3lay_, and _Lawo MxGUI_.
 
 The current version is very losely based on the original library and Mr. Gilles Dufour's rewrites. It is however rewritten almost completely from scratch and bears little to no resemblance to earlier libraries.
 
@@ -13,6 +13,7 @@ The current version is very losely based on the original library and Mr. Gilles 
 * [Documentation](https://nrkno.github.io/sofie-core/)
 * [Releases](https://nrkno.github.io/sofie-core/releases)
 
+---
 
 ## Example Usage
 
