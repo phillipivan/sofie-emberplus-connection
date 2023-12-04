@@ -1,13 +1,12 @@
-# Sofie: The Modern TV News Studio Automation System (Ember+ Connection)
+Ember+ Connection (Sofie-specific Fork)
 
-A TyepScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plus) control protocol for Node.
+A TypeScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plus) control protocol for _Node_, used by the [**Sofie** TV Automation System](https://github.com/nrkno/Sofie-TV-automation/).
 
-It has been tested with Lawo Ruby, Lawo R3lay and Lawo MxGUI.
+It has been tested with _Lawo Ruby_, _Lawo R3lay_, and _Lawo MxGUI_.
 
-The current version is very losely based on the original library and Mr Gilles Dufour's rewrites. It is however rewritten
-almost completely from scratch and bears little to no resemblance to earlier libraries.
+The current version is very losely based on the original library and Mr Gilles Dufour's rewrites. It is however rewritten almost completely from scratch and bears little to no resemblance to earlier libraries.
 
-## Example usage
+## Example Usage
 
 ### Client
 
