@@ -9,7 +9,7 @@ The current version is very losely based on the original library and Mr Gilles D
 ## General Sofie System Info
 * [Documentation](https://nrkno.github.io/sofie-core/)
 * [Releases](https://nrkno.github.io/sofie-core/releases)
-* [Contribution Guidelines](CONTRIBUTING.md)
+* [Contribution Guidelines](https://nrkno.github.io/sofie-core/docs/for-developers/contribution-guidelines)
 * [License](LICENSE)
 
 ---
