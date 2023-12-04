@@ -1,10 +1,16 @@
-Ember+ Connection (Sofie-specific Fork)
+# Ember+ Connection (Sofie-specific Fork)
 
 A TypeScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plus) control protocol for _Node_, used by the [**Sofie** TV Automation System](https://github.com/nrkno/Sofie-TV-automation/).
 
 It has been tested with _Lawo Ruby_, _Lawo R3lay_, and _Lawo MxGUI_.
 
 The current version is very losely based on the original library and Mr Gilles Dufour's rewrites. It is however rewritten almost completely from scratch and bears little to no resemblance to earlier libraries.
+
+## General Sofie System Info
+* [Documentation](https://nrkno.github.io/sofie-core/)
+* [Releases](https://nrkno.github.io/sofie-core/releases)
+* [Contribution Guidelines](CONTRIBUTING.md)
+* [License](LICENSE)
 
 ## Example Usage
 
