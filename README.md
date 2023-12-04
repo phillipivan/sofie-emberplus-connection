@@ -12,6 +12,8 @@ The current version is very losely based on the original library and Mr Gilles D
 * [Contribution Guidelines](CONTRIBUTING.md)
 * [License](LICENSE)
 
+---
+
 ## Example Usage
 
 ### Client
