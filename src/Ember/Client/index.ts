@@ -590,9 +590,15 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					if (inserted) continue
 					changes.push(...this._updateTree(rootElement, tree))
 				} else {
-					if (this.tree[rootElement.number]) {
-						changes.push(...this._updateTree(rootElement, this.tree[rootElement.number]))
+					if (rootElement.children) {
+						if (this.tree[rootElement.number]) {
+							changes.push(...this._updateTree(rootElement, this.tree[rootElement.number]))
+						} else {
+							this.tree[rootElement.number] = rootElement
+							changes.push({ path: undefined, node: rootElement })
+						}
 					} else {
+						// this must have been something on the root of the tree (like GetDirectory)
 						this.tree[rootElement.number] = rootElement
 						changes.push({ path: undefined, node: rootElement })
 					}
