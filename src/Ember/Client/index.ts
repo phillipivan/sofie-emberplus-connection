@@ -209,7 +209,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				cb,
 			})
 
-		return this._sendCommand<RootElement>(node, command, ExpectResponse.HasChildren)
+		return this._sendCommand<RootElement>(node, command, ExpectResponse.Any)
 	}
 	async subscribe(
 		node: RootElement | Array<RootElement>,
@@ -386,8 +386,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		while (pathArr.length) {
 			const i = pathArr.shift()
-			if (!i) break // TODO - this will break the loop if the path was `1..0`
+			if (i === undefined) break // TODO - this will break the loop if the path was `1..0`
 			if (!tree) break
+
 			let next = getNextChild(tree, i)
 			if (!next) {
 				const req = await this.getDirectory(tree)
@@ -395,6 +396,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				next = getNextChild(tree, i)
 			}
 			tree = next
+
 			if (!tree) throw new Error(`Could not find node ${i} on given path ${numberedPath.join()}`)
 			if (tree?.number !== undefined) numberedPath.push(tree.number)
 		}
