@@ -11,6 +11,7 @@ import {
 	MatrixImpl,
 	Matrix,
 	Connections,
+	EmberNodeImpl,
 } from '../../model'
 import {
 	Collection,
@@ -367,6 +368,10 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 						qualified.children[i as unknown as number] = new NumberedTreeNodeImpl(child.number, child.contents)
 					}
 				}
+			} else if (qualified.contents.type === ElementType.Node && !('children' in tree && tree.children)) {
+				// node without children -> none of the properties should be set
+				qualified.contents = new EmberNodeImpl()
+				qualified.children = undefined
 			}
 			const data = berEncode([qualified as RootElement], RootType.Elements)
 			client.sendBER(data)
