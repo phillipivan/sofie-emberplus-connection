@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [Convential Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) for commit guidelines.
 
+## [0.2.2](https://github.com/nrkno/sofie-emberplus-connection/compare/v0.2.1...v0.2.2) (Fri Sep 20 2024)
+
+
+### Fixes
+
+* extra getDir for parameters to explicitly express interest in value changes [c6f684c](https://github.com/nrkno/sofie-emberplus-connection/commit/c6f684cc3d4870c971de3446360464fae055b284)
+* **(Provider)** handle getDirectory on empty node correctly [8abda16](https://github.com/nrkno/sofie-emberplus-connection/commit/8abda1609cb19bf77d6d5548c34437d7ce7b9d62)
+* handle getDirectory on root multiple times [cb375cc](https://github.com/nrkno/sofie-emberplus-connection/commit/cb375cc41ac2f3205b970fc6a13fa533ae0b362e)
+* handle getDirectory on paramater [e8f131d](https://github.com/nrkno/sofie-emberplus-connection/commit/e8f131d096641bff1d36acef90a18b9d0a31353a)
+
 ## [0.2.1](https://github.com/nrkno/sofie-emberplus-connection/compare/v0.2.0...v0.2.1) (Mon Oct 16 2023)
 
 
