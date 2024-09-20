@@ -2,6 +2,7 @@ import { QualifiedElement, NumberedTreeNode, RootElement } from '../../types/typ
 import { EmberElement, ElementType } from '../../model/EmberElement'
 import { Command } from '../../model/Command'
 import { QualifiedElementImpl, NumberedTreeNodeImpl, TreeElement } from '../../model/Tree'
+import { EmberNode } from '../../model'
 
 export function assertQualifiedEmberNode(node: RootElement): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
 	if ('path' in node) {
@@ -75,4 +76,32 @@ export function normalizeError(e: unknown): Error {
 	}
 
 	return new Error(typeof e === 'string' ? e : (e as any)?.toString())
+}
+
+export function isEmptyNode(node: TreeElement<EmberElement>): boolean {
+	const isNode = (node: TreeElement<EmberElement>): node is TreeElement<EmberNode> => {
+		return node.contents.type === ElementType.Node
+	}
+
+	if (!isNode(node)) {
+		return false
+	}
+
+	if (node.children) {
+		return false
+	}
+
+	if (
+		node.contents.description ??
+		node.contents.identifier ??
+		node.contents.isOnline ??
+		node.contents.isRoot ??
+		node.contents.schemaIdentifiers ??
+		node.contents.templateReference
+	) {
+		return false
+	}
+
+	// node is a node, node has no children, node has no properties set => node must be empty
+	return true
 }
