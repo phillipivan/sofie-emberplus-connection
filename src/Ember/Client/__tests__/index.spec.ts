@@ -84,7 +84,7 @@ describe('client', () => {
 	function createQualifiedNodeResponse(
 		path: string,
 		content: EmberElement,
-		children: Collection<NumberedTreeNode<EmberElement>>
+		children: Collection<NumberedTreeNode<EmberElement>> | undefined
 	): DecodeResult<Root> {
 		const parent = new QualifiedElementImpl<EmberElement>(path, content, children)
 
@@ -95,8 +95,10 @@ describe('client', () => {
 				fixLevel(child, node)
 			}
 		}
-		for (const child of Object.values<NumberedTreeNode<EmberElement>>(children)) {
-			fixLevel(child, parent as any as NumberedTreeNode<EmberElement>)
+		if (children) {
+			for (const child of Object.values<NumberedTreeNode<EmberElement>>(children)) {
+				fixLevel(child, parent as any as NumberedTreeNode<EmberElement>)
+			}
 		}
 		return {
 			value: {
@@ -169,11 +171,22 @@ describe('client', () => {
 
 			await new Promise(setImmediate)
 
+			// lookup on the parameter
+			expect(onSocketWrite).toHaveBeenCalledTimes(3)
+			socket.mockData({
+				value: {
+					1: new QualifiedElementImpl<EmberElement>(
+						'1.1.1',
+						new ParameterImpl(ParameterType.Boolean, 'On', undefined, false)
+					) as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
+				},
+			})
+
+			await new Promise(setImmediate)
+
 			const res = await getByPathPromise
 			expect(res).toBeTruthy()
-			expect(res).toMatchObject(
-				new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Boolean, 'On', undefined, false))
-			)
+			expect(res?.contents).toMatchObject(new ParameterImpl(ParameterType.Boolean, 'On', undefined, false))
 		})
 	})
 
@@ -229,13 +242,32 @@ describe('client', () => {
 
 			await new Promise(setImmediate)
 
-			// Final lookup
+			// Final tree node
 			expect(onSocketWrite).toHaveBeenCalledTimes(6)
 			socket.mockData(
 				createQualifiedNodeResponse('1.1.1', new EmberNodeImpl('MAIN', undefined, undefined, false), {
 					1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Boolean, 'On', undefined, false)),
-					2: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Boolean, 'Second', undefined, false)),
+					2: new NumberedTreeNodeImpl(2, new ParameterImpl(ParameterType.Boolean, 'Second', undefined, false)),
 				})
+			)
+
+			await new Promise(setImmediate)
+
+			// last call to the parameters just in case
+			expect(onSocketWrite).toHaveBeenCalledTimes(8)
+			socket.mockData(
+				createQualifiedNodeResponse(
+					'1.1.1.1',
+					new ParameterImpl(ParameterType.Boolean, 'On', undefined, false),
+					undefined
+				)
+			)
+			socket.mockData(
+				createQualifiedNodeResponse(
+					'1.1.1.2',
+					new ParameterImpl(ParameterType.Boolean, 'Second', undefined, false),
+					undefined
+				)
 			)
 
 			// Both completed successfully
@@ -244,6 +276,110 @@ describe('client', () => {
 
 			const res2 = await getByPathPromise2
 			expect(res2).toBeTruthy()
+		})
+	})
+
+	it('getElementByPath empty node in the root', async () => {
+		await runWithConnection(async (client, socket) => {
+			// Do initial load
+			const getRootDirReq = await client.getDirectory(client.tree)
+			getRootDirReq.response?.catch(() => null) // Ensure uncaught response is ok
+			expect(onSocketWrite).toHaveBeenCalledTimes(1)
+			onSocketWrite.mockClear()
+
+			// Mock a valid response
+			socket.mockData({
+				value: {
+					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true)),
+				},
+			})
+			await getRootDirReq.response
+
+			// Request the empty node
+			const req = await client.getDirectory(client.tree[1])
+
+			// Returns empty node
+			expect(onSocketWrite).toHaveBeenCalledTimes(1)
+			socket.mockData({
+				value: {
+					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl()),
+				},
+			})
+
+			await new Promise(setImmediate)
+
+			const res = await req.response
+			expect(res).toBeTruthy()
+		})
+	})
+
+	it('getElementByPath empty node in the tree', async () => {
+		await runWithConnection(async (client, socket) => {
+			// Do initial load
+			const getRootDirReq = await client.getDirectory(client.tree)
+			getRootDirReq.response?.catch(() => null) // Ensure uncaught response is ok
+			expect(onSocketWrite).toHaveBeenCalledTimes(1)
+			onSocketWrite.mockClear()
+
+			// Mock a valid response
+			socket.mockData({
+				value: {
+					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true)),
+				},
+			})
+			await getRootDirReq.response
+
+			// Run the tree
+			const getByPathPromise = client.getElementByPath('Ruby.Sums.Empty')
+
+			// First lookup
+			expect(onSocketWrite).toHaveBeenCalledTimes(1)
+			socket.mockData({
+				value: {
+					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true), {
+						1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, true)),
+					}),
+				},
+			})
+
+			await new Promise(setImmediate)
+
+			// Second lookup
+			expect(onSocketWrite).toHaveBeenCalledTimes(2)
+			socket.mockData({
+				value: {
+					1: new QualifiedElementImpl<EmberElement>('1.1', new EmberNodeImpl('Sums', undefined, undefined, false), {
+						1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Empty', undefined, undefined, true)),
+					}) as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
+				},
+			})
+
+			await new Promise(setImmediate)
+
+			const getByPathRes = await getByPathPromise
+			expect(getByPathRes).toBeTruthy()
+
+			const node = client.tree[1].children?.[1].children?.[1]
+			if (!node) throw new Error('Empty res') // really just a typeguard
+
+			// Request the empty node
+			const req = await client.getDirectory(node)
+
+			// lookup on the empty node
+			expect(onSocketWrite).toHaveBeenCalledTimes(3)
+			socket.mockData({
+				value: {
+					1: new QualifiedElementImpl<EmberElement>('1.1.1', new EmberNodeImpl()) as Exclude<
+						RootElement,
+						NumberedTreeNode<EmberElement>
+					>,
+				},
+			})
+
+			await new Promise(setImmediate)
+
+			const res = await req.response
+			expect(res).toBeTruthy()
 		})
 	})
 })

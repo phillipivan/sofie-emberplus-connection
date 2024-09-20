@@ -29,7 +29,7 @@ import { Connection, ConnectionDisposition, ConnectionOperation } from '../../mo
 import { EmberNode } from '../../model/EmberNode'
 import { EventEmitter } from 'eventemitter3'
 import { S101Client } from '../Socket'
-import { getPath, assertQualifiedEmberNode, insertCommand, updateProps } from '../Lib/util'
+import { getPath, assertQualifiedEmberNode, insertCommand, updateProps, isEmptyNode } from '../Lib/util'
 import { berEncode } from '../..'
 import { NumberedTreeNodeImpl } from '../../model/Tree'
 import { EmberFunction } from '../../model/EmberFunction'
@@ -70,6 +70,7 @@ export interface Subscription {
 export interface Change {
 	path: string | undefined
 	node: RootElement
+	emptyNode?: boolean
 }
 
 export enum ConnectionStatus {
@@ -386,8 +387,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		while (pathArr.length) {
 			const i = pathArr.shift()
-			if (!i) break // TODO - this will break the loop if the path was `1..0`
+			if (i === undefined) break // TODO - this will break the loop if the path was `1..0`
 			if (!tree) break
+
 			let next = getNextChild(tree, i)
 			if (!next) {
 				const req = await this.getDirectory(tree)
@@ -395,8 +397,15 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				next = getNextChild(tree, i)
 			}
 			tree = next
+
 			if (!tree) throw new Error(`Could not find node ${i} on given path ${numberedPath.join()}`)
 			if (tree?.number !== undefined) numberedPath.push(tree.number)
+		}
+
+		if (tree?.contents.type === ElementType.Parameter) {
+			// do an additional getDirectory because Providers do not _have_ to send updates without that (should vs shall)
+			const req = await this.getDirectory(tree)
+			await req.response
 		}
 
 		if (cb && numberedPath) {
@@ -505,7 +514,15 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			)
 			for (const req of reqs) {
 				// Don't complete the response, if the call was expecting the children to be loaded
-				if (req.nodeResponse === ExpectResponse.HasChildren && !change.node.children) continue
+				if (req.nodeResponse === ExpectResponse.HasChildren && !change.node.children) {
+					if (change.node.contents.type === ElementType.Parameter) {
+						// can't have children, therefore don't continue
+					} else if (change.emptyNode) {
+						// update comes from an empty node, so we can't continue anyway
+					} else {
+						continue
+					}
+				}
 
 				if (req.cb) req.cb(change.node)
 				if (req.resolve) {
@@ -588,9 +605,18 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					if (inserted) continue
 					changes.push(...this._updateTree(rootElement, tree))
 				} else {
-					if (this.tree[rootElement.number]) {
-						changes.push(...this._updateTree(rootElement, this.tree[rootElement.number]))
+					if (rootElement.children) {
+						if (this.tree[rootElement.number]) {
+							changes.push(...this._updateTree(rootElement, this.tree[rootElement.number]))
+						} else {
+							this.tree[rootElement.number] = rootElement
+							changes.push({ path: undefined, node: rootElement })
+						}
+					} else if (isEmptyNode(rootElement)) {
+						// empty node on the root of the tree must mean we have done a getDir on that specific node
+						changes.push({ path: rootElement.number + '', node: rootElement, emptyNode: true })
 					} else {
+						// this must have been something on the root of the tree (like GetDirectory)
 						this.tree[rootElement.number] = rootElement
 						changes.push({ path: undefined, node: rootElement })
 					}
@@ -605,7 +631,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const changes: Array<Change> = []
 
 		if (update.contents.type === tree.contents.type) {
-			changes.push({ path: getPath(tree), node: tree })
+			changes.push({ path: getPath(tree), node: tree, emptyNode: isEmptyNode(update) })
+			// changes.push({ path: getPath(tree), node: tree })
 			switch (tree.contents.type) {
 				case ElementType.Node:
 					this._updateEmberNode(update.contents as EmberNode, tree.contents)
@@ -628,6 +655,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		} else if (update.children) {
 			changes.push({ path: getPath(tree), node: tree })
 			tree.children = update.children
+			for (const c of Object.values<NumberedTreeNode<EmberElement>>(update.children)) {
+				c.parent = tree
+			}
 		}
 
 		return changes
