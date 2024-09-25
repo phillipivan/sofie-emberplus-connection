@@ -6,11 +6,16 @@ It has been tested with _Lawo Ruby_, _Lawo R3lay_, and _Lawo MxGUI_.
 
 The current version is very losely based on the original library and Mr Gilles Dufour's rewrites. It is however rewritten almost completely from scratch and bears little to no resemblance to earlier libraries.
 
-## General Sofie System Info
+### Repository-specific Info for Developers
+* [Developer Info](DEVELOPER.md)
+* [Contribution Guidelines](CONTRIBUTING.md)
+
+### General Sofie System Info
 * [Documentation](https://nrkno.github.io/sofie-core/)
 * [Releases](https://nrkno.github.io/sofie-core/releases)
-* [Contribution Guidelines](https://nrkno.github.io/sofie-core/docs/for-developers/contribution-guidelines)
-* [License](LICENSE)
+
+
+
 
 ---
 
@@ -81,7 +86,7 @@ client
 	)
 ```
 
-### Setting new value
+### Setting New Value
 
 ```javascript
 client = new EmberClient(LOCALHOST, PORT)
@@ -108,7 +113,7 @@ const req = await client.invoke(fn, 1, 2, 3)
 console.log('result', await req.response)
 ```
 
-### Basic server
+### Basic Server
 
 ```javascript
 const {
@@ -213,3 +218,6 @@ const tree = {
 
 s.init(tree) // initiate the provider with the tree
 ```
+---
+
+_The NRK logo is a registered trademark of Norsk rikskringkasting AS. The license does not grant any right to use, in any way, any trademarks, service marks or logos of Norsk rikskringkasting AS._
