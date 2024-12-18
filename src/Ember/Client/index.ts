@@ -24,7 +24,7 @@ import {
 	Subscribe,
 	Invoke,
 } from '../../model/Command'
-import { Parameter } from '../../model/Parameter'
+import { Parameter, ParameterType } from '../../model/Parameter'
 import { Connection, ConnectionDisposition, ConnectionOperation } from '../../model/Connection'
 import { EmberNode } from '../../model/EmberNode'
 import { EventEmitter } from 'eventemitter3'
@@ -34,6 +34,7 @@ import { berEncode } from '../..'
 import { NumberedTreeNodeImpl } from '../../model/Tree'
 import { EmberFunction } from '../../model/EmberFunction'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
+import { StreamEntry } from '../../model/StreamEntry'
 
 export type RequestPromise<T> = Promise<RequestPromiseArguments<T>>
 export interface RequestPromiseArguments<T> {
@@ -97,6 +98,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _lastInvocation = 0
 	private _client: S101Client
 	private _subscriptions: Array<Subscription> = []
+	private _streamSubscriptions: Map<number, (value: EmberValue) => void> = new Map()
 
 	private _timeout = 3000
 	private _resendTimeout = 1000
@@ -126,6 +128,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		this._client = new S101Client(this.host, this.port)
 		this._client.on('emberTree', (tree: DecodeResult<Root>) => this._handleIncoming(tree))
+		this._client.on('streamPacket', (entries) => this._handleStreamPacket(entries))
 
 		this._client.on('error', (e) => this.emit('error', e))
 		this._client.on('connected', () => this.emit('connected'))
@@ -222,22 +225,38 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		const command: Subscribe = new SubscribeImpl()
 
-		if (Array.isArray(node)) {
+		// Handle stream subscriptions
+		if (
+			'contents' in node &&
+			node.contents.type === ElementType.Parameter &&
+			node.contents.streamIdentifier !== undefined
+		) {
+			this._streamSubscriptions.set(node.contents.streamIdentifier, (value: EmberValue) => {
+				if (cb) {
+					const updatedNode = { ...node }
+					if ('value' in updatedNode.contents) {
+						updatedNode.contents.value = value
+						cb(updatedNode)
+					}
+				}
+			})
+		} else {
+			if (Array.isArray(node)) {
+				if (cb)
+					this._subscriptions.push({
+						path: undefined,
+						cb,
+					})
+
+				return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
+			}
+
 			if (cb)
 				this._subscriptions.push({
-					path: undefined,
+					path: getPath(node),
 					cb,
 				})
-
-			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
 		}
-
-		if (cb)
-			this._subscriptions.push({
-				path: getPath(node),
-				cb,
-			})
-
 		return this._sendCommand<void>(node, command, ExpectResponse.None)
 	}
 	async unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>): RequestPromise<Root | void> {
@@ -292,8 +311,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		const qualifiedParam = assertQualifiedEmberNode(node) as QualifiedElement<Parameter>
 
-		// TODO - validate value
-		// TODO - should other properties be scrapped?
+		if (!('value' in qualifiedParam.contents)) {
+			throw new Error('Node is not a parameter')
+		}
+
 		qualifiedParam.contents.value = value
 
 		return this._sendRequest<TreeElement<Parameter>>(
@@ -496,6 +517,28 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 	private _handleIncoming(incoming: DecodeResult<Root>) {
 		const node = incoming.value
+
+		// Check if this is a stream entry
+		if (Array.isArray(node) && node[0] && 'identifier' in node[0]) {
+			// This is a stream entry
+			const entries = node as StreamEntry[]
+			entries.forEach((entry) => {
+				// Find any subscriptions for this stream
+				const callback = this._streamSubscriptions.get(entry.identifier)
+				if (callback && entry.value) {
+					// For audio level data, extract the value properly
+					if (entry.value.type === ParameterType.Octets && Buffer.isBuffer(entry.value.value)) {
+						const view = new DataView(entry.value.value.buffer)
+						// Assuming 32-bit float in little-endian format
+						const value = view.getFloat32(0, true)
+						callback(value)
+					} else {
+						callback(entry.value.value)
+					}
+				}
+			})
+			return
+		}
 		// update tree:
 		const changes = this._applyRootToTree(node)
 
@@ -534,6 +577,23 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		// at last, emit the errors for logging purposes
 		incoming.errors?.forEach((e) => this.emit('warn', e))
+	}
+
+	private _handleStreamPacket(entries: StreamEntry[]): void {
+		entries.forEach((entry) => {
+			const callback = this._streamSubscriptions.get(entry.identifier)
+			if (callback && entry.value) {
+				// Handle Octets value properly
+				if (entry.value.type === ParameterType.Octets && Buffer.isBuffer(entry.value.value)) {
+					// For audio level data, we can extract the first value if needed
+					const view = new DataView(entry.value.value.buffer)
+					const value = view.getFloat32(0, true) // Get first value, assuming little-endian
+					callback(value)
+				} else {
+					callback(entry.value.value)
+				}
+			}
+		})
 	}
 
 	private _applyRootToTree(node: Root): Array<Change> {

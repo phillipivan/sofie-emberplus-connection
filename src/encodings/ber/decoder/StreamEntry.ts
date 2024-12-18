@@ -54,6 +54,10 @@ function decodeStreamEntry(reader: Ber.Reader, options: DecodeOptions = defaultD
 				break
 			case Ber.CONTEXT(1):
 				value = reader.readValue()
+				// If type is Octets, ensure proper Buffer handling
+				if (value.type === ParameterType.Octets && typeof value.value === 'string') {
+					value.value = Buffer.from(value.value)
+				}
 				break
 			case 0:
 				break // indefinite length

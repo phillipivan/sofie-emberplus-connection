@@ -2,6 +2,10 @@ import { EventEmitter } from 'eventemitter3'
 import { SmartBuffer } from 'smart-buffer'
 import Debug from 'debug'
 import { format } from 'util'
+import { ParameterType, StreamEntry } from '../model'
+import { decodeStreamEntries } from '../encodings/ber/decoder/StreamEntry'
+import { Reader } from '../Ber'
+import { guarded } from '../encodings/ber/decoder/DecodeResult'
 const debug = Debug('emberplus-connection:S101Codec')
 
 const S101_BOF = 0xfe
@@ -56,12 +60,16 @@ export type S101CodecEvents = {
 	emberPacket: [packet: Buffer]
 	keepaliveReq: []
 	keepaliveResp: []
+	streamPacket: [entries: StreamEntry[]]
 }
 
 export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	inbuf = new SmartBuffer()
 	emberbuf = new SmartBuffer()
 	escaped = false
+
+	private multiPacketBuffer?: SmartBuffer
+	private isMultiPacket = false
 
 	dataIn(buf: Buffer): void {
 		for (let i = 0; i < buf.length; i++) {
@@ -105,10 +113,111 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			debug('received keepalive response')
 			this.emit('keepaliveResp')
 		} else if (command === CMD_EMBER) {
-			this.handleEmberFrame(frame)
+			const remainingData = frame.readBuffer()
+			const emberFrame = SmartBuffer.fromBuffer(remainingData)
+
+			emberFrame.skip(1) // Skip version byte
+			const flags = emberFrame.readUInt8()
+
+			emberFrame.skip(1) // Skip dtd byte
+			const appBytes = emberFrame.readUInt8()
+
+			if (appBytes > 0) {
+				emberFrame.readBuffer(appBytes)
+			}
+
+			try {
+				const payload = emberFrame.readBuffer()
+				const data = payload.slice(0, payload.length - 2) // Remove CRC
+
+				// Check first byte to determine packet type before processing
+				const packetType = data[0]
+
+				if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
+					// Single packet message (0xC0)
+					if ((flags & FLAG_EMPTY_PACKET) === 0) {
+						if (packetType === 0x66) {
+							// Stream Collection
+							const reader = new Reader(data)
+							const entries = guarded(decodeStreamEntries(reader))
+							this.emit('streamPacket', entries)
+						} else if (packetType === 0x60) {
+							// Root Ember Element
+							this.emit('emberPacket', data)
+						} else {
+							console.log('Unknown packet type:', packetType)
+						}
+					}
+				} else if (this.isMultiPacket && this.multiPacketBuffer) {
+					this.multiPacketBuffer.writeBuffer(data)
+
+					if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
+						const completeData = this.multiPacketBuffer.toBuffer()
+						const completePacketType = completeData[0]
+
+						if (completePacketType === 0x66) {
+							const reader = new Reader(completeData)
+							const entries = guarded(decodeStreamEntries(reader))
+							this.emit('streamPacket', entries)
+						} else if (completePacketType === 0x60) {
+							this.emit('emberPacket', completeData)
+						}
+
+						this.multiPacketBuffer = undefined
+						this.isMultiPacket = false
+					}
+				} else if ((flags & FLAG_FIRST_MULTI_PACKET) === FLAG_FIRST_MULTI_PACKET) {
+					console.log('Starting multi-packet message')
+					this.multiPacketBuffer = new SmartBuffer()
+					this.multiPacketBuffer.writeBuffer(data)
+					this.isMultiPacket = true
+				}
+			} catch (error) {
+				// Clean up if error occurs during multi-packet processing
+				this.resetMultiPacketBuffer()
+				throw new Error('Error processing frame:' + JSON.stringify(error, null, 2))
+			}
 		} else {
 			throw new Error(format('dropping frame of length %d with unknown command %d', frame.length, command))
 		}
+	}
+
+	handleStreamFrame(frame: SmartBuffer): void {
+		const reader = new Reader(frame.toBuffer())
+		const entries = guarded(decodeStreamEntries(reader))
+		this.emit('streamPacket', entries)
+
+		// Process each stream entry individually
+		entries.forEach((entry) => {
+			// For audio level data stored as octets, extract the values
+			if (entry.value.type === ParameterType.Octets && Buffer.isBuffer(entry.value.value)) {
+				const buffer = entry.value.value
+				const values = []
+
+				// Assuming each value is a 32-bit float in little-endian
+				for (let i = 0; i < buffer.length; i += 4) {
+					values.push(buffer.readFloatLE(i))
+				}
+
+				// Emit the processed values
+				this.emit('streamPacket', [
+					{
+						identifier: entry.identifier,
+						value: {
+							type: ParameterType.Real,
+							value: values[0], // Emit first value or handle multiple values as needed
+						},
+					},
+				])
+			} else {
+				this.emit('streamPacket', [entry])
+			}
+		})
+	}
+
+	// Cleanup if multi-packet message is not completed
+	resetMultiPacketBuffer(): void {
+		this.multiPacketBuffer = undefined
 	}
 
 	handleEmberFrame(frame: SmartBuffer): void {
@@ -122,15 +231,16 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		}
 
 		if (dtd !== DTD_GLOW) {
-			throw new Error('Dropping frame with non-Glow DTD')
+			// Don't throw, just warn and continue processing
+			debug('Warning: Received frame with DTD %d, expected %d', dtd, DTD_GLOW)
 		}
 
 		if (appBytes < 2) {
 			debug('Warning: Frame missing Glow DTD version')
 			frame.skip(appBytes)
 		} else {
-			frame.readUInt8() // glowMinor
-			frame.readUInt8() // glowMajor
+			frame.skip(1) // Skip minor version
+			frame.skip(1) // Skip major version
 			appBytes -= 2
 			if (appBytes > 0) {
 				frame.skip(appBytes)
