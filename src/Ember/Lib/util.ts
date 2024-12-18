@@ -91,17 +91,15 @@ export function isEmptyNode(node: TreeElement<EmberElement>): boolean {
 		return false
 	}
 
-	if (
-		node.contents.description ??
-		node.contents.identifier ??
-		node.contents.isOnline ??
-		node.contents.isRoot ??
-		node.contents.schemaIdentifiers ??
-		node.contents.templateReference
-	) {
-		return false
-	}
+	// Check if any of these properties have a value, including empty strings as a node with an empty description is not empty)
+	const notEmpty = [
+		node.contents.description,
+		node.contents.identifier,
+		node.contents.isOnline,
+		node.contents.isRoot,
+		node.contents.schemaIdentifiers,
+		node.contents.templateReference,
+	].some((value) => value !== undefined && value !== null)
 
-	// node is a node, node has no children, node has no properties set => node must be empty
-	return true
+	return !notEmpty
 }
