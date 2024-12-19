@@ -2,10 +2,12 @@ import { EventEmitter } from 'eventemitter3'
 import { SmartBuffer } from 'smart-buffer'
 import Debug from 'debug'
 import { format } from 'util'
-import { ParameterType, StreamEntry } from '../model'
 import { decodeStreamEntries } from '../encodings/ber/decoder/StreamEntry'
 import { Reader } from '../Ber'
-import { guarded } from '../encodings/ber/decoder/DecodeResult'
+import { DecodeResult } from '../encodings/ber/decoder/DecodeResult'
+import { berDecode, berEncode } from '../encodings/ber'
+import { Root, RootType } from '../types'
+import { ParameterType } from '../model'
 const debug = Debug('emberplus-connection:S101Codec')
 
 const S101_BOF = 0xfe
@@ -60,7 +62,6 @@ export type S101CodecEvents = {
 	emberPacket: [packet: Buffer]
 	keepaliveReq: []
 	keepaliveResp: []
-	streamPacket: [entries: StreamEntry[]]
 }
 
 export default class S101Codec extends EventEmitter<S101CodecEvents> {
@@ -130,47 +131,25 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 				const payload = emberFrame.readBuffer()
 				const data = payload.slice(0, payload.length - 2) // Remove CRC
 
-				// Check first byte to determine packet type before processing
-				const packetType = data[0]
-
 				if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
-					// Single packet message (0xC0)
 					if ((flags & FLAG_EMPTY_PACKET) === 0) {
-						if (packetType === 0x66) {
-							// Stream Collection
-							const reader = new Reader(data)
-							const entries = guarded(decodeStreamEntries(reader))
-							this.emit('streamPacket', entries)
-						} else if (packetType === 0x60) {
-							// Root Ember Element
-							this.emit('emberPacket', data)
-						} else {
-							console.log('Unknown packet type:', packetType)
+						this.handlePacket(data)
+					}
+				} else {
+					// Multi-packet handling
+					if ((flags & FLAG_FIRST_MULTI_PACKET) === FLAG_FIRST_MULTI_PACKET) {
+						this.multiPacketBuffer = new SmartBuffer()
+						this.isMultiPacket = true
+						this.multiPacketBuffer.writeBuffer(data)
+					} else if (this.isMultiPacket && this.multiPacketBuffer) {
+						this.multiPacketBuffer.writeBuffer(data)
+
+						if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
+							const completeData = this.multiPacketBuffer.toBuffer()
+							this.handlePacket(completeData)
+							this.resetMultiPacketBuffer()
 						}
 					}
-				} else if (this.isMultiPacket && this.multiPacketBuffer) {
-					this.multiPacketBuffer.writeBuffer(data)
-
-					if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
-						const completeData = this.multiPacketBuffer.toBuffer()
-						const completePacketType = completeData[0]
-
-						if (completePacketType === 0x66) {
-							const reader = new Reader(completeData)
-							const entries = guarded(decodeStreamEntries(reader))
-							this.emit('streamPacket', entries)
-						} else if (completePacketType === 0x60) {
-							this.emit('emberPacket', completeData)
-						}
-
-						this.multiPacketBuffer = undefined
-						this.isMultiPacket = false
-					}
-				} else if ((flags & FLAG_FIRST_MULTI_PACKET) === FLAG_FIRST_MULTI_PACKET) {
-					console.log('Starting multi-packet message')
-					this.multiPacketBuffer = new SmartBuffer()
-					this.multiPacketBuffer.writeBuffer(data)
-					this.isMultiPacket = true
 				}
 			} catch (error) {
 				// Clean up if error occurs during multi-packet processing
@@ -182,37 +161,74 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		}
 	}
 
-	handleStreamFrame(frame: SmartBuffer): void {
-		const reader = new Reader(frame.toBuffer())
-		const entries = guarded(decodeStreamEntries(reader))
-		this.emit('streamPacket', entries)
+	private handlePacket(data: Buffer): void {
+		const packetType = data[0]
 
-		// Process each stream entry individually
-		entries.forEach((entry) => {
-			// For audio level data stored as octets, extract the values
-			if (entry.value.type === ParameterType.Octets && Buffer.isBuffer(entry.value.value)) {
-				const buffer = entry.value.value
-				const values = []
+		if (packetType === 0x60) {
+			// Standard Ember packet
+			try {
+				// Handle both regular ember data and stream data within 0x60 packets
+				const decoded = berDecode(data)
+				if (decoded.value) {
+					// Emit the standard ember packet
+					this.emit('emberPacket', data)
 
-				// Assuming each value is a 32-bit float in little-endian
-				for (let i = 0; i < buffer.length; i += 4) {
-					values.push(buffer.readFloatLE(i))
+					// Check if the decoded data contains stream entries
+					if (this.hasStreamData(decoded)) {
+						this.handleStreamData(decoded)
+					}
 				}
-
-				// Emit the processed values
-				this.emit('streamPacket', [
-					{
-						identifier: entry.identifier,
-						value: {
-							type: ParameterType.Real,
-							value: values[0], // Emit first value or handle multiple values as needed
-						},
-					},
-				])
-			} else {
-				this.emit('streamPacket', [entry])
+			} catch (error) {
+				console.error('Error decoding 0x60 packet:', error)
 			}
-		})
+		} else if (packetType === 0x66) {
+			// Direct stream packet
+			try {
+				const reader = new Reader(data)
+				const entries = decodeStreamEntries(reader)
+				this.handleStreamEntries(entries)
+			} catch (error) {
+				console.error('Error decoding 0x66 packet:', error)
+			}
+		}
+	}
+
+	//@ts-ignore - this method is not yet implemented and will be based on log output
+	private hasStreamData(decoded: DecodeResult<Root>): boolean {
+		// Check if the decoded data contains stream-related identifiers or structures
+		// This would depend on your specific protocol implementation
+		return false // Implement based on your ember protocol details
+	}
+
+	//@ts-ignore - this method is not yet implemented and will be based on log output
+	private handleStreamData(decoded: DecodeResult<Root>): void {
+		console.log('Stream data:', decoded)
+		// Extract stream data from regular ember packet and emit through subscription
+		// Implementation depends on your ember protocol details
+	}
+
+	private handleStreamEntries(entries: DecodeResult<any>): void {
+		if (entries.value) {
+			entries.value.forEach((entry: any) => {
+				if (entry.value?.type === ParameterType.Octets && Buffer.isBuffer(entry.value.value)) {
+					// Convert octets to appropriate value type
+					const buffer = entry.value.value
+					const value = buffer.readFloatLE(0)
+
+					// Create ember-style update for subscriptions
+					const emberUpdate = {
+						number: entry.identifier,
+						contents: {
+							value,
+							type: ParameterType.Real,
+						},
+					}
+
+					// Emit as regular ember packet to trigger subscriptions
+					this.emit('emberPacket', berEncode(emberUpdate, RootType.Elements))
+				}
+			})
+		}
 	}
 
 	// Cleanup if multi-packet message is not completed
