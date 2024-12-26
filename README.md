@@ -7,15 +7,14 @@ It has been tested with _Lawo Ruby_, _Lawo R3lay_, and _Lawo MxGUI_.
 The current version is very losely based on the original library and Mr Gilles Dufour's rewrites. It is however rewritten almost completely from scratch and bears little to no resemblance to earlier libraries.
 
 ### Repository-specific Info for Developers
-* [Developer Info](DEVELOPER.md)
-* [Contribution Guidelines](CONTRIBUTING.md)
+
+- [Developer Info](DEVELOPER.md)
+- [Contribution Guidelines](CONTRIBUTING.md)
 
 ### General Sofie System Info
-* [Documentation](https://nrkno.github.io/sofie-core/)
-* [Releases](https://nrkno.github.io/sofie-core/releases)
 
-
-
+- [Documentation](https://nrkno.github.io/sofie-core/)
+- [Releases](https://nrkno.github.io/sofie-core/releases)
 
 ---
 
@@ -26,12 +25,20 @@ The current version is very losely based on the original library and Mr Gilles D
 Get Full tree:
 
 ```javascript
-const { EmberClient } = require('emberplus-connection');
+const { EmberClient, StreamManager } = require('emberplus-connection');
 const client = new EmberClient("10.9.8.7", 9000);
 client.on("error", e => {
    console.log(e);
 });
 await client.connect()
+
+// If you want to listen to stream updates - you can do it like this:
+StreamManager.getInstance().on('streamUpdate', (path, value) => {
+	console.log('Stream Update:', {
+		path: path,
+		value: value,
+	})
+})
 // Get Root info
 const req = await client.getDirectory(client.tree)
 await req.response
@@ -91,7 +98,9 @@ client
 ```javascript
 client = new EmberClient(LOCALHOST, PORT)
 await client.connect()
-await (await client.getDirectory()).response
+await (
+	await client.getDirectory()
+).response
 const req = await client.setValue(await client.getElementByPath('0.0.1'), 'gdnet')
 await req.response
 console.log('result', req.response)
@@ -107,7 +116,9 @@ const { EmberClient, EmberLib } = require('node-emberplus')
 
 const client = new EmberClient(HOST, PORT)
 await client.connect()
-await (await client.getDirectory()).response
+await (
+	await client.getDirectory()
+).response
 const fn = await client.getElementByPath('path.to.function')
 const req = await client.invoke(fn, 1, 2, 3)
 console.log('result', await req.response)
@@ -126,7 +137,7 @@ const {
 	ParameterAccess,
 	MatrixImpl,
 	MatrixType,
-	MatrixAddressingMode
+	MatrixAddressingMode,
 } = require('emberplus-connection')
 
 const s = new EmberServer(9000) // start server on port 9000
@@ -187,14 +198,14 @@ const tree = {
 					undefined,
 					ParameterAccess.ReadWrite
 				)
-			)
+			),
 		}),
 
 		2: new NumberedTreeNodeImpl(2, new EmberNodeImpl('Functions', undefined, undefined, true), {
 			1: new NumberedTreeNodeImpl(
 				1,
 				new EmberFunctionImpl(undefined, undefined) //, [{ type: ParameterType.Boolean, name: 'Test' }])
-			)
+			),
 		}),
 
 		3: new NumberedTreeNodeImpl(3, new EmberNodeImpl('Matrices', undefined, undefined, true), {
@@ -211,13 +222,14 @@ const tree = {
 					5,
 					5
 				)
-			)
-		})
-	})
+			),
+		}),
+	}),
 }
 
 s.init(tree) // initiate the provider with the tree
 ```
+
 ---
 
 _The NRK logo is a registered trademark of Norsk rikskringkasting AS. The license does not grant any right to use, in any way, any trademarks, service marks or logos of Norsk rikskringkasting AS._
