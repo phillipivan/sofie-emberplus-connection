@@ -31,15 +31,17 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 	}
 
 	public registerParameter(parameter: Parameter, path: string): void {
-		if (!parameter.streamIdentifier || parameter.streamDescriptor?.offset === undefined) {
+		if (!parameter.streamIdentifier) {
 			return
 		}
+
+		const offset = parameter.streamDescriptor?.offset || 0
 
 		const streamInfo: StreamInfo = {
 			parameter,
 			path,
 			streamIdentifier: parameter.streamIdentifier,
-			offset: parameter.streamDescriptor.offset,
+			offset: offset,
 		}
 
 		// Store both mappings
@@ -48,7 +50,7 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 		console.log('Registered stream:', {
 			path: path,
 			identifier: parameter.identifier,
-			offset: parameter.streamDescriptor.offset,
+			offset: offset,
 		})
 	}
 
@@ -76,10 +78,14 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 			this.registeredStreams.forEach((streamInfo, path) => {
 				// Only process if IDs match
 				if (streamInfo.streamIdentifier === streamEntry.identifier) {
-					// If this is a stream with a descriptor and we have a value
-					if (streamInfo.parameter.streamDescriptor !== undefined && streamEntry.value !== undefined) {
+					if (streamEntry.value) {
 						const value = streamEntry.value
-						if (value.type === ParameterType.Octets && Buffer.isBuffer(value.value)) {
+
+						if (value.type === ParameterType.Integer) {
+							// Handle direct integer values
+							this.updateStreamValue(path, value.value)
+						} else if (value.type === ParameterType.Octets && Buffer.isBuffer(value.value)) {
+							// Handle existing float32 buffer case
 							const buffer = value.value
 							if (buffer.length >= streamInfo.offset + 4) {
 								// Float32 is 4 bytes
