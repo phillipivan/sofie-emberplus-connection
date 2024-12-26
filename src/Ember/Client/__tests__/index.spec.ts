@@ -6,11 +6,15 @@ import {
 	ParameterImpl,
 	ParameterType,
 	QualifiedElementImpl,
+	StreamFormat,
 } from '../../../model'
-import { Collection, Root, RootElement } from '../../../types/types'
+import { Collection, EmberTypedValue, Root, RootElement } from '../../../types/types'
 import { EmberClient } from '../'
 import S101ClientMock from '../../../__mocks__/S101Client'
 import { DecodeResult } from '../../../encodings/ber/decoder/DecodeResult'
+import { StreamDescriptionImpl } from '../../../model/StreamDescription'
+import StreamManager from '../StreamManager'
+import { StreamEntryImpl } from '../../../model/StreamEntry'
 // import { EmberTreeNode, RootElement } from '../../../types/types'
 // import { ElementType, EmberElement } from '../../../model/EmberElement'
 // import { Parameter, ParameterType } from '../../../model/Parameter'
@@ -104,6 +108,40 @@ describe('client', () => {
 			value: {
 				0: parent as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
 			},
+		}
+	}
+
+	function createStreamParameter(opts: {
+		identifier: string
+		streamId: number
+		value?: number
+		offset?: number
+		format?: StreamFormat
+	}) {
+		return new ParameterImpl(
+			ParameterType.Real,
+			opts.identifier,
+			undefined, // description
+			opts.value ?? 0.0,
+			undefined, // maximum
+			undefined, // minimum
+			undefined, // access
+			undefined, // format
+			undefined, // enumeration
+			undefined, // factor
+			undefined, // isOnline
+			undefined, // formula
+			undefined, // step
+			undefined, // defaultValue
+			opts.streamId,
+			undefined, // enumMap
+			new StreamDescriptionImpl(opts.format ?? StreamFormat.Float32LE, opts.offset ?? 0)
+		)
+	}
+
+	function createStreamEntryResponse(entries: Array<{ identifier: number; value: EmberTypedValue }>) {
+		return {
+			value: entries.map((entry) => new StreamEntryImpl(entry.identifier, entry.value)),
 		}
 	}
 
@@ -380,6 +418,235 @@ describe('client', () => {
 
 			const res = await req.response
 			expect(res).toBeTruthy()
+		})
+	})
+
+	describe('StreamManager Integration', () => {
+		it('registers stream parameter when subscribing', async () => {
+			await runWithConnection(async (client, socket) => {
+				const streamParam = createStreamParameter({
+					identifier: 'test-stream',
+					streamId: 1,
+					value: 0.5,
+					offset: 0,
+				})
+
+				const paramNode = new NumberedTreeNodeImpl(1, streamParam)
+
+				// Subscribe to parameter
+				const subscribeReq = await client.subscribe(paramNode)
+				subscribeReq.response?.catch(() => null)
+
+				expect(onSocketWrite).toHaveBeenCalledTimes(1)
+
+				// Mock successful subscription
+				socket.mockData(createQualifiedNodeResponse('1', streamParam, undefined))
+
+				// Wait for registration to complete
+				await new Promise(setImmediate)
+
+				// Get StreamManager instance and check registration
+				const streamManager = StreamManager.getInstance()
+				const streamInfo = streamManager.getStreamInfoByPath('1')
+
+				expect(streamInfo).toBeDefined()
+				expect(streamInfo?.parameter.streamIdentifier).toBe(1)
+				expect(streamInfo?.parameter.value).toBe(0.5)
+			})
+		})
+
+		it('deregisters stream parameter when unsubscribing', async () => {
+			await runWithConnection(async (client, socket) => {
+				const streamParam = createStreamParameter({
+					identifier: 'test-stream',
+					streamId: 1,
+				})
+
+				const paramNode = new NumberedTreeNodeImpl(1, streamParam)
+
+				// First subscribe
+				const subscribeReq = await client.subscribe(paramNode)
+				subscribeReq.response?.catch(() => null)
+
+				socket.mockData(createQualifiedNodeResponse('1', streamParam, undefined))
+
+				await new Promise(setImmediate)
+
+				// Then unsubscribe
+				const unsubscribeReq = await client.unsubscribe(paramNode)
+				unsubscribeReq.response?.catch(() => null)
+
+				socket.mockData(createQualifiedNodeResponse('1', streamParam, undefined))
+
+				// Mock receiving stream data
+				const streamData = createStreamEntryResponse([
+					{
+						identifier: 1,
+						value: { type: ParameterType.Real, value: 42.5 },
+					},
+				])
+				socket.mockData(streamData)
+
+				await new Promise(setImmediate)
+
+				// Check parameter was deregistered
+				const streamManager = StreamManager.getInstance()
+				const streamInfo = streamManager.getStreamInfoByPath('1')
+
+				expect(streamInfo).toBeUndefined()
+			})
+		})
+
+		it('updates stream values when receiving stream data', async () => {
+			await runWithConnection(async (client, socket) => {
+				const streamParam = createStreamParameter({
+					identifier: 'test-stream',
+					streamId: 1,
+					value: 0,
+				})
+
+				const paramNode = new NumberedTreeNodeImpl(1, streamParam)
+
+				// Subscribe to parameter
+				const subscribeReq = await client.subscribe(paramNode)
+				subscribeReq.response?.catch(() => null)
+
+				socket.mockData(createQualifiedNodeResponse('1', streamParam, undefined))
+
+				await new Promise(setImmediate)
+
+				// Mock receiving stream data
+				const streamData: DecodeResult<Root> = {
+					value: [
+						{
+							identifier: 1,
+							value: { type: ParameterType.Real, value: 42.5 },
+						},
+					],
+				}
+				socket.mockData(streamData)
+
+				await new Promise(setImmediate)
+
+				// Check value was updated
+				const streamManager = StreamManager.getInstance()
+				const streamInfo = streamManager.getStreamInfoByPath('1')
+
+				expect(streamInfo?.parameter.value).toBe(42.5)
+			})
+		})
+
+		it('processes stream data with specific offsets', async () => {
+			await runWithConnection(async (client, socket) => {
+				// Create test parameters with specific offsets
+				const streamParam1 = createStreamParameter({
+					identifier: '1.3.17.3',
+					streamId: 1,
+					offset: 64, // Specific offset from example
+					format: StreamFormat.Float32LE,
+				})
+
+				const streamParam2 = createStreamParameter({
+					identifier: '1.3.18.3',
+					streamId: 1,
+					offset: 68, // Specific offset from example
+					format: StreamFormat.Float32LE,
+				})
+
+				const param1Node = new NumberedTreeNodeImpl(1, streamParam1)
+				const param2Node = new NumberedTreeNodeImpl(2, streamParam2)
+
+				// Subscribe to parameters
+				const subscribe1 = await client.subscribe(param1Node)
+				const subscribe2 = await client.subscribe(param2Node)
+
+				subscribe1.response?.catch(() => null)
+				subscribe2.response?.catch(() => null)
+
+				// Mock successful subscriptions
+				socket.mockData(createQualifiedNodeResponse('1.3.17.3', streamParam1, undefined))
+				socket.mockData(createQualifiedNodeResponse('1.3.18.3', streamParam2, undefined))
+
+				await new Promise(setImmediate)
+
+				// Create test buffer with the specific values
+				const buffer = Buffer.from([
+					0, 0, 72, 195, 0, 0, 72, 195, 0, 0, 72, 195, 0, 0, 72, 195, 0, 0, 72, 195, 0, 0, 72, 195, 0, 0, 72, 195, 0, 0,
+					72, 195, 0, 0, 72, 195, 0, 0, 72, 195, 0, 0, 72, 195, 0, 0, 72, 195, 0, 0, 72, 195, 0, 0, 72, 195, 0, 0, 72,
+					195, 0, 0, 72, 195, 116, 183, 30, 194, 182, 225, 190, 193,
+				])
+
+				// Mock receiving stream data
+				const streamData: DecodeResult<Root> = {
+					value: [
+						{
+							identifier: 1,
+							value: {
+								type: ParameterType.Octets,
+								value: buffer,
+							},
+						},
+					],
+				}
+
+				socket.mockData(streamData)
+				await new Promise(setImmediate)
+
+				// Get StreamManager instance and verify values
+				const streamManager = StreamManager.getInstance()
+
+				const stream1 = streamManager.getStreamInfoByPath('1.3.17.3')
+				const stream2 = streamManager.getStreamInfoByPath('1.3.18.3')
+
+				expect(stream1?.parameter.value).toBeCloseTo(-39.67915344238281)
+				expect(stream2?.parameter.value).toBeCloseTo(-23.860210418701172)
+			})
+		})
+
+		it('handles octet stream values correctly', async () => {
+			const offSet = 12
+			await runWithConnection(async (client, socket) => {
+				const streamParam = createStreamParameter({
+					identifier: 'audio-level',
+					streamId: 1,
+					offset: offSet,
+					value: 0,
+					format: StreamFormat.Float32LE,
+				})
+
+				const paramNode = new NumberedTreeNodeImpl(1, streamParam)
+
+				// Subscribe to parameter
+				const subscribeReq = await client.subscribe(paramNode)
+				subscribeReq.response?.catch(() => null)
+
+				socket.mockData(createQualifiedNodeResponse('1', streamParam, undefined))
+
+				await new Promise(setImmediate)
+
+				// Create buffer with float32 value
+				const buffer = Buffer.alloc(16)
+				buffer.writeFloatLE(-6.5, offSet)
+
+				// Mock receiving octet stream data
+				const streamData = {
+					value: [
+						{
+							identifier: 1,
+							value: { type: ParameterType.Octets, value: buffer },
+						},
+					],
+				}
+				socket.mockData(streamData)
+
+				await new Promise(setImmediate)
+
+				// Check value was decoded correctly
+				const streamManager = StreamManager.getInstance()
+				const streamInfo = streamManager.getStreamInfoByPath('1')
+
+				expect(streamInfo?.parameter.value).toBeCloseTo(-6.5)
+			})
 		})
 	})
 })
