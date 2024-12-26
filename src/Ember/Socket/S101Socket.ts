@@ -7,7 +7,6 @@ import { ConnectionStatus } from '../Client'
 import { normalizeError } from '../Lib/util'
 import { Root } from '../../types'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
-import { StreamEntry } from '../../model'
 
 export type Request = any
 
@@ -18,7 +17,6 @@ export type S101SocketEvents = {
 	connecting: []
 	connected: []
 	disconnected: []
-	streamPacket: [entries: StreamEntry[]]
 }
 
 export default class S101Socket extends EventEmitter<S101SocketEvents> {
