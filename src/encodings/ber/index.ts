@@ -61,9 +61,6 @@ function berDecode(b: Buffer, options: DecodeOptions = defaultDecode): DecodeRes
 	reader.readSequence(tag)
 	const rootSeqType = reader.peek()
 
-	// Add debug logging
-	console.log('Root sequence type:', rootSeqType, '(0x' + rootSeqType?.toString(16) + ')')
-
 	if (rootSeqType === RootElementsBERID) {
 		// RootElementCollection
 		const root: DecodeResult<Collection<RootElement>> = decodeRootElements(reader, options)

@@ -1,4 +1,5 @@
 import { EmberClient, EmberClientEvents } from './Ember/Client/index'
+import { StreamManager, StreamManagerEvents } from './Ember/Client/StreamManager'
 import { EmberLib } from './Ember/Lib/index'
 import { EmberServer, EmberServerEvents } from './Ember/Server/index'
 import { S101Codec } from './S101/index'
@@ -40,6 +41,8 @@ const Decoder = EmberLib.DecodeBuffer
 
 export {
 	EmberClient,
+	StreamManagerEvents,
+	StreamManager,
 	EmberClientEvents,
 	Decoder,
 	EmberLib,

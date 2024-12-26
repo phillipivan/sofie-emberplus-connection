@@ -1,6 +1,7 @@
 import { EmberBaseElement, ElementType, isEmberElement } from './EmberElement'
 import { EmberValue, MinMax, StringIntegerCollection, RelativeOID } from '../types/types'
 import { StreamDescription } from './StreamDescription'
+import { StreamManager } from '../Ember/Client/StreamManager'
 
 export { Parameter, ParameterType, ParameterAccess, isParameter, ParameterImpl }
 
@@ -123,4 +124,59 @@ class ParameterImpl implements Parameter {
 		public schemaIdentifiers?: string,
 		public templateReference?: RelativeOID
 	) {}
+}
+
+// Define interface for stream-capable parameters
+export interface StreamCapableParameter extends EmberBaseElement {
+	type: ElementType.Parameter
+	streamIdentifier?: number
+	streamDescriptor?: StreamDescription
+	value?: EmberValue
+}
+
+// Define interface for the methods we'll add
+export interface StreamMethods {
+	setStreamIdentifier(value: number | undefined): void
+	hasStreamIdentifier(): boolean
+	subscribed(): void
+	unsubscribed(): void
+}
+
+type Constructor<T = object> = new (...args: any[]) => T
+
+// Create a mixin function that adds stream capabilities
+export function withStreamSupport<TBase extends Constructor<Parameter>>(
+	Base: TBase
+): TBase & Constructor<StreamMethods> {
+	return class extends Base implements StreamMethods {
+		setStreamIdentifier(value: number | undefined): void {
+			if (this.streamIdentifier !== value) {
+				const hadStream = this.hasStreamIdentifier()
+				this.streamIdentifier = value
+
+				// If stream status changed, update registration
+				if (hadStream !== this.hasStreamIdentifier()) {
+					if (this.hasStreamIdentifier()) {
+						this.subscribed()
+					} else {
+						this.unsubscribed()
+					}
+				}
+			}
+		}
+
+		hasStreamIdentifier(): boolean {
+			return typeof this.streamIdentifier === 'number'
+		}
+
+		subscribed(): void {
+			if (this.hasStreamIdentifier() || this.streamDescriptor) {
+				StreamManager.getInstance().registerParameter(this)
+			}
+		}
+
+		unsubscribed(): void {
+			StreamManager.getInstance().unregisterParameter(this)
+		}
+	}
 }

@@ -30,7 +30,7 @@ import { EmberNode } from '../../model/EmberNode'
 import { EventEmitter } from 'eventemitter3'
 import { S101Client } from '../Socket'
 import { getPath, assertQualifiedEmberNode, insertCommand, updateProps, isEmptyNode } from '../Lib/util'
-import { berEncode } from '../..'
+import { berEncode, StreamManager } from '../..'
 import { NumberedTreeNodeImpl } from '../../model/Tree'
 import { EmberFunction } from '../../model/EmberFunction'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
@@ -128,7 +128,6 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		this._client = new S101Client(this.host, this.port)
 		this._client.on('emberTree', (tree: DecodeResult<Root>) => this._handleIncoming(tree))
-		this._client.on('streamPacket', (entries) => this._handleStreamPacket(entries))
 
 		this._client.on('error', (e) => this.emit('error', e))
 		this._client.on('connected', () => this.emit('connected'))
@@ -225,38 +224,35 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		const command: Subscribe = new SubscribeImpl()
 
-		// Handle stream subscriptions
-		if (
-			'contents' in node &&
-			node.contents.type === ElementType.Parameter &&
-			node.contents.streamIdentifier !== undefined
-		) {
-			this._streamSubscriptions.set(node.contents.streamIdentifier, (value: EmberValue) => {
-				if (cb) {
-					const updatedNode = { ...node }
-					if ('value' in updatedNode.contents) {
-						updatedNode.contents.value = value
-						cb(updatedNode)
-					}
-				}
-			})
-		} else {
-			if (Array.isArray(node)) {
-				if (cb)
-					this._subscriptions.push({
-						path: undefined,
-						cb,
-					})
-
-				return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
-			}
-
+		if (Array.isArray(node)) {
 			if (cb)
 				this._subscriptions.push({
-					path: getPath(node),
+					path: undefined,
 					cb,
 				})
+
+			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
 		}
+
+		// Check if this is a Parameter with streamIdentifier
+		if (node.contents.type === ElementType.Parameter) {
+			const parameter = node.contents
+			if (parameter.streamIdentifier !== undefined) {
+				console.log('Registering parameter with StreamManager:', {
+					streamId: parameter.streamIdentifier,
+					identifier: parameter.identifier,
+					path: getPath(node),
+				})
+				StreamManager.getInstance().registerParameter(parameter)
+			}
+		}
+
+		if (cb)
+			this._subscriptions.push({
+				path: getPath(node),
+				cb,
+			})
+
 		return this._sendCommand<void>(node, command, ExpectResponse.None)
 	}
 	async unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>): RequestPromise<Root | void> {
@@ -267,9 +263,24 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const command: Unsubscribe = new UnsubscribeImpl()
 
 		const path = Array.isArray(node) ? '' : getPath(node)
+
+		// Clean up subscriptions
 		for (const i in this._subscriptions) {
 			if (this._subscriptions[i].path === path) {
 				this._subscriptions.splice(Number(i), 1)
+			}
+		}
+
+		// Deregister from StreamManager if this was a Parameter with streamIdentifier
+		if (!Array.isArray(node) && node.contents.type === ElementType.Parameter) {
+			const parameter = node.contents
+			if (parameter.streamIdentifier !== undefined) {
+				console.log('Deregistering parameter from StreamManager:', {
+					streamId: parameter.streamIdentifier,
+					identifier: parameter.identifier,
+					path: path,
+				})
+				StreamManager.getInstance().unregisterParameter(parameter)
 			}
 		}
 
@@ -577,23 +588,6 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		// at last, emit the errors for logging purposes
 		incoming.errors?.forEach((e) => this.emit('warn', e))
-	}
-
-	private _handleStreamPacket(entries: StreamEntry[]): void {
-		entries.forEach((entry) => {
-			const callback = this._streamSubscriptions.get(entry.identifier)
-			if (callback && entry.value) {
-				// Handle Octets value properly
-				if (entry.value.type === ParameterType.Octets && Buffer.isBuffer(entry.value.value)) {
-					// For audio level data, we can extract the first value if needed
-					const view = new DataView(entry.value.value.buffer)
-					const value = view.getFloat32(0, true) // Get first value, assuming little-endian
-					callback(value)
-				} else {
-					callback(entry.value.value)
-				}
-			}
-		})
 	}
 
 	private _applyRootToTree(node: Root): Array<Change> {
