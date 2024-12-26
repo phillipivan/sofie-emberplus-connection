@@ -31,7 +31,7 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 	}
 
 	public registerParameter(parameter: Parameter, path: string): void {
-		if (!parameter.streamIdentifier || !parameter.streamDescriptor?.offset) {
+		if (!parameter.streamIdentifier || parameter.streamDescriptor?.offset === undefined) {
 			return
 		}
 
