@@ -77,7 +77,7 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 				// Only process if IDs match
 				if (streamInfo.streamIdentifier === streamEntry.identifier) {
 					// If this is a stream with a descriptor and we have a value
-					if (streamInfo.parameter.streamDescriptor && streamEntry.value) {
+					if (streamInfo.parameter.streamDescriptor !== undefined && streamEntry.value !== undefined) {
 						const value = streamEntry.value
 						if (value.type === ParameterType.Octets && Buffer.isBuffer(value.value)) {
 							const buffer = value.value
