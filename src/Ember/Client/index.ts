@@ -240,10 +240,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			if (parameter.streamIdentifier !== undefined) {
 				console.log('Registering parameter with StreamManager:', {
 					streamId: parameter.streamIdentifier,
+					offSet: parameter.streamDescriptor?.offset,
 					identifier: parameter.identifier,
 					path: getPath(node),
 				})
-				StreamManager.getInstance().registerParameter(parameter)
+				StreamManager.getInstance().registerParameter(parameter, getPath(node))
 			}
 		}
 
@@ -280,7 +281,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					identifier: parameter.identifier,
 					path: path,
 				})
-				StreamManager.getInstance().unregisterParameter(parameter)
+				StreamManager.getInstance().unregisterParameter(path)
 			}
 		}
 

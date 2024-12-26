@@ -3,7 +3,7 @@ import { SmartBuffer } from 'smart-buffer'
 import Debug from 'debug'
 import { format } from 'util'
 import { berDecode } from '../encodings/ber'
-import { ParameterType, StreamEntry, StreamFormat } from '../model'
+import { StreamEntry } from '../model'
 import { StreamManager } from '../Ember/Client/StreamManager'
 import { Collection } from '../types/types'
 const debug = Debug('emberplus-connection:S101Codec')
@@ -185,50 +185,8 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 				console.warn('Invalid stream entries format')
 				return
 			}
-
-			// Process each stream entry
-			Object.values<any>(entries).forEach((entry: StreamEntry) => {
-				const streamId = entry.identifier
-
-				if (!streamManager.hasStream(streamId)) {
-					console.warn(`Received stream data for unregistered stream ${streamId}`)
-					return
-				}
-
-				const descriptor = streamManager.getStreamDescriptor(streamId)
-				if (!descriptor) {
-					console.warn(`No stream descriptor for stream ${streamId}`)
-					return
-				}
-
-				if (entry.value?.type === ParameterType.Octets && Buffer.isBuffer(entry.value.value)) {
-					const buffer = entry.value.value
-
-					// Handle the stream format
-					let value: number
-					switch (descriptor.format) {
-						case StreamFormat.Float32LE:
-							value = buffer.readFloatLE(descriptor.offset)
-							break
-						case StreamFormat.Float32BE:
-							value = buffer.readFloatBE(descriptor.offset)
-							break
-						case StreamFormat.Int32LE:
-							value = buffer.readInt32LE(descriptor.offset)
-							break
-						case StreamFormat.Int32BE:
-							value = buffer.readInt32BE(descriptor.offset)
-							break
-						// Add other format handlers as needed
-						default:
-							console.warn(`Unsupported stream format: ${descriptor.format}`)
-							return
-					}
-
-					// Update the stream value
-					streamManager.updateStreamValue(streamId, value)
-				}
-			})
+			// Update the stream value
+			streamManager.updateAllStreamValues(entries)
 		} catch (error) {
 			console.error('Error processing stream packet:', error)
 		}
