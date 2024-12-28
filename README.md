@@ -77,6 +77,10 @@ client
 	})
 	.then(() => client.getElementByPath('0.2'))
 	.then(async (node) => {
+		// You can get the internal node path, the internal path can be different from the requested,
+		// depending on wheter it's a qualified node or a numbered node
+		console.log('This is the internal node path :', client.getInternalNodePath(node))
+
 		// For non-streams a getDirectory will automatically subscribe for update
 		return (
 			await client.getDirectory(node, (update) => {
