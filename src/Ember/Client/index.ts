@@ -449,6 +449,31 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		return tree
 	}
 
+	// This function handles the fact that the path in the Ember+ tree is not always the same as the path in requested from the provider
+	getInternalNodePath(node: TreeElement<EmberElement>): string | undefined {
+		if ('path' in node && typeof node.path === 'string') {
+			// QualifiedElement case
+			return node.path
+		} else if ('number' in node) {
+			// NumberedTreeNode case
+			const numbers: number[] = []
+			let current: NumberedTreeNode<EmberElement> | undefined = node as NumberedTreeNode<EmberElement>
+
+			while (current) {
+				numbers.unshift(current.number)
+				if (current.parent && 'number' in current.parent) {
+					current = current.parent as NumberedTreeNode<EmberElement>
+				} else {
+					current = undefined
+				}
+			}
+
+			return numbers.join('.')
+		}
+
+		return undefined
+	}
+
 	private async _matrixMutation(
 		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
