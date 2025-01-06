@@ -3,9 +3,7 @@ import { SmartBuffer } from 'smart-buffer'
 import Debug from 'debug'
 import { format } from 'util'
 import { berDecode } from '../encodings/ber'
-import { StreamEntry } from '../model'
-import { StreamManager } from '../Ember/Client/StreamManager'
-import { Collection } from '../types/types'
+
 const debug = Debug('emberplus-connection:S101Codec')
 
 const S101_BOF = 0xfe
@@ -114,87 +112,10 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		} else if (command === CMD_EMBER) {
 			const remainingData = frame.readBuffer()
 			const emberFrame = SmartBuffer.fromBuffer(remainingData)
-
-			emberFrame.skip(1) // Skip version byte
-			const flags = emberFrame.readUInt8()
-
-			emberFrame.skip(1) // Skip dtd byte
-			const appBytes = emberFrame.readUInt8()
-
-			if (appBytes > 0) {
-				emberFrame.readBuffer(appBytes)
-			}
-
-			try {
-				const payload = emberFrame.readBuffer()
-				const data = payload.slice(0, payload.length - 2) // Remove CRC
-
-				if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
-					if ((flags & FLAG_EMPTY_PACKET) === 0) {
-						this.handlePacket(data)
-					}
-				} else {
-					// Multi-packet handling
-					if ((flags & FLAG_FIRST_MULTI_PACKET) === FLAG_FIRST_MULTI_PACKET) {
-						this.multiPacketBuffer = new SmartBuffer()
-						this.isMultiPacket = true
-						this.multiPacketBuffer.writeBuffer(data)
-					} else if (this.isMultiPacket && this.multiPacketBuffer) {
-						this.multiPacketBuffer.writeBuffer(data)
-
-						if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
-							const completeData = this.multiPacketBuffer.toBuffer()
-							this.handlePacket(completeData)
-							this.resetMultiPacketBuffer()
-						}
-					}
-				}
-			} catch (error) {
-				// Clean up if error occurs during multi-packet processing
-				this.resetMultiPacketBuffer()
-				throw new Error('Error processing frame:' + JSON.stringify(error, null, 2))
-			}
+			this.handleEmberFrame(emberFrame)
 		} else {
 			throw new Error(format('dropping frame of length %d with unknown command %d', frame.length, command))
 		}
-	}
-
-	private handlePacket(data: Buffer): void {
-		try {
-			if (data[2] === 0x66) {
-				this.handleStreamPacket(data)
-			} else if (data[0] === 0x60) {
-				const decoded = berDecode(data)
-				if (decoded.value) {
-					this.emit('emberPacket', data)
-				}
-			}
-		} catch (error) {
-			console.error('Error decoding 0x60 packet:', error)
-		}
-	}
-
-	private handleStreamPacket(data: Buffer): void {
-		const streamManager = StreamManager.getInstance()
-
-		try {
-			const decoded = berDecode(data)
-			const entries = decoded.value as Collection<StreamEntry>
-
-			if (!entries || typeof entries !== 'object') {
-				console.warn('Invalid stream entries format')
-				return
-			}
-			// Update the stream value
-			streamManager.updateAllStreamValues(entries)
-		} catch (error) {
-			console.error('Error processing stream packet:', error)
-		}
-	}
-
-	// Cleanup if multi-packet message is not completed
-	resetMultiPacketBuffer(): void {
-		this.multiPacketBuffer = undefined
 	}
 
 	handleEmberFrame(frame: SmartBuffer): void {
@@ -226,26 +147,50 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		}
 
 		let payload = frame.readBuffer()
-		payload = payload.slice(0, payload.length - 2)
-		if (flags & FLAG_FIRST_MULTI_PACKET) {
-			debug('multi ember packet start')
-			this.emberbuf.clear()
-		}
-		if ((flags & FLAG_EMPTY_PACKET) === 0) {
-			// not empty, save the payload
-			this.emberbuf.writeBuffer(payload)
-		}
-		if (flags & FLAG_LAST_MULTI_PACKET) {
-			debug('multi ember packet end')
-			this.emberbuf.moveTo(0)
-			this.handleEmberPacket(this.emberbuf)
-			this.emberbuf.clear()
+		payload = payload.slice(0, payload.length - 2) // Remove CRC
+
+		if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
+			if ((flags & FLAG_EMPTY_PACKET) === 0) {
+				this.handleEmberPacket(payload)
+			}
+		} else {
+			// Multi-packet handling
+			if ((flags & FLAG_FIRST_MULTI_PACKET) === FLAG_FIRST_MULTI_PACKET) {
+				debug('multi ember packet start')
+				this.multiPacketBuffer = new SmartBuffer()
+				this.isMultiPacket = true
+				this.multiPacketBuffer.writeBuffer(payload)
+			} else if (this.isMultiPacket && this.multiPacketBuffer) {
+				this.multiPacketBuffer.writeBuffer(payload)
+
+				if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
+					debug('multi ember packet end')
+					const completeData = this.multiPacketBuffer.toBuffer()
+					this.handleEmberPacket(completeData)
+					this.resetMultiPacketBuffer()
+				}
+			}
 		}
 	}
 
-	handleEmberPacket(packet: SmartBuffer): void {
-		debug('ember packet')
-		this.emit('emberPacket', packet.toBuffer())
+	private handleEmberPacket(data: Buffer): void {
+		try {
+			const decoded = berDecode(data)
+			if (data[0] === 0x60) {
+				// Root tag check
+				if (decoded.value) {
+					this.emit('emberPacket', data)
+				}
+			}
+		} catch (error) {
+			console.error('Error decoding packet:', error)
+			this.resetMultiPacketBuffer()
+		}
+	}
+
+	resetMultiPacketBuffer(): void {
+		this.multiPacketBuffer = undefined
+		this.isMultiPacket = false
 	}
 
 	encodeBER(data: Buffer): Buffer[] {

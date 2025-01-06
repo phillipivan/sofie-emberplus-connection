@@ -16,18 +16,10 @@ interface StreamInfo {
 }
 
 export class StreamManager extends EventEmitter<StreamManagerEvents> {
-	private static instance: StreamManager
 	private registeredStreams: Map<string, StreamInfo> = new Map()
 
-	private constructor() {
+	constructor() {
 		super()
-	}
-
-	public static getInstance(): StreamManager {
-		if (!StreamManager.instance) {
-			StreamManager.instance = new StreamManager()
-		}
-		return StreamManager.instance
 	}
 
 	public registerParameter(parameter: Parameter, path: string): void {
@@ -128,5 +120,3 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 		})
 	}
 }
-
-export default StreamManager

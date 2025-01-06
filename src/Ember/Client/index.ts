@@ -34,6 +34,7 @@ import { berEncode, StreamManager } from '../..'
 import { NumberedTreeNodeImpl } from '../../model/Tree'
 import { EmberFunction } from '../../model/EmberFunction'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
+import { StreamEntry } from '../../model/StreamEntry'
 
 export type RequestPromise<T> = Promise<RequestPromiseArguments<T>>
 export interface RequestPromiseArguments<T> {
@@ -86,6 +87,7 @@ export type EmberClientEvents = {
 
 	connected: []
 	disconnected: []
+	streamUpdate: [path: string, value: EmberValue]
 }
 
 export class EmberClient extends EventEmitter<EmberClientEvents> {
@@ -93,6 +95,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	port: number
 	tree: Collection<NumberedTreeNode<EmberElement>> = []
 
+	private _streamManager: StreamManager
 	private _requests = new Map<string, Request>()
 	private _lastInvocation = 0
 	private _client: S101Client
@@ -111,6 +114,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._timeout = timeout
 		this._resendTimeout = resendTimeout
 		this._resends = enableResends
+		this._streamManager = new StreamManager()
+
+		// Forward stream events from StreamManager
+		this._streamManager.on('streamUpdate', (path, value) => {
+			this.emit('streamUpdate', path, value)
+		})
 
 		// resend timer runs at greatest common divisor of timeouts and resends
 		const findGcd = (a: number, b: number) => {
@@ -125,7 +134,16 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._timer = setInterval(() => this._resendTimer(), findGcd(this._timeout, this._resendTimeout))
 
 		this._client = new S101Client(this.host, this.port)
-		this._client.on('emberTree', (tree: DecodeResult<Root>) => this._handleIncoming(tree))
+		this._client.on('emberTree', (tree: DecodeResult<Root>) => {
+			if (tree.value && Array.isArray(tree.value) && tree.value[0]?.identifier !== undefined) {
+				// It's a stream packet
+				const entries = tree.value as Collection<StreamEntry>
+				this._streamManager.updateAllStreamValues(entries)
+			} else {
+				// Regular ember tree
+				this._handleIncoming(tree)
+			}
+		})
 
 		this._client.on('error', (e) => this.emit('error', e))
 		this._client.on('connected', () => this.emit('connected'))
@@ -236,13 +254,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (node.contents.type === ElementType.Parameter) {
 			const parameter = node.contents
 			if (parameter.streamIdentifier !== undefined) {
-				console.log('Registering parameter with StreamManager:', {
-					streamId: parameter.streamIdentifier,
-					offSet: parameter.streamDescriptor?.offset,
-					identifier: parameter.identifier,
-					path: getPath(node),
-				})
-				StreamManager.getInstance().registerParameter(parameter, getPath(node))
+				this._streamManager.registerParameter(parameter, getPath(node))
 			}
 		}
 
@@ -274,12 +286,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (!Array.isArray(node) && node.contents.type === ElementType.Parameter) {
 			const parameter = node.contents
 			if (parameter.streamIdentifier !== undefined) {
-				console.log('Deregistering parameter from StreamManager:', {
-					streamId: parameter.streamIdentifier,
-					identifier: parameter.identifier,
-					path: path,
-				})
-				StreamManager.getInstance().unregisterParameter(path)
+				this._streamManager.unregisterParameter(path)
 			}
 		}
 
