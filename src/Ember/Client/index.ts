@@ -135,14 +135,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		this._client = new S101Client(this.host, this.port)
 		this._client.on('emberTree', (tree: DecodeResult<Root>) => {
-			if (tree.value && Array.isArray(tree.value) && tree.value[0]?.identifier !== undefined) {
-				// It's a stream packet
-				const entries = tree.value as Collection<StreamEntry>
-				this._streamManager.updateAllStreamValues(entries)
-			} else {
-				// Regular ember tree
-				this._handleIncoming(tree)
-			}
+			// Regular ember tree
+			this._handleIncoming(tree)
+		})
+		this._client.on('emberStreamTree', (tree: DecodeResult<Root>) => {
+			// Ember Tree with Stream
+			const entries = tree.value as Collection<StreamEntry>
+			this._streamManager.updateAllStreamValues(entries)
 		})
 
 		this._client.on('error', (e) => this.emit('error', e))

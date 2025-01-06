@@ -56,6 +56,7 @@ const CRC_TABLE = [
 
 export type S101CodecEvents = {
 	emberPacket: [packet: Buffer]
+	emberStreamPacket: [packet: Buffer]
 	keepaliveReq: []
 	keepaliveResp: []
 }
@@ -166,7 +167,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 				if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
 					debug('multi ember packet end')
 					const completeData = this.multiPacketBuffer.toBuffer()
-					this.handleEmberPacket(completeData)
+					this.handleEmberStreamPacket(completeData)
 					this.resetMultiPacketBuffer()
 				}
 			}
@@ -184,6 +185,20 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			}
 		} catch (error) {
 			console.error('Error decoding packet:', error)
+		}
+	}
+
+	private handleEmberStreamPacket(data: Buffer): void {
+		try {
+			const decoded = berDecode(data)
+			if (data[0] === 0x60 && data[2] === 0x66) {
+				// Root and stream tag check
+				if (decoded.value) {
+					this.emit('emberStreamPacket', data)
+				}
+			}
+		} catch (error) {
+			console.error('Error decoding stream packet:', error)
 			this.resetMultiPacketBuffer()
 		}
 	}
