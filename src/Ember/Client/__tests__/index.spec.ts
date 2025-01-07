@@ -13,7 +13,6 @@ import { EmberClient } from '../'
 import S101ClientMock from '../../../__mocks__/S101Client'
 import { DecodeResult } from '../../../encodings/ber/decoder/DecodeResult'
 import { StreamDescriptionImpl } from '../../../model/StreamDescription'
-import StreamManager from '../StreamManager'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry'
 // import { EmberTreeNode, RootElement } from '../../../types/types'
 // import { ElementType, EmberElement } from '../../../model/EmberElement'
@@ -446,7 +445,8 @@ describe('client', () => {
 				await new Promise(setImmediate)
 
 				// Get StreamManager instance and check registration
-				const streamManager = StreamManager.getInstance()
+				//@ts-expect-error - private method
+				const streamManager = client._streamManager
 				const streamInfo = streamManager.getStreamInfoByPath('1')
 
 				expect(streamInfo).toBeDefined()
@@ -490,7 +490,8 @@ describe('client', () => {
 				await new Promise(setImmediate)
 
 				// Check parameter was deregistered
-				const streamManager = StreamManager.getInstance()
+				//@ts-expect-error - private method
+				const streamManager = client._streamManager
 				const streamInfo = streamManager.getStreamInfoByPath('1')
 
 				expect(streamInfo).toBeUndefined()
@@ -619,7 +620,8 @@ describe('client', () => {
 				])
 
 				// Get StreamManager instance and verify values
-				const streamManager = StreamManager.getInstance()
+				//@ts-expect-error - private method
+				const streamManager = client._streamManager
 
 				const decoded: Collection<StreamEntry> = [
 					{
