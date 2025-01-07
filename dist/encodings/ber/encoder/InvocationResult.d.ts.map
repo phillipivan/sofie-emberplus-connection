@@ -1,0 +1,1 @@
+{"version":3,"file":"InvocationResult.d.ts","sourceRoot":"","sources":["../../../../src/encodings/ber/encoder/InvocationResult.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,GAAG,MAAM,cAAc,CAAA;AACnC,OAAO,EAAE,gBAAgB,EAAE,MAAM,iCAAiC,CAAA;AAGlE,wBAAgB,sBAAsB,CAAC,MAAM,EAAE,gBAAgB,EAAE,MAAM,EAAE,GAAG,CAAC,MAAM,GAAG,IAAI,CAwBzF"}
