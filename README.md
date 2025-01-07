@@ -25,15 +25,15 @@ The current version is very losely based on the original library and Mr Gilles D
 Get Full tree:
 
 ```javascript
-const { EmberClient, StreamManager } = require('emberplus-connection');
-const client = new EmberClient("10.9.8.7", 9000);
-client.on("error", e => {
-   console.log(e);
-});
+const { EmberClient, StreamManager } = require('emberplus-connection')
+const client = new EmberClient('10.9.8.7', 9000)
+client.on('error', (e) => {
+	console.log(e)
+})
 await client.connect()
 
 // If you want to listen to stream updates - you can do it like this:
-StreamManager.getInstance().on('streamUpdate', (path, value) => {
+client.on('streamUpdate', (path, value) => {
 	console.log('Stream Update:', {
 		path: path,
 		value: value,
@@ -43,14 +43,14 @@ StreamManager.getInstance().on('streamUpdate', (path, value) => {
 const req = await client.getDirectory(client.tree)
 await req.response
 // Get a Specific Node
-const node = await client.getElementByPath("0.0.2")
-console.log(node);
+const node = await client.getElementByPath('0.0.2')
+console.log(node)
 // Get a node by its path identifiers
-const node2 = await client.getElementByPath("path.to.node"))
-console.log(node2);
+const node2 = await client.getElementByPath('path.to.node')
+console.log(node2)
 // Get a node by its path descriptions
-const node3 = await client.getElementByPath("descr1.descr2.descr3"))
-console.log(node3);
+const node3 = await client.getElementByPath('descr1.descr2.descr3')
+console.log(node3)
 // Expand entire tree under node 0
 await client.expand(client.tree)
 console.log(client.tree)
@@ -78,7 +78,7 @@ client
 	.then(() => client.getElementByPath('0.2'))
 	.then(async (node) => {
 		// You can get the internal node path, the internal path can be different from the requested,
-		// depending on wheter it's a qualified node or a numbered node
+		// depending on wheter you request a numbered node or via the description
 		console.log('This is the internal node path :', client.getInternalNodePath(node))
 
 		// For non-streams a getDirectory will automatically subscribe for update
