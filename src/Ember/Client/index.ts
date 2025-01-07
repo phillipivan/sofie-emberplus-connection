@@ -30,11 +30,12 @@ import { EmberNode } from '../../model/EmberNode'
 import { EventEmitter } from 'eventemitter3'
 import { S101Client } from '../Socket'
 import { getPath, assertQualifiedEmberNode, insertCommand, updateProps, isEmptyNode } from '../Lib/util'
-import { berEncode, StreamManager } from '../..'
+import { berEncode } from '../../encodings/ber'
 import { NumberedTreeNodeImpl } from '../../model/Tree'
 import { EmberFunction } from '../../model/EmberFunction'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
 import { StreamEntry } from '../../model/StreamEntry'
+import { StreamManager } from './StreamManager'
 
 export type RequestPromise<T> = Promise<RequestPromiseArguments<T>>
 export interface RequestPromiseArguments<T> {
