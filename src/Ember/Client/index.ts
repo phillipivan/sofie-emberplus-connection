@@ -328,9 +328,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		const qualifiedParam = assertQualifiedEmberNode(node) as QualifiedElement<Parameter>
 
-		if (!('value' in qualifiedParam.contents)) {
-			throw new Error('Node is not a parameter')
-		}
+		// TODO - validate value
+		// TODO - should other properties be scrapped
 
 		qualifiedParam.contents.value = value
 
