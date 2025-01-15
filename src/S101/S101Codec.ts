@@ -167,7 +167,12 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 				if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
 					debug('multi ember packet end')
 					const completeData = this.multiPacketBuffer.toBuffer()
-					this.handleEmberStreamPacket(completeData)
+					// Check if this is a stream packet, can also be a normal packet
+					if (completeData[0] === 0x60 && completeData[2] === 0x66) {
+						this.handleEmberStreamPacket(completeData)
+					} else {
+						this.handleEmberPacket(completeData)
+					}
 					this.resetMultiPacketBuffer()
 				}
 			}
