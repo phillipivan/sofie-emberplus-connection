@@ -209,9 +209,8 @@ class EmberClient extends eventemitter3_1.EventEmitter {
             throw new Error('No node specified');
         }
         const qualifiedParam = (0, util_1.assertQualifiedEmberNode)(node);
-        if (!('value' in qualifiedParam.contents)) {
-            throw new Error('Node is not a parameter');
-        }
+        // TODO - validate value
+        // TODO - should other properties be scrapped
         qualifiedParam.contents.value = value;
         return this._sendRequest(qualifiedParam, awaitResponse ? ExpectResponse.Any : ExpectResponse.None);
     }
