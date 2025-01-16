@@ -1,4 +1,4 @@
-process.env.DEBUG = 'emberplus-connection:*'
+process.env.DEBUG = 'emberplus-connection:S101Codec'
 const { EmberClient } = require('../dist/index')
 
 //-------------------------------------------------------------------------

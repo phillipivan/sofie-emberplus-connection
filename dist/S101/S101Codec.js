@@ -135,7 +135,13 @@ class S101Codec extends eventemitter3_1.EventEmitter {
         payload = payload.slice(0, payload.length - 2); // Remove CRC
         if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
             if ((flags & FLAG_EMPTY_PACKET) === 0) {
-                this.handleEmberPacket(payload);
+                // Check if this is a metering packet
+                if (payload[0] === 0x60 && payload[2] === 0x66) {
+                    this.handleEmberStreamPacket(payload);
+                }
+                else {
+                    this.handleEmberPacket(payload);
+                }
             }
         }
         else {

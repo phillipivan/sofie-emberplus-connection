@@ -36,7 +36,7 @@ class S101Socket extends eventemitter3_1.EventEmitter {
             try {
                 const root = (0, __1.berDecode)(packet);
                 if (root != null) {
-                    this.emit('emberTree', root);
+                    this.emit('emberStreamTree', root);
                 }
             }
             catch (e) {

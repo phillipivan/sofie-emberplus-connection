@@ -44,6 +44,9 @@ class StreamManager extends eventemitter3_1.EventEmitter {
         return this.registeredStreams.has(identifier);
     }
     updateAllStreamValues(streamEntries) {
+        // Iterate over all stream entries
+        // Argument for how often this is triggeren could be added
+        // Especially on single stream updates
         Object.values(streamEntries).forEach((streamEntry) => {
             this.registeredStreams.forEach((streamInfo, path) => {
                 // Only process if IDs match
