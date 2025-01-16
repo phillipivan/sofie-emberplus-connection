@@ -152,7 +152,12 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 		if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
 			if ((flags & FLAG_EMPTY_PACKET) === 0) {
-				this.handleEmberPacket(payload)
+				// Check if this is a metering packet
+				if (payload[0] === 0x60 && payload[2] === 0x66) {
+					this.handleEmberStreamPacket(payload)
+				} else {
+					this.handleEmberPacket(payload)
+				}
 			}
 		} else {
 			// Multi-packet handling
@@ -178,7 +183,6 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			}
 		}
 	}
-
 	private handleEmberPacket(data: Buffer): void {
 		try {
 			const decoded = berDecode(data)
