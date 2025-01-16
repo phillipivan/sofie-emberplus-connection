@@ -5,6 +5,8 @@ const net_1 = tslib_1.__importDefault(require("net"));
 const S101Socket_1 = tslib_1.__importDefault(require("./S101Socket"));
 const Client_1 = require("../Client");
 const util_1 = require("../Lib/util");
+const debug_1 = tslib_1.__importDefault(require("debug"));
+const debug = (0, debug_1.default)('emberplus-connection:S101Client');
 const DEFAULT_PORT = 9000;
 const RECONNECT_ATTEMPTS = 60;
 const AUTO_RECONNECT_DELAY = 5000;
@@ -52,6 +54,12 @@ class S101Client extends S101Socket_1.default {
                     this.socket.on('close', (hadError) => this._onClose(hadError));
                     this.socket.on('connect', () => this._onConnect());
                     this.socket.on('data', (data) => {
+                        debug('Data from Ember connection received:', {
+                            address: this.socket?.remoteAddress,
+                            port: this.socket?.remotePort,
+                            dataLength: data.length,
+                            data: data.toString('hex'),
+                        });
                         try {
                             this.codec.dataIn(data);
                         }
