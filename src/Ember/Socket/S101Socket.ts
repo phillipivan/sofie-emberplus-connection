@@ -57,7 +57,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 			try {
 				const root = berDecode(packet)
 				if (root != null) {
-					this.emit('emberTree', root)
+					this.emit('emberStreamTree', root)
 				}
 			} catch (e) {
 				this.emit('error', normalizeError(e))
