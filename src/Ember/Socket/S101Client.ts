@@ -3,6 +3,9 @@ import S101Socket from './S101Socket'
 import { ConnectionStatus } from '../Client'
 import { normalizeError } from '../Lib/util'
 
+import Debug from 'debug'
+const debug = Debug('emberplus-connection:S101Client')
+
 const DEFAULT_PORT = 9000
 const RECONNECT_ATTEMPTS = 60
 const AUTO_RECONNECT_DELAY = 5000
@@ -59,6 +62,12 @@ export default class S101Client extends S101Socket {
 					this.socket.on('close', (hadError) => this._onClose(hadError))
 					this.socket.on('connect', () => this._onConnect())
 					this.socket.on('data', (data) => {
+						debug('Data from Ember connection received:', {
+							address: this.socket?.remoteAddress,
+							port: this.socket?.remotePort,
+							dataLength: data.length,
+							data: data.toString('hex'),
+						})
 						try {
 							this.codec.dataIn(data)
 						} catch (e) {
