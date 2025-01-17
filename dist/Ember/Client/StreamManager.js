@@ -1,8 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StreamManager = void 0;
+const tslib_1 = require("tslib");
 const eventemitter3_1 = require("eventemitter3");
 const Parameter_1 = require("../../model/Parameter");
+const debug_1 = tslib_1.__importDefault(require("debug"));
+const debug = (0, debug_1.default)('emberplus-connection:StreamManager');
 class StreamManager extends eventemitter3_1.EventEmitter {
     constructor() {
         super();
@@ -44,13 +47,14 @@ class StreamManager extends eventemitter3_1.EventEmitter {
         return this.registeredStreams.has(identifier);
     }
     updateAllStreamValues(streamEntries) {
-        // Iterate over all stream entries
-        // Argument for how often this is triggeren could be added
-        // Especially on single stream updates
+        // Process each entry - works for both single and multiple entries
         Object.values(streamEntries).forEach((streamEntry) => {
+            // Only process if we have a registered stream with this identifier
+            let updatedStream = false;
             this.registeredStreams.forEach((streamInfo, path) => {
                 // Only process if IDs match
                 if (streamInfo.streamIdentifier === streamEntry.identifier) {
+                    updatedStream = true;
                     if (streamEntry.value) {
                         const value = streamEntry.value;
                         if (value.type === Parameter_1.ParameterType.Integer) {
@@ -58,7 +62,7 @@ class StreamManager extends eventemitter3_1.EventEmitter {
                             this.updateStreamValue(path, value.value);
                         }
                         else if (value.type === Parameter_1.ParameterType.Octets && Buffer.isBuffer(value.value)) {
-                            // Handle existing float32 buffer case
+                            // Handle float32 buffer case
                             const buffer = value.value;
                             if (buffer.length >= streamInfo.offset + 4) {
                                 // Float32 is 4 bytes
@@ -71,6 +75,9 @@ class StreamManager extends eventemitter3_1.EventEmitter {
                     }
                 }
             });
+            if (!updatedStream) {
+                debug('Received update for unregistered stream:', streamEntry.identifier);
+            }
         });
     }
     updateStreamValue(path, value) {
@@ -87,13 +94,13 @@ class StreamManager extends eventemitter3_1.EventEmitter {
     }
     // Debug helper
     printStreamState() {
-        console.log('\nCurrent Stream State:');
-        console.log('Registered Streams:');
+        debug('\nCurrent Stream State:');
+        debug('Registered Streams:');
         this.registeredStreams.forEach((info, path) => {
-            console.log(`  Path: ${path}`);
-            console.log(`    Identifier: ${info.parameter.identifier}`);
-            console.log(`    StreamId: ${info.parameter.streamIdentifier}`);
-            console.log(`    Current Value: ${info.parameter.value}`);
+            debug(`  Path: ${path}`);
+            debug(`    Identifier: ${info.parameter.identifier}`);
+            debug(`    StreamId: ${info.parameter.streamIdentifier}`);
+            debug(`    Current Value: ${info.parameter.value}`);
         });
     }
 }

@@ -1,6 +1,0 @@
-node_modules/
-.git/
-build/
-dist/
-__mocks__/
-__tests__/

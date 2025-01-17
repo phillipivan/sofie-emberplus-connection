@@ -4,6 +4,10 @@ import { EmberValue } from '../../types'
 import { Collection } from '../../types/types'
 import { StreamEntry } from '../../model'
 
+import Debug from 'debug'
+
+const debug = Debug('emberplus-connection:StreamManager')
+
 export type StreamManagerEvents = {
 	streamUpdate: [path: string, value: EmberValue]
 }
@@ -66,13 +70,15 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 	}
 
 	public updateAllStreamValues(streamEntries: Collection<StreamEntry>): void {
-		// Iterate over all stream entries
-		// Argument for how often this is triggeren could be added
-		// Especially on single stream updates
+		// Process each entry - works for both single and multiple entries
 		Object.values<StreamEntry>(streamEntries).forEach((streamEntry) => {
+			// Log if we have an unregistered stream with this identifier
+			let updatedStream = false
+
 			this.registeredStreams.forEach((streamInfo, path) => {
 				// Only process if IDs match
 				if (streamInfo.streamIdentifier === streamEntry.identifier) {
+					updatedStream = true
 					if (streamEntry.value) {
 						const value = streamEntry.value
 
@@ -80,20 +86,23 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 							// Handle direct integer values
 							this.updateStreamValue(path, value.value)
 						} else if (value.type === ParameterType.Octets && Buffer.isBuffer(value.value)) {
-							// Handle existing float32 buffer case
+							// Handle float32 buffer case
 							const buffer = value.value
 							if (buffer.length >= streamInfo.offset + 4) {
 								// Float32 is 4 bytes
 								const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.length)
 								// decode as little-endian
 								const decodedValue = view.getFloat32(streamInfo.offset, true)
-
 								this.updateStreamValue(path, decodedValue)
 							}
 						}
 					}
 				}
 			})
+
+			if (!updatedStream) {
+				debug('Received update for unregistered stream:', streamEntry.identifier)
+			}
 		})
 	}
 
@@ -113,13 +122,13 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 
 	// Debug helper
 	public printStreamState(): void {
-		console.log('\nCurrent Stream State:')
-		console.log('Registered Streams:')
+		debug('\nCurrent Stream State:')
+		debug('Registered Streams:')
 		this.registeredStreams.forEach((info, path) => {
-			console.log(`  Path: ${path}`)
-			console.log(`    Identifier: ${info.parameter.identifier}`)
-			console.log(`    StreamId: ${info.parameter.streamIdentifier}`)
-			console.log(`    Current Value: ${info.parameter.value}`)
+			debug(`  Path: ${path}`)
+			debug(`    Identifier: ${info.parameter.identifier}`)
+			debug(`    StreamId: ${info.parameter.streamIdentifier}`)
+			debug(`    Current Value: ${info.parameter.value}`)
 		})
 	}
 }
