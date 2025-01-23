@@ -30,6 +30,7 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 
 	public registerParameter(parameter: Parameter, path: string): void {
 		if (!parameter.streamIdentifier) {
+			debug('Warning: Attempted to register parameter without streamIdentifier')
 			return
 		}
 		// Check if already registered
@@ -41,13 +42,11 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 			return
 		}
 
-		const offset = parameter.streamDescriptor?.offset || 0
-
 		const streamInfo: StreamInfo = {
 			parameter,
 			path,
 			streamIdentifier: parameter.streamIdentifier,
-			offset: offset,
+			offset: parameter.streamDescriptor?.offset || 0,
 		}
 
 		// Store both mappings
@@ -56,13 +55,14 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 		// Add to identifier lookup
 		if (!this.streamsByIdentifier.has(parameter.streamIdentifier)) {
 			this.streamsByIdentifier.set(parameter.streamIdentifier, new Set())
+			debug('Registered new stream identifier and adding set:', parameter.streamIdentifier)
 		}
 		this.streamsByIdentifier.get(parameter.streamIdentifier)?.add(path)
 
-		debug('Registered stream:', {
-			path: path,
-			identifier: parameter.identifier,
-			offset: offset,
+		debug('Registered new stream:', {
+			path,
+			identifier: parameter.streamIdentifier,
+			totalRegistered: this.registeredStreams.size,
 		})
 	}
 
