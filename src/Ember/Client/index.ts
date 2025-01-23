@@ -108,7 +108,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _timer: NodeJS.Timeout
 
 	constructor(host: string, port = 9000, timeout = 3000, enableResends = false, resendTimeout = 1000) {
-		console.log('DEBUG ONLY ---- EmberClient-- hardcoded ver: v0.0.1')
+		console.log('DEBUG ONLY ---- EmberClient-- hardcoded ver: v0.0.2')
 		super()
 
 		this.host = host
@@ -257,9 +257,6 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			if (parameter.streamIdentifier !== undefined) {
 				this._streamManager.registerParameter(parameter, getPath(node))
 			}
-			setInterval(() => {
-				console.log('StreamManager:', this._streamManager)
-			})
 		}
 
 		if (cb)
