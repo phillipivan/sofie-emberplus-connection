@@ -15,6 +15,7 @@ class StreamManager extends eventemitter3_1.EventEmitter {
     }
     registerParameter(parameter, path) {
         if (!parameter.streamIdentifier) {
+            debug('Warning: Attempted to register parameter without streamIdentifier');
             return;
         }
         // Check if already registered
@@ -25,24 +26,24 @@ class StreamManager extends eventemitter3_1.EventEmitter {
             });
             return;
         }
-        const offset = parameter.streamDescriptor?.offset || 0;
         const streamInfo = {
             parameter,
             path,
             streamIdentifier: parameter.streamIdentifier,
-            offset: offset,
+            offset: parameter.streamDescriptor?.offset || 0,
         };
         // Store both mappings
         this.registeredStreams.set(path, streamInfo);
         // Add to identifier lookup
         if (!this.streamsByIdentifier.has(parameter.streamIdentifier)) {
             this.streamsByIdentifier.set(parameter.streamIdentifier, new Set());
+            debug('Registered new stream identifier and adding set:', parameter.streamIdentifier);
         }
         this.streamsByIdentifier.get(parameter.streamIdentifier)?.add(path);
-        debug('Registered stream:', {
-            path: path,
-            identifier: parameter.identifier,
-            offset: offset,
+        debug('Registered new stream:', {
+            path,
+            identifier: parameter.streamIdentifier,
+            totalRegistered: this.registeredStreams.size,
         });
     }
     unregisterParameter(path) {

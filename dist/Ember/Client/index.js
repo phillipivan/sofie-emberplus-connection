@@ -26,6 +26,7 @@ var ConnectionStatus;
 })(ConnectionStatus = exports.ConnectionStatus || (exports.ConnectionStatus = {}));
 class EmberClient extends eventemitter3_1.EventEmitter {
     constructor(host, port = 9000, timeout = 3000, enableResends = false, resendTimeout = 1000) {
+        console.log('DEBUG ONLY ---- EmberClient-- hardcoded ver: v0.0.1');
         super();
         this.tree = [];
         this._requests = new Map();
