@@ -32,6 +32,14 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 		if (!parameter.streamIdentifier) {
 			return
 		}
+		// Check if already registered
+		if (this.registeredStreams.has(path)) {
+			debug('Stream already registered:', {
+				path,
+				identifier: parameter.streamIdentifier,
+			})
+			return
+		}
 
 		const offset = parameter.streamDescriptor?.offset || 0
 
