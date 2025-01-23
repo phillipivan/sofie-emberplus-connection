@@ -14,12 +14,13 @@ interface StreamInfo {
 }
 export declare class StreamManager extends EventEmitter<StreamManagerEvents> {
     private registeredStreams;
+    private streamsByIdentifier;
     constructor();
     registerParameter(parameter: Parameter, path: string): void;
     unregisterParameter(path: string): void;
     getStreamInfoByPath(path: string): StreamInfo | undefined;
     hasStream(identifier: string): boolean;
-    updateAllStreamValues(streamEntries: Collection<StreamEntry>): void;
+    updateStreamValues(streamEntries: Collection<StreamEntry>): void;
     updateStreamValue(path: string, value: EmberValue): void;
     getAllRegisteredPaths(): string[];
     printStreamState(): void;

@@ -10,6 +10,8 @@ class StreamManager extends eventemitter3_1.EventEmitter {
     constructor() {
         super();
         this.registeredStreams = new Map();
+        // Lookup by identifier for O(1) access
+        this.streamsByIdentifier = new Map();
     }
     registerParameter(parameter, path) {
         if (!parameter.streamIdentifier) {
@@ -24,7 +26,12 @@ class StreamManager extends eventemitter3_1.EventEmitter {
         };
         // Store both mappings
         this.registeredStreams.set(path, streamInfo);
-        console.log('Registered stream:', {
+        // Add to identifier lookup
+        if (!this.streamsByIdentifier.has(parameter.streamIdentifier)) {
+            this.streamsByIdentifier.set(parameter.streamIdentifier, new Set());
+        }
+        this.streamsByIdentifier.get(parameter.streamIdentifier)?.add(path);
+        debug('Registered stream:', {
             path: path,
             identifier: parameter.identifier,
             offset: offset,
@@ -32,9 +39,17 @@ class StreamManager extends eventemitter3_1.EventEmitter {
     }
     unregisterParameter(path) {
         const streamInfo = this.registeredStreams.get(path);
-        if (streamInfo && streamInfo.parameter.streamIdentifier) {
+        if (streamInfo?.streamIdentifier) {
+            // Clean up both maps
             this.registeredStreams.delete(path);
-            console.log('Unregistered stream:', {
+            const paths = this.streamsByIdentifier.get(streamInfo.streamIdentifier);
+            if (paths) {
+                paths.delete(path);
+                if (paths.size === 0) {
+                    this.streamsByIdentifier.delete(streamInfo.streamIdentifier);
+                }
+            }
+            debug('Unregistered stream:', {
                 path: path,
                 identifier: streamInfo.parameter.identifier,
             });
@@ -46,38 +61,31 @@ class StreamManager extends eventemitter3_1.EventEmitter {
     hasStream(identifier) {
         return this.registeredStreams.has(identifier);
     }
-    updateAllStreamValues(streamEntries) {
-        // Process each entry - works for both single and multiple entries
+    updateStreamValues(streamEntries) {
         Object.values(streamEntries).forEach((streamEntry) => {
-            // Only process if we have a registered stream with this identifier
-            let updatedStream = false;
-            this.registeredStreams.forEach((streamInfo, path) => {
-                // Only process if IDs match
-                if (streamInfo.streamIdentifier === streamEntry.identifier) {
-                    updatedStream = true;
-                    if (streamEntry.value) {
-                        const value = streamEntry.value;
-                        if (value.type === Parameter_1.ParameterType.Integer) {
-                            // Handle direct integer values
-                            this.updateStreamValue(path, value.value);
-                        }
-                        else if (value.type === Parameter_1.ParameterType.Octets && Buffer.isBuffer(value.value)) {
-                            // Handle float32 buffer case
-                            const buffer = value.value;
-                            if (buffer.length >= streamInfo.offset + 4) {
-                                // Float32 is 4 bytes
-                                const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.length);
-                                // decode as little-endian
-                                const decodedValue = view.getFloat32(streamInfo.offset, true);
-                                this.updateStreamValue(path, decodedValue);
-                            }
-                        }
+            // O(1) lookup by identifier
+            const paths = this.streamsByIdentifier.get(streamEntry.identifier);
+            if (!paths) {
+                debug('Received update for unregistered stream:', streamEntry.identifier);
+                return;
+            }
+            // Process each matching stream
+            paths.forEach((path) => {
+                const streamInfo = this.registeredStreams.get(path);
+                if (!streamInfo || !streamEntry.value)
+                    return;
+                if (streamEntry.value.type === Parameter_1.ParameterType.Integer) {
+                    this.updateStreamValue(path, streamEntry.value.value);
+                }
+                else if (streamEntry.value.type === Parameter_1.ParameterType.Octets && Buffer.isBuffer(streamEntry.value.value)) {
+                    const buffer = streamEntry.value.value;
+                    if (buffer.length >= streamInfo.offset + 4) {
+                        const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.length);
+                        const decodedValue = view.getFloat32(streamInfo.offset, true);
+                        this.updateStreamValue(path, decodedValue);
                     }
                 }
             });
-            if (!updatedStream) {
-                debug('Received update for unregistered stream:', streamEntry.identifier);
-            }
         });
     }
     updateStreamValue(path, value) {

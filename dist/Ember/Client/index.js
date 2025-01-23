@@ -63,7 +63,7 @@ class EmberClient extends eventemitter3_1.EventEmitter {
         this._client.on('emberStreamTree', (tree) => {
             // Ember Tree with Stream
             const entries = tree.value;
-            this._streamManager.updateAllStreamValues(entries);
+            this._streamManager.updateStreamValues(entries);
         });
         this._client.on('error', (e) => this.emit('error', e));
         this._client.on('connected', () => this.emit('connected'));
@@ -156,6 +156,9 @@ class EmberClient extends eventemitter3_1.EventEmitter {
             if (parameter.streamIdentifier !== undefined) {
                 this._streamManager.registerParameter(parameter, (0, util_1.getPath)(node));
             }
+            setInterval(() => {
+                console.log('StreamManager:', this._streamManager);
+            });
         }
         if (cb)
             this._subscriptions.push({
