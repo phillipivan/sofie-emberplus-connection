@@ -633,7 +633,7 @@ describe('client', () => {
 					},
 				]
 
-				streamManager.updateAllStreamValues(decoded)
+				streamManager.updateStreamValues(decoded)
 				const stream1 = streamManager.getStreamInfoByPath(path1)
 				console.log('stream1', stream1)
 				const stream2 = streamManager.getStreamInfoByPath(path2)

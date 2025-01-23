@@ -142,7 +142,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._client.on('emberStreamTree', (tree: DecodeResult<Root>) => {
 			// Ember Tree with Stream
 			const entries = tree.value as Collection<StreamEntry>
-			this._streamManager.updateAllStreamValues(entries)
+			this._streamManager.updateStreamValues(entries)
 		})
 
 		this._client.on('error', (e) => this.emit('error', e))
@@ -256,6 +256,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			if (parameter.streamIdentifier !== undefined) {
 				this._streamManager.registerParameter(parameter, getPath(node))
 			}
+			setInterval(() => {
+				console.log('StreamManager:', this._streamManager)
+			})
 		}
 
 		if (cb)
