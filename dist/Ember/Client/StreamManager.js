@@ -6,6 +6,7 @@ const eventemitter3_1 = require("eventemitter3");
 const Parameter_1 = require("../../model/Parameter");
 const debug_1 = tslib_1.__importDefault(require("debug"));
 const debug = (0, debug_1.default)('emberplus-connection:StreamManager');
+const RATE_LIMIT_MS = 200;
 class StreamManager extends eventemitter3_1.EventEmitter {
     constructor() {
         super();
@@ -83,6 +84,12 @@ class StreamManager extends eventemitter3_1.EventEmitter {
                 const streamInfo = this.registeredStreams.get(path);
                 if (!streamInfo || !streamEntry.value)
                     return;
+                // Check rate limit
+                const now = Date.now();
+                if (streamInfo.lastUpdate && now - streamInfo.lastUpdate < RATE_LIMIT_MS) {
+                    return; // Skip update if within rate limit window
+                }
+                streamInfo.lastUpdate = now;
                 if (streamEntry.value.type === Parameter_1.ParameterType.Integer) {
                     this.updateStreamValue(path, streamEntry.value.value);
                 }
