@@ -6,6 +6,8 @@ const eventemitter3_1 = require("eventemitter3");
 const Parameter_1 = require("../../model/Parameter");
 const debug_1 = tslib_1.__importDefault(require("debug"));
 const debug = (0, debug_1.default)('emberplus-connection:StreamManager');
+// Rate limit for stream updates in ms
+// Currently hardcoded to 200ms
 const RATE_LIMIT_MS = 200;
 class StreamManager extends eventemitter3_1.EventEmitter {
     constructor() {
