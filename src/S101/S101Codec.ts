@@ -208,26 +208,57 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 	private parseStreamPacket(data: Buffer): StreamEntry[] {
 		const entries: StreamEntry[] = []
-		let offset = 3
+		let offset = 0
 
-		// Create array of stream values without full BER decoding
-		// for better performance.
-		// As we already know the structure of metering data:
-		while (offset < data.length - 6) {
-			// Leave room for minimal entry
-			if (data[offset] === 0xa0 && data[offset + 1] === 0x0f) {
-				const identifier = data.readUInt32BE(offset + 2)
-				// Skip to value
-				offset += 6
-				const value = data.readFloatLE(offset)
-				entries.push({
-					identifier,
-					value: {
-						type: ParameterType.Real,
-						value: value,
-					},
-				})
-				offset += 4
+		// Skip root tag and length
+		if (data[offset] === 0x60) {
+			offset += 2
+		}
+
+		// Process each stream entry
+		while (offset < data.length - 8) {
+			// Need at least 8 bytes for an entry
+			// Look for start of entry (0xa0)
+			if (data[offset] === 0xa0) {
+				console.log('Data :', data.toString('hex'))
+				// Skip entry tag and length
+				offset += 2
+
+				// Process identifier
+				if (data[offset] === 0x02) {
+					// Integer tag
+					offset++ // Skip tag
+					const idLength = data[offset]
+					offset++
+
+					// Read identifier - ensure we read the full length
+					let identifier = 0
+					for (let i = 0; i < idLength; i++) {
+						identifier = (identifier << 8) | data[offset + i]
+					}
+					offset += idLength
+
+					// Look for value tag (0xa1)
+					while (offset < data.length && data[offset] !== 0xa1) {
+						offset++
+					}
+
+					if (offset < data.length - 4) {
+						offset += 2 // Skip value tag and length
+
+						// Read 4-byte float value
+						const value = data.readFloatLE(offset)
+						offset += 4
+
+						entries.push({
+							identifier,
+							value: {
+								type: ParameterType.Real,
+								value: value,
+							},
+						})
+					}
+				}
 			}
 			offset++
 		}
