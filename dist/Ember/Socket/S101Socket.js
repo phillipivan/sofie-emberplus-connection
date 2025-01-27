@@ -32,12 +32,9 @@ class S101Socket extends eventemitter3_1.EventEmitter {
                 this.emit('error', (0, util_1.normalizeError)(e));
             }
         });
-        this.codec.on('emberStreamPacket', (packet) => {
+        this.codec.on('emberStreamPacketEntries', (streamEntries) => {
             try {
-                const root = (0, __1.berDecode)(packet);
-                if (root != null) {
-                    this.emit('emberStreamTree', root);
-                }
+                this.emit('emberStreamEntries', streamEntries);
             }
             catch (e) {
                 this.emit('error', (0, util_1.normalizeError)(e));

@@ -7,11 +7,12 @@ import { S101Codec } from '../../S101';
 import { ConnectionStatus } from '../Client';
 import { Root } from '../../types';
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult';
+import { StreamEntry } from '../../model';
 export type Request = any;
 export type S101SocketEvents = {
     error: [Error];
     emberTree: [root: DecodeResult<Root>];
-    emberStreamTree: [root: DecodeResult<Root>];
+    emberStreamEntries: [StreamEntry[]];
     connecting: [];
     connected: [];
     disconnected: [];

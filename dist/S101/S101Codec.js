@@ -6,6 +6,7 @@ const smart_buffer_1 = require("smart-buffer");
 const debug_1 = tslib_1.__importDefault(require("debug"));
 const util_1 = require("util");
 const ber_1 = require("../encodings/ber");
+const model_1 = require("../model");
 const debug = (0, debug_1.default)('emberplus-connection:S101Codec');
 const S101_BOF = 0xfe;
 const S101_EOF = 0xff;
@@ -184,19 +185,38 @@ class S101Codec extends eventemitter3_1.EventEmitter {
         }
     }
     handleEmberStreamPacket(data) {
-        try {
-            const decoded = (0, ber_1.berDecode)(data);
-            if (data[0] === 0x60 && data[2] === 0x66) {
-                // Root and stream tag check
-                if (decoded.value) {
-                    this.emit('emberStreamPacket', data);
-                }
+        // For better performance, we don't decode the full BER structure
+        // Instead we just parse the metering values, as we already know the structure:
+        const entries = this.parseStreamPacket(data);
+        if (entries.length < 1)
+            return;
+        this.emit('emberStreamPacketEntries', entries);
+    }
+    parseStreamPacket(data) {
+        const entries = [];
+        let offset = 3;
+        // Create array of stream values without full BER decoding
+        // for better performance.
+        // As we already know the structure of metering data:
+        while (offset < data.length - 6) {
+            // Leave room for minimal entry
+            if (data[offset] === 0xa0 && data[offset + 1] === 0x0f) {
+                const identifier = data.readUInt32BE(offset + 2);
+                // Skip to value
+                offset += 6;
+                const value = data.readFloatLE(offset);
+                entries.push({
+                    identifier,
+                    value: {
+                        type: model_1.ParameterType.Real,
+                        value: value,
+                    },
+                });
+                offset += 4;
             }
+            offset++;
         }
-        catch (error) {
-            console.error('Error decoding stream packet:', error);
-            this.resetMultiPacketBuffer();
-        }
+        return entries;
     }
     resetMultiPacketBuffer() {
         this.multiPacketBuffer = undefined;

@@ -74,7 +74,7 @@ class StreamManager extends eventemitter3_1.EventEmitter {
         return this.registeredStreams.has(identifier);
     }
     updateStreamValues(streamEntries) {
-        Object.values(streamEntries).forEach((streamEntry) => {
+        streamEntries.forEach((streamEntry) => {
             // O(1) lookup by identifier
             const paths = this.streamsByIdentifier.get(streamEntry.identifier);
             if (!paths) {
@@ -93,27 +93,25 @@ class StreamManager extends eventemitter3_1.EventEmitter {
                 }
                 streamInfo.lastUpdate = now;
                 if (streamEntry.value.type === Parameter_1.ParameterType.Integer) {
-                    this.updateStreamValue(path, streamEntry.value.value);
+                    this.updateStreamValue(path, streamEntry.value.value, streamInfo);
                 }
                 else if (streamEntry.value.type === Parameter_1.ParameterType.Octets && Buffer.isBuffer(streamEntry.value.value)) {
                     const buffer = streamEntry.value.value;
                     if (buffer.length >= streamInfo.offset + 4) {
                         const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.length);
                         const decodedValue = view.getFloat32(streamInfo.offset, true);
-                        this.updateStreamValue(path, decodedValue);
+                        this.updateStreamValue(path, decodedValue, streamInfo);
                     }
+                }
+                else {
+                    debug('Unhandled stream value type:', streamEntry.value.type);
                 }
             });
         });
     }
-    updateStreamValue(path, value) {
-        if (path) {
-            const streamInfo = this.registeredStreams.get(path);
-            if (streamInfo) {
-                streamInfo.parameter.value = value;
-                this.emit('streamUpdate', path, value);
-            }
-        }
+    updateStreamValue(path, value, streamInfo) {
+        streamInfo.parameter.value = value;
+        this.emit('streamUpdate', path, value);
     }
     getAllRegisteredPaths() {
         return Array.from(this.registeredStreams.keys());

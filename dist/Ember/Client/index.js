@@ -26,7 +26,7 @@ var ConnectionStatus;
 })(ConnectionStatus = exports.ConnectionStatus || (exports.ConnectionStatus = {}));
 class EmberClient extends eventemitter3_1.EventEmitter {
     constructor(host, port = 9000, timeout = 3000, enableResends = false, resendTimeout = 1000) {
-        console.log('DEBUG ONLY ---- EmberClient-- hardcoded ver: v0.0.3');
+        console.log('DEBUG ONLY ---- EmberClient-- hardcoded ver: v0.0.4');
         super();
         this.tree = [];
         this._requests = new Map();
@@ -61,10 +61,9 @@ class EmberClient extends eventemitter3_1.EventEmitter {
             // Regular ember tree
             this._handleIncoming(tree);
         });
-        this._client.on('emberStreamTree', (tree) => {
+        this._client.on('emberStreamEntries', (streamEntries) => {
             // Ember Tree with Stream
-            const entries = tree.value;
-            this._streamManager.updateStreamValues(entries);
+            this._streamManager.updateStreamValues(streamEntries);
         });
         this._client.on('error', (e) => this.emit('error', e));
         this._client.on('connected', () => this.emit('connected'));
