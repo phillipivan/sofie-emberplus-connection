@@ -199,9 +199,8 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	}
 
 	private handleEmberStreamPacket(data: Buffer): void {
-		// For better performance, we don't decode the full BER structure using the decodeStreamEntries function.
-		// Instead we just parse the metering values, as we already know the structure
-		// This might be included in the future, but for now this is sufficient:
+		// For better performance, we don't decode the full BER structure
+		// Instead we just parse the metering values, as we already know the structure:
 		const entries = this.parseStreamPacket(data)
 		if (entries.length < 1) return
 		this.emit('emberStreamPacketEntries', entries)
@@ -227,6 +226,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 				// Process identifier
 				if (data[offset] === 0x02) {
+					// Integer tag
 					offset++ // Skip tag
 					const idLength = data[offset]
 					offset++
@@ -243,57 +243,20 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 						offset++
 					}
 
-					if (offset < data.length) {
+					if (offset < data.length - 4) {
 						offset += 2 // Skip value tag and length
 
-						// Look specific for real type tag (0x09)
-						if (data[offset] === 0x09) {
-							offset++ // Skip type tag
-							// Get real length of value
-							const realLength = data[offset]
-							offset++
+						// Read 4-byte float value
+						const value = data.readFloatLE(offset)
+						offset += 4
 
-							// Get format byte
-							const formatByte = data[offset]
-							offset++
-
-							// Special values check
-							// 0x40 = +INF, 0x41 = -INF, 0x42 = NaN
-							if (realLength === 1) {
-								let value: number
-								switch (formatByte) {
-									case 0x40:
-										value = Infinity
-										break
-									case 0x41:
-										value = -Infinity
-										break
-									case 0x42:
-										value = NaN
-										break
-									default:
-										value = 0
-								}
-
-								entries.push({
-									identifier,
-									value: { type: ParameterType.Real, value },
-								})
-								continue
-							}
-
-							// Regular float value
-							if (realLength >= 5) {
-								const floatBytes = data.subarray(offset, offset + 4)
-								const value = floatBytes.readFloatLE(0)
-								offset += 4
-
-								entries.push({
-									identifier,
-									value: { type: ParameterType.Real, value },
-								})
-							}
-						}
+						entries.push({
+							identifier,
+							value: {
+								type: ParameterType.Real,
+								value: value,
+							},
+						})
 					}
 				}
 			}
