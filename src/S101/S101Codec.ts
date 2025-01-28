@@ -3,7 +3,6 @@ import { SmartBuffer } from 'smart-buffer'
 import Debug from 'debug'
 import { format } from 'util'
 import { berDecode } from '../encodings/ber'
-import { ParameterType, StreamEntry } from '../model'
 
 const debug = Debug('emberplus-connection:S101Codec')
 
@@ -57,7 +56,7 @@ const CRC_TABLE = [
 
 export type S101CodecEvents = {
 	emberPacket: [packet: Buffer]
-	emberStreamPacketEntries: [StreamEntry[]]
+	emberStreamPacket: [packet: Buffer]
 	keepaliveReq: []
 	keepaliveResp: []
 }
@@ -199,40 +198,18 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	}
 
 	private handleEmberStreamPacket(data: Buffer): void {
-		// For better performance, we don't decode the full BER structure
-		// Instead we just parse the metering values, as we already know the structure:
-		const entries = this.parseStreamPacket(data)
-		if (entries.length < 1) return
-		this.emit('emberStreamPacketEntries', entries)
-	}
-
-	private parseStreamPacket(data: Buffer): StreamEntry[] {
-		const entries: StreamEntry[] = []
-		let offset = 3
-
-		// Create array of stream values without full BER decoding
-		// for better performance.
-		// As we already know the structure of metering data:
-		while (offset < data.length - 6) {
-			// Leave room for minimal entry
-			if (data[offset] === 0xa0 && data[offset + 1] === 0x0f) {
-				const identifier = data.readUInt32BE(offset + 2)
-				// Skip to value
-				offset += 6
-				const value = data.readFloatLE(offset)
-				entries.push({
-					identifier,
-					value: {
-						type: ParameterType.Real,
-						value: value,
-					},
-				})
-				offset += 4
+		try {
+			const decoded = berDecode(data)
+			if (data[0] === 0x60 && data[2] === 0x66) {
+				// Root and stream tag check
+				if (decoded.value) {
+					this.emit('emberStreamPacket', data)
+				}
 			}
-			offset++
+		} catch (error) {
+			console.error('Error decoding stream packet:', error)
+			this.resetMultiPacketBuffer()
 		}
-
-		return entries
 	}
 
 	resetMultiPacketBuffer(): void {

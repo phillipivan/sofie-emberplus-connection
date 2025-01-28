@@ -1,6 +1,7 @@
 import { EventEmitter } from 'eventemitter3'
 import { Parameter, ParameterType } from '../../model/Parameter'
 import { EmberValue } from '../../types'
+import { Collection } from '../../types/types'
 import { StreamEntry } from '../../model'
 
 import Debug from 'debug'
@@ -98,8 +99,8 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 		return this.registeredStreams.has(identifier)
 	}
 
-	public updateStreamValues(streamEntries: StreamEntry[]): void {
-		streamEntries.forEach((streamEntry) => {
+	public updateStreamValues(streamEntries: Collection<StreamEntry>): void {
+		Object.values<StreamEntry>(streamEntries).forEach((streamEntry) => {
 			// O(1) lookup by identifier
 			const paths = this.streamsByIdentifier.get(streamEntry.identifier)
 
@@ -121,24 +122,27 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 				streamInfo.lastUpdate = now
 
 				if (streamEntry.value.type === ParameterType.Integer) {
-					this.updateStreamValue(path, streamEntry.value.value, streamInfo)
+					this.updateStreamValue(path, streamEntry.value.value)
 				} else if (streamEntry.value.type === ParameterType.Octets && Buffer.isBuffer(streamEntry.value.value)) {
 					const buffer = streamEntry.value.value
 					if (buffer.length >= streamInfo.offset + 4) {
 						const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.length)
 						const decodedValue = view.getFloat32(streamInfo.offset, true)
-						this.updateStreamValue(path, decodedValue, streamInfo)
+						this.updateStreamValue(path, decodedValue)
 					}
-				} else {
-					debug('Unhandled stream value type:', streamEntry.value.type)
 				}
 			})
 		})
 	}
 
-	public updateStreamValue(path: string, value: EmberValue, streamInfo: StreamInfo): void {
-		streamInfo.parameter.value = value
-		this.emit('streamUpdate', path, value)
+	public updateStreamValue(path: string, value: EmberValue): void {
+		if (path) {
+			const streamInfo = this.registeredStreams.get(path)
+			if (streamInfo) {
+				streamInfo.parameter.value = value
+				this.emit('streamUpdate', path, value)
+			}
+		}
 	}
 
 	public getAllRegisteredPaths(): string[] {

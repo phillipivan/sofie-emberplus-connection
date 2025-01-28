@@ -7,14 +7,13 @@ import { ConnectionStatus } from '../Client'
 import { normalizeError } from '../Lib/util'
 import { Root } from '../../types'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
-import { StreamEntry } from '../../model'
 
 export type Request = any
 
 export type S101SocketEvents = {
 	error: [Error]
 	emberTree: [root: DecodeResult<Root>]
-	emberStreamEntries: [StreamEntry[]]
+	emberStreamTree: [root: DecodeResult<Root>]
 	connecting: []
 	connected: []
 	disconnected: []
@@ -54,9 +53,12 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 				this.emit('error', normalizeError(e))
 			}
 		})
-		this.codec.on('emberStreamPacketEntries', (streamEntries: StreamEntry[]) => {
+		this.codec.on('emberStreamPacket', (packet) => {
 			try {
-				this.emit('emberStreamEntries', streamEntries)
+				const root = berDecode(packet)
+				if (root != null) {
+					this.emit('emberStreamTree', root)
+				}
 			} catch (e) {
 				this.emit('error', normalizeError(e))
 			}

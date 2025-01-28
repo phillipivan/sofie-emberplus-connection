@@ -140,9 +140,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			// Regular ember tree
 			this._handleIncoming(tree)
 		})
-		this._client.on('emberStreamEntries', (streamEntries: StreamEntry[]) => {
+		this._client.on('emberStreamTree', (tree: DecodeResult<Root>) => {
 			// Ember Tree with Stream
-			this._streamManager.updateStreamValues(streamEntries)
+			const entries = tree.value as Collection<StreamEntry>
+			this._streamManager.updateStreamValues(entries)
 		})
 
 		this._client.on('error', (e) => this.emit('error', e))
