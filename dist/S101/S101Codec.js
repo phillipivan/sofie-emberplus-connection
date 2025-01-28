@@ -185,8 +185,9 @@ class S101Codec extends eventemitter3_1.EventEmitter {
         }
     }
     handleEmberStreamPacket(data) {
-        // For better performance, we don't decode the full BER structure
-        // Instead we just parse the metering values, as we already know the structure:
+        // For better performance, we don't decode the full BER structure using the decodeStreamEntries function.
+        // Instead we just parse the metering values, as we already know the structure
+        // This might be included in the future, but for now this is sufficient:
         const entries = this.parseStreamPacket(data);
         if (entries.length < 1)
             return;
@@ -194,25 +195,81 @@ class S101Codec extends eventemitter3_1.EventEmitter {
     }
     parseStreamPacket(data) {
         const entries = [];
-        let offset = 3;
-        // Create array of stream values without full BER decoding
-        // for better performance.
-        // As we already know the structure of metering data:
-        while (offset < data.length - 6) {
-            // Leave room for minimal entry
-            if (data[offset] === 0xa0 && data[offset + 1] === 0x0f) {
-                const identifier = data.readUInt32BE(offset + 2);
-                // Skip to value
-                offset += 6;
-                const value = data.readFloatLE(offset);
-                entries.push({
-                    identifier,
-                    value: {
-                        type: model_1.ParameterType.Real,
-                        value: value,
-                    },
-                });
-                offset += 4;
+        let offset = 0;
+        // Skip root tag and length
+        if (data[offset] === 0x60) {
+            offset += 2;
+        }
+        // Process each stream entry
+        while (offset < data.length - 8) {
+            // Need at least 8 bytes for an entry
+            // Look for start of entry (0xa0)
+            if (data[offset] === 0xa0) {
+                console.log('Data :', data.toString('hex'));
+                // Skip entry tag and length
+                offset += 2;
+                // Process identifier
+                if (data[offset] === 0x02) {
+                    offset++; // Skip tag
+                    const idLength = data[offset];
+                    offset++;
+                    // Read identifier - ensure we read the full length
+                    let identifier = 0;
+                    for (let i = 0; i < idLength; i++) {
+                        identifier = (identifier << 8) | data[offset + i];
+                    }
+                    offset += idLength;
+                    // Look for value tag (0xa1)
+                    while (offset < data.length && data[offset] !== 0xa1) {
+                        offset++;
+                    }
+                    if (offset < data.length) {
+                        offset += 2; // Skip value tag and length
+                        // Look specific for real type tag (0x09)
+                        if (data[offset] === 0x09) {
+                            offset++; // Skip type tag
+                            // Get real length of value
+                            const realLength = data[offset];
+                            offset++;
+                            // Get format byte
+                            const formatByte = data[offset];
+                            offset++;
+                            // Special values check
+                            // 0x40 = +INF, 0x41 = -INF, 0x42 = NaN
+                            if (realLength === 1) {
+                                let value;
+                                switch (formatByte) {
+                                    case 0x40:
+                                        value = Infinity;
+                                        break;
+                                    case 0x41:
+                                        value = -Infinity;
+                                        break;
+                                    case 0x42:
+                                        value = NaN;
+                                        break;
+                                    default:
+                                        value = 0;
+                                }
+                                entries.push({
+                                    identifier,
+                                    value: { type: model_1.ParameterType.Real, value },
+                                });
+                                continue;
+                            }
+                            // Regular float value
+                            if (realLength >= 5) {
+                                const floatBytes = data.subarray(offset, offset + 4);
+                                const value = floatBytes.readFloatLE(0);
+                                offset += 4;
+                                entries.push({
+                                    identifier,
+                                    value: { type: model_1.ParameterType.Real, value },
+                                });
+                            }
+                        }
+                    }
+                }
             }
             offset++;
         }
