@@ -1,10 +1,9 @@
 /// <reference types="node" />
 import { EventEmitter } from 'eventemitter3';
 import { SmartBuffer } from 'smart-buffer';
-import { StreamEntry } from '../model';
 export type S101CodecEvents = {
     emberPacket: [packet: Buffer];
-    emberStreamPacketEntries: [StreamEntry[]];
+    emberStreamPacket: [packet: Buffer];
     keepaliveReq: [];
     keepaliveResp: [];
 };
@@ -19,7 +18,6 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
     handleEmberFrame(frame: SmartBuffer): void;
     private handleEmberPacket;
     private handleEmberStreamPacket;
-    private parseStreamPacket;
     resetMultiPacketBuffer(): void;
     encodeBER(data: Buffer): Buffer[];
     keepAliveRequest(): Buffer;

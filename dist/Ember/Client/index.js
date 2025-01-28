@@ -61,9 +61,10 @@ class EmberClient extends eventemitter3_1.EventEmitter {
             // Regular ember tree
             this._handleIncoming(tree);
         });
-        this._client.on('emberStreamEntries', (streamEntries) => {
+        this._client.on('emberStreamTree', (tree) => {
             // Ember Tree with Stream
-            this._streamManager.updateStreamValues(streamEntries);
+            const entries = tree.value;
+            this._streamManager.updateStreamValues(entries);
         });
         this._client.on('error', (e) => this.emit('error', e));
         this._client.on('connected', () => this.emit('connected'));

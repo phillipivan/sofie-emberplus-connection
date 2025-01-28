@@ -6,7 +6,6 @@ const smart_buffer_1 = require("smart-buffer");
 const debug_1 = tslib_1.__importDefault(require("debug"));
 const util_1 = require("util");
 const ber_1 = require("../encodings/ber");
-const model_1 = require("../model");
 const debug = (0, debug_1.default)('emberplus-connection:S101Codec');
 const S101_BOF = 0xfe;
 const S101_EOF = 0xff;
@@ -185,95 +184,19 @@ class S101Codec extends eventemitter3_1.EventEmitter {
         }
     }
     handleEmberStreamPacket(data) {
-        // For better performance, we don't decode the full BER structure using the decodeStreamEntries function.
-        // Instead we just parse the metering values, as we already know the structure
-        // This might be included in the future, but for now this is sufficient:
-        const entries = this.parseStreamPacket(data);
-        if (entries.length < 1)
-            return;
-        this.emit('emberStreamPacketEntries', entries);
-    }
-    parseStreamPacket(data) {
-        const entries = [];
-        let offset = 0;
-        // Skip root tag and length
-        if (data[offset] === 0x60) {
-            offset += 2;
-        }
-        // Process each stream entry
-        while (offset < data.length - 8) {
-            // Need at least 8 bytes for an entry
-            // Look for start of entry (0xa0)
-            if (data[offset] === 0xa0) {
-                console.log('Data :', data.toString('hex'));
-                // Skip entry tag and length
-                offset += 2;
-                // Process identifier
-                if (data[offset] === 0x02) {
-                    offset++; // Skip tag
-                    const idLength = data[offset];
-                    offset++;
-                    // Read identifier - ensure we read the full length
-                    let identifier = 0;
-                    for (let i = 0; i < idLength; i++) {
-                        identifier = (identifier << 8) | data[offset + i];
-                    }
-                    offset += idLength;
-                    // Look for value tag (0xa1)
-                    while (offset < data.length && data[offset] !== 0xa1) {
-                        offset++;
-                    }
-                    if (offset < data.length) {
-                        offset += 2; // Skip value tag and length
-                        // Look specific for real type tag (0x09)
-                        if (data[offset] === 0x09) {
-                            offset++; // Skip type tag
-                            // Get real length of value
-                            const realLength = data[offset];
-                            offset++;
-                            // Get format byte
-                            const formatByte = data[offset];
-                            offset++;
-                            // Special values check
-                            // 0x40 = +INF, 0x41 = -INF, 0x42 = NaN
-                            if (realLength === 1) {
-                                let value;
-                                switch (formatByte) {
-                                    case 0x40:
-                                        value = Infinity;
-                                        break;
-                                    case 0x41:
-                                        value = -Infinity;
-                                        break;
-                                    case 0x42:
-                                        value = NaN;
-                                        break;
-                                    default:
-                                        value = 0;
-                                }
-                                entries.push({
-                                    identifier,
-                                    value: { type: model_1.ParameterType.Real, value },
-                                });
-                                continue;
-                            }
-                            // Regular float value
-                            if (realLength >= 5) {
-                                const floatBytes = data.subarray(offset, offset + 4);
-                                const value = floatBytes.readFloatLE(0);
-                                offset += 4;
-                                entries.push({
-                                    identifier,
-                                    value: { type: model_1.ParameterType.Real, value },
-                                });
-                            }
-                        }
-                    }
+        try {
+            const decoded = (0, ber_1.berDecode)(data);
+            if (data[0] === 0x60 && data[2] === 0x66) {
+                // Root and stream tag check
+                if (decoded.value) {
+                    this.emit('emberStreamPacket', data);
                 }
             }
-            offset++;
         }
-        return entries;
+        catch (error) {
+            console.error('Error decoding stream packet:', error);
+            this.resetMultiPacketBuffer();
+        }
     }
     resetMultiPacketBuffer() {
         this.multiPacketBuffer = undefined;
