@@ -62,53 +62,67 @@ export type S101CodecEvents = {
 }
 
 const RATE_LIMIT_MS = 200
+// This is enough for typical size of Ember data, but buffer is Dynamic to allow for larger data if needed
+const BUFFER_FRAME_SIZE = 4096
 
 export default class S101Codec extends EventEmitter<S101CodecEvents> {
-	inbuf = new SmartBuffer()
-	emberbuf = new SmartBuffer()
+	inbuf = new SmartBuffer({ size: BUFFER_FRAME_SIZE })
 	escaped = false
 
 	private multiPacketBuffer?: SmartBuffer
 	private isMultiPacket = false
 
 	private ignoreBuffer = false
-	private timeSinceLastStreamPacket = 0
+	private timeSinceLastStreamData = 0
 
 	dataIn(buf: Buffer): void {
 		// Check for stream metering data by checking for Root (0x60) and Stream (0x66) tags
-		const isStreamPacket = buf.length >= 3 && buf[0] === 0x60 && buf[2] === 0x66
+		const isStreamData = buf.length >= 3 && buf[0] === 0x60 && buf[2] === 0x66
 
 		const now = Date.now()
-		if (isStreamPacket && now - this.timeSinceLastStreamPacket < RATE_LIMIT_MS) {
+		if (isStreamData && now - this.timeSinceLastStreamData < RATE_LIMIT_MS) {
 			// Skip if we've received a stream packet within the last RATE_LIMIT_MS
 			this.ignoreBuffer = true
-			debug('Stream metering packet skipped due to rate limiting')
+			debug('Stream metering data skipped due to rate limiting')
 			return
 		}
 
 		if (!this.ignoreBuffer) {
-			this.timeSinceLastStreamPacket = now
+			this.timeSinceLastStreamData = now
 
-			for (let i = 0; i < buf.length; i++) {
-				const b = buf.readUInt8(i)
-				if (this.escaped) {
-					this.inbuf.writeUInt8(b ^ S101_XOR)
-					this.escaped = false
-				} else if (b === S101_CE) {
-					// Control Escape
-					this.escaped = true
-				} else if (b === S101_BOF) {
-					// Beginning of Frame
-					this.inbuf.clear()
-					this.escaped = false
-				} else if (b === S101_EOF) {
-					// End of Frame
-					this.inbuf.moveTo(0)
-					this.handleFrame(this.inbuf)
-					this.inbuf.clear()
-				} else {
-					this.inbuf.writeUInt8(b)
+			let offset = 0
+			while (offset < buf.length) {
+				// Find frame boundaries:
+				const frameStart = buf.indexOf(S101_BOF, offset)
+				if (frameStart === -1) break // No more frames
+
+				const frameEnd = buf.indexOf(S101_EOF, frameStart + 1)
+				if (frameEnd === -1) {
+					debug('Skipping incomplete frame')
+					break
 				}
+
+				// Process the complete frame
+				this.inbuf.clear()
+				this.escaped = false
+
+				// Process frame contents
+				for (let i = frameStart + 1; i < frameEnd; i++) {
+					const b = buf[i]
+					if (this.escaped) {
+						this.inbuf.writeUInt8(b ^ S101_XOR)
+						this.escaped = false
+					} else if (b === S101_CE) {
+						this.escaped = true
+					} else {
+						this.inbuf.writeUInt8(b)
+					}
+				}
+
+				this.inbuf.moveTo(0)
+				this.handleFrame(this.inbuf)
+
+				offset = frameEnd + 1
 			}
 		} else {
 			this.ignoreBuffer = false
