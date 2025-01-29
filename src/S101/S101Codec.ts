@@ -61,6 +61,8 @@ export type S101CodecEvents = {
 	keepaliveResp: []
 }
 
+const RATE_LIMIT_MS = 200
+
 export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	inbuf = new SmartBuffer()
 	emberbuf = new SmartBuffer()
@@ -69,24 +71,48 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	private multiPacketBuffer?: SmartBuffer
 	private isMultiPacket = false
 
+	private ignoreBuffer = false
+	private timeSinceLastStreamPacket = 0
+
 	dataIn(buf: Buffer): void {
-		for (let i = 0; i < buf.length; i++) {
-			const b = buf.readUInt8(i)
-			if (this.escaped) {
-				this.inbuf.writeUInt8(b ^ S101_XOR)
-				this.escaped = false
-			} else if (b === S101_CE) {
-				this.escaped = true
-			} else if (b === S101_BOF) {
-				this.inbuf.clear()
-				this.escaped = false
-			} else if (b === S101_EOF) {
-				this.inbuf.moveTo(0)
-				this.handleFrame(this.inbuf)
-				this.inbuf.clear()
-			} else {
-				this.inbuf.writeUInt8(b)
+		// Check for stream metering data by checking for Root (0x60) and Stream (0x66) tags
+		const isStreamPacket = buf.length >= 3 && buf[0] === 0x60 && buf[2] === 0x66
+
+		const now = Date.now()
+		if (isStreamPacket && now - this.timeSinceLastStreamPacket < RATE_LIMIT_MS) {
+			// Skip if we've received a stream packet within the last RATE_LIMIT_MS
+			this.ignoreBuffer = true
+			debug('Stream metering packet skipped due to rate limiting')
+			return
+		}
+
+		if (!this.ignoreBuffer) {
+			this.timeSinceLastStreamPacket = now
+
+			for (let i = 0; i < buf.length; i++) {
+				const b = buf.readUInt8(i)
+				if (this.escaped) {
+					this.inbuf.writeUInt8(b ^ S101_XOR)
+					this.escaped = false
+				} else if (b === S101_CE) {
+					// Control Escape
+					this.escaped = true
+				} else if (b === S101_BOF) {
+					// Beginning of Frame
+					this.inbuf.clear()
+					this.escaped = false
+				} else if (b === S101_EOF) {
+					// End of Frame
+					this.inbuf.moveTo(0)
+					this.handleFrame(this.inbuf)
+					this.inbuf.clear()
+				} else {
+					this.inbuf.writeUInt8(b)
+				}
 			}
+		} else {
+			this.ignoreBuffer = false
+			this.inbuf.clear()
 		}
 	}
 
