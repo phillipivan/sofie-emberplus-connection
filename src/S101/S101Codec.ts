@@ -83,17 +83,17 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		if (isStreamData && now - this.timeSinceLastStreamData < RATE_LIMIT_MS) {
 			// Skip if we've received a stream packet within the last RATE_LIMIT_MS
 			this.ignoreBuffer = true
-			debug('Stream metering data skipped due to rate limiting')
+			debug('Stream metering data skipped due to rate limit')
 			return
 		}
 
 		if (!this.ignoreBuffer) {
 			this.timeSinceLastStreamData = now
 
-			let offset = 0
-			while (offset < buf.length) {
+			let frameOffset = 0
+			while (frameOffset < buf.length) {
 				// Find frame boundaries:
-				const frameStart = buf.indexOf(S101_BOF, offset)
+				const frameStart = buf.indexOf(S101_BOF, frameOffset)
 				if (frameStart === -1) break // No more frames
 
 				const frameEnd = buf.indexOf(S101_EOF, frameStart + 1)
@@ -102,27 +102,35 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 					break
 				}
 
-				// Process the complete frame
-				this.inbuf.clear()
-				this.escaped = false
+				// Handle escaped characters in chunks
+				let chunkOffset = frameStart + 1
+				while (chunkOffset < frameEnd) {
+					// Search for the next escape character:
+					const nextEscape = buf.indexOf(S101_CE, chunkOffset)
 
-				// Process frame contents
-				for (let i = frameStart + 1; i < frameEnd; i++) {
-					const b = buf[i]
-					if (this.escaped) {
-						this.inbuf.writeUInt8(b ^ S101_XOR)
-						this.escaped = false
-					} else if (b === S101_CE) {
-						this.escaped = true
-					} else {
-						this.inbuf.writeUInt8(b)
+					if (nextEscape === -1 || nextEscape >= frameEnd) {
+						// No more escapes - copy remaining chunk directly
+						this.inbuf.writeBuffer(buf.subarray(chunkOffset, frameEnd))
+						break
 					}
+
+					// Copy chunk up to escape character
+					if (nextEscape > chunkOffset) {
+						this.inbuf.writeBuffer(buf.subarray(chunkOffset, nextEscape))
+					}
+
+					// Convert escaped byte
+					if (nextEscape + 1 < frameEnd) {
+						this.inbuf.writeUInt8(buf[nextEscape + 1] ^ S101_XOR)
+					}
+					// set offSet after escape and escaped byte
+					chunkOffset = nextEscape + 2
 				}
 
 				this.inbuf.moveTo(0)
 				this.handleFrame(this.inbuf)
 
-				offset = frameEnd + 1
+				frameOffset = frameEnd + 1
 			}
 		} else {
 			this.ignoreBuffer = false
