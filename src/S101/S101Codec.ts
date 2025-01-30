@@ -77,7 +77,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 	dataIn(buf: Buffer): void {
 		// Check for stream metering data by checking for Root (0x60) and Stream (0x66) tags
-		const isStreamData = buf.length >= 3 && buf[0] === 0x60 && buf[2] === 0x66
+		const isStreamData = buf.length >= 13 && buf[10] === 0x60 && buf[12] === 0x66
 
 		const now = Date.now()
 		if (isStreamData && now - this.timeSinceLastStreamData < RATE_LIMIT_MS) {

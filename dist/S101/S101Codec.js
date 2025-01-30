@@ -61,7 +61,7 @@ class S101Codec extends eventemitter3_1.EventEmitter {
     }
     dataIn(buf) {
         // Check for stream metering data by checking for Root (0x60) and Stream (0x66) tags
-        const isStreamData = buf.length >= 3 && buf[0] === 0x60 && buf[2] === 0x66;
+        const isStreamData = buf.length >= 13 && buf[10] === 0x60 && buf[12] === 0x66;
         const now = Date.now();
         if (isStreamData && now - this.timeSinceLastStreamData < RATE_LIMIT_MS) {
             // Skip if we've received a stream packet within the last RATE_LIMIT_MS
