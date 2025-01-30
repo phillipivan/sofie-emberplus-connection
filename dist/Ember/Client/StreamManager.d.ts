@@ -11,7 +11,6 @@ interface StreamInfo {
     path: string;
     streamIdentifier: number;
     offset: number;
-    lastUpdate?: number;
 }
 export declare class StreamManager extends EventEmitter<StreamManagerEvents> {
     private registeredStreams;

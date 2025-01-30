@@ -8,10 +8,6 @@ import Debug from 'debug'
 
 const debug = Debug('emberplus-connection:StreamManager')
 
-// Rate limit for stream updates in ms
-// Currently hardcoded to 200ms
-const RATE_LIMIT_MS = 200
-
 export type StreamManagerEvents = {
 	streamUpdate: [path: string, value: EmberValue]
 }
@@ -21,7 +17,6 @@ interface StreamInfo {
 	path: string
 	streamIdentifier: number
 	offset: number
-	lastUpdate?: number
 }
 
 export class StreamManager extends EventEmitter<StreamManagerEvents> {
@@ -113,13 +108,6 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 			paths.forEach((path) => {
 				const streamInfo = this.registeredStreams.get(path)
 				if (!streamInfo || !streamEntry.value) return
-
-				// Check rate limit
-				const now = Date.now()
-				if (streamInfo.lastUpdate && now - streamInfo.lastUpdate < RATE_LIMIT_MS) {
-					return // Skip update if within rate limit window
-				}
-				streamInfo.lastUpdate = now
 
 				if (streamEntry.value.type === ParameterType.Integer) {
 					this.updateStreamValue(path, streamEntry.value.value)
