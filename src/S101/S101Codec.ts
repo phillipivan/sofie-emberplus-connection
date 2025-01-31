@@ -64,13 +64,9 @@ export type S101CodecEvents = {
 // This is enough for typical size of Ember data, but buffer is Dynamic to allow for larger data if needed
 const BUFFER_FRAME_SIZE = 64 * 1024
 
-// Cap metering data to 500ms
-const METERING_CAP = 500
-
 export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	inbuf = new SmartBuffer({ size: BUFFER_FRAME_SIZE })
 	private frameBuffer?: Buffer
-	private lastStreamTimeStamp = 0
 	escaped = false
 
 	private multiPacketBuffer?: SmartBuffer
@@ -91,8 +87,8 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			if (frameStart === -1) break
 
 			const frameEnd = buf.indexOf(S101_EOF, frameStart + 1)
-			if (frameEnd === -1) {
-				console.log('Parsing frameEnd to next chunk')
+			if (frameEnd === -1 || frameEnd - frameStart < 4) {
+				//console.log('Parsing frameEnd to next chunk')
 				this.frameBuffer = buf.subarray(frameStart)
 				break
 			}
@@ -129,25 +125,35 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 			this.escaped = false // Reset escaped state at frame end
 			this.inbuf.moveTo(0)
-			const now = Date.now()
-			let isStreamPacket = false
-			for (let i = 6; i < 16; i++) {
-				// Only check for stream packet in the possible bytes
-				if (buf[i] === 0x60 && buf[i + 2] === 0x66) {
-					isStreamPacket = true
-				}
-			}
 
-			if (isStreamPacket && now - this.lastStreamTimeStamp < METERING_CAP) {
-				// skip stream packets if they are too close together
-			} else {
-				this.lastStreamTimeStamp = now
-				// console.log('Buffer 00-16', this.inbuf.toString('hex').substring(0, 40))
-				// console.log('Send to handle frame: ', this.inbuf.toString('hex'))
-				this.handleFrame(this.inbuf)
-			}
+			// console.log('Buffer 00-16', this.inbuf.toString('hex').substring(0, 40))
+			// console.log('Send to handle frame: ', this.inbuf.toString('hex'))
+			this.handleFrame(this.inbuf)
 			frameOffset = frameEnd + 1
 		}
+	}
+
+	private isEmberStreamPacket(buffer: Buffer): boolean {
+		// Fast skip if not minimum stream structure
+		if (buffer.length < 3) return false
+
+		// Check for stream structure
+		if (buffer[0] === 0x60) {
+			// Check the length byte
+			const lengthByte = buffer[1]
+
+			if (lengthByte < 0x80) {
+				// Simple length, next byte should be 0x66
+				return buffer[2] === 0x66
+			} else {
+				// Complex length encoding
+				const numLengthBytes = lengthByte & 0x7f
+				if (buffer.length >= 2 + numLengthBytes) {
+					return buffer[2 + numLengthBytes] === 0x66
+				}
+			}
+		}
+		return false
 	}
 
 	handleFrame(frame: SmartBuffer): void {
@@ -213,7 +219,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
 			if ((flags & FLAG_EMPTY_PACKET) === 0) {
 				// Check if this is a metering packet
-				if (payload[0] === 0x60 && payload[2] === 0x66) {
+				if (this.isEmberStreamPacket(payload)) {
 					this.handleEmberStreamPacket(payload)
 				} else {
 					this.handleEmberPacket(payload)
@@ -259,13 +265,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 	private handleEmberStreamPacket(data: Buffer): void {
 		try {
-			const decoded = berDecode(data)
-			if (data[0] === 0x60 && data[2] === 0x66) {
-				// Root and stream tag check
-				if (decoded.value) {
-					this.emit('emberStreamPacket', data)
-				}
-			}
+			this.emit('emberStreamPacket', data)
 		} catch (error) {
 			console.error('Error decoding stream packet:', error)
 			this.resetMultiPacketBuffer()

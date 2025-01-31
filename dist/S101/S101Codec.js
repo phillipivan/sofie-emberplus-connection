@@ -49,13 +49,10 @@ const CRC_TABLE = [
 ];
 // This is enough for typical size of Ember data, but buffer is Dynamic to allow for larger data if needed
 const BUFFER_FRAME_SIZE = 64 * 1024;
-// Cap metering data to 500ms
-const METERING_CAP = 500;
 class S101Codec extends eventemitter3_1.EventEmitter {
     constructor() {
         super(...arguments);
         this.inbuf = new smart_buffer_1.SmartBuffer({ size: BUFFER_FRAME_SIZE });
-        this.lastStreamTimeStamp = 0;
         this.escaped = false;
         this.isMultiPacket = false;
     }
@@ -72,8 +69,8 @@ class S101Codec extends eventemitter3_1.EventEmitter {
             if (frameStart === -1)
                 break;
             const frameEnd = buf.indexOf(S101_EOF, frameStart + 1);
-            if (frameEnd === -1) {
-                console.log('Parsing frameEnd to next chunk');
+            if (frameEnd === -1 || frameEnd - frameStart < 4) {
+                //console.log('Parsing frameEnd to next chunk')
                 this.frameBuffer = buf.subarray(frameStart);
                 break;
             }
@@ -108,25 +105,33 @@ class S101Codec extends eventemitter3_1.EventEmitter {
             }
             this.escaped = false; // Reset escaped state at frame end
             this.inbuf.moveTo(0);
-            const now = Date.now();
-            let isStreamPacket = false;
-            for (let i = 6; i < 16; i++) {
-                // Only check for stream packet in the possible bytes
-                if (buf[i] === 0x60 && buf[i + 2] === 0x66) {
-                    isStreamPacket = true;
-                }
-            }
-            if (isStreamPacket && now - this.lastStreamTimeStamp < METERING_CAP) {
-                // skip stream packets if they are too close together
-            }
-            else {
-                this.lastStreamTimeStamp = now;
-                // console.log('Buffer 00-16', this.inbuf.toString('hex').substring(0, 40))
-                // console.log('Send to handle frame: ', this.inbuf.toString('hex'))
-                this.handleFrame(this.inbuf);
-            }
+            // console.log('Buffer 00-16', this.inbuf.toString('hex').substring(0, 40))
+            // console.log('Send to handle frame: ', this.inbuf.toString('hex'))
+            this.handleFrame(this.inbuf);
             frameOffset = frameEnd + 1;
         }
+    }
+    isEmberStreamPacket(buffer) {
+        // Fast skip if not minimum stream structure
+        if (buffer.length < 3)
+            return false;
+        // Check for stream structure
+        if (buffer[0] === 0x60) {
+            // Check the length byte
+            const lengthByte = buffer[1];
+            if (lengthByte < 0x80) {
+                // Simple length, next byte should be 0x66
+                return buffer[2] === 0x66;
+            }
+            else {
+                // Complex length encoding
+                const numLengthBytes = lengthByte & 0x7f;
+                if (buffer.length >= 2 + numLengthBytes) {
+                    return buffer[2 + numLengthBytes] === 0x66;
+                }
+            }
+        }
+        return false;
     }
     handleFrame(frame) {
         if (!this.validateFrame(frame.toBuffer())) {
@@ -185,7 +190,7 @@ class S101Codec extends eventemitter3_1.EventEmitter {
         if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
             if ((flags & FLAG_EMPTY_PACKET) === 0) {
                 // Check if this is a metering packet
-                if (payload[0] === 0x60 && payload[2] === 0x66) {
+                if (this.isEmberStreamPacket(payload)) {
                     this.handleEmberStreamPacket(payload);
                 }
                 else {
@@ -234,13 +239,7 @@ class S101Codec extends eventemitter3_1.EventEmitter {
     }
     handleEmberStreamPacket(data) {
         try {
-            const decoded = (0, ber_1.berDecode)(data);
-            if (data[0] === 0x60 && data[2] === 0x66) {
-                // Root and stream tag check
-                if (decoded.value) {
-                    this.emit('emberStreamPacket', data);
-                }
-            }
+            this.emit('emberStreamPacket', data);
         }
         catch (error) {
             console.error('Error decoding stream packet:', error);
