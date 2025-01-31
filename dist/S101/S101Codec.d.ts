@@ -9,11 +9,11 @@ export type S101CodecEvents = {
 };
 export default class S101Codec extends EventEmitter<S101CodecEvents> {
     inbuf: SmartBuffer;
+    private frameBuffer?;
+    private lastStreamTimeStamp;
     escaped: boolean;
     private multiPacketBuffer?;
     private isMultiPacket;
-    private ignoreBuffer;
-    private timeSinceLastStreamData;
     dataIn(buf: Buffer): void;
     handleFrame(frame: SmartBuffer): void;
     handleEmberFrame(frame: SmartBuffer): void;

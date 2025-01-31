@@ -61,80 +61,92 @@ export type S101CodecEvents = {
 	keepaliveResp: []
 }
 
-const RATE_LIMIT_MS = 200
 // This is enough for typical size of Ember data, but buffer is Dynamic to allow for larger data if needed
-const BUFFER_FRAME_SIZE = 4096
+const BUFFER_FRAME_SIZE = 64 * 1024
+
+// Cap metering data to 500ms
+const METERING_CAP = 500
 
 export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	inbuf = new SmartBuffer({ size: BUFFER_FRAME_SIZE })
+	private frameBuffer?: Buffer
+	private lastStreamTimeStamp = 0
 	escaped = false
 
 	private multiPacketBuffer?: SmartBuffer
 	private isMultiPacket = false
 
-	private ignoreBuffer = false
-	private timeSinceLastStreamData = 0
-
 	dataIn(buf: Buffer): void {
-		// Check for stream metering data by checking for Root (0x60) and Stream (0x66) tags
-		const isStreamData = buf.length >= 13 && buf[10] === 0x60 && buf[12] === 0x66
+		// console.log('TimeStamp: ', Date.now(), 'dataIn', buf.toString('hex'))
 
-		const now = Date.now()
-		if (isStreamData && now - this.timeSinceLastStreamData < RATE_LIMIT_MS) {
-			// Skip if we've received a stream packet within the last RATE_LIMIT_MS
-			this.ignoreBuffer = true
-			debug('Stream metering data skipped due to rate limit')
-			return
+		// If we have leftover data from a previous incomplete frame, prepend it
+		if (this.frameBuffer) {
+			buf = Buffer.concat([this.frameBuffer, buf])
+			this.frameBuffer = undefined
 		}
 
-		if (!this.ignoreBuffer) {
-			this.timeSinceLastStreamData = now
+		let frameOffset = 0
+		while (frameOffset < buf.length) {
+			const frameStart = buf.indexOf(S101_BOF, frameOffset)
+			if (frameStart === -1) break
 
-			let frameOffset = 0
-			while (frameOffset < buf.length) {
-				// Find frame boundaries:
-				const frameStart = buf.indexOf(S101_BOF, frameOffset)
-				if (frameStart === -1) break // No more frames
-
-				const frameEnd = buf.indexOf(S101_EOF, frameStart + 1)
-				if (frameEnd === -1) {
-					debug('Skipping incomplete frame')
-					break
-				}
-
-				// Handle escaped characters in chunks
-				let chunkOffset = frameStart + 1
-				while (chunkOffset < frameEnd) {
-					// Search for the next escape character:
-					const nextEscape = buf.indexOf(S101_CE, chunkOffset)
-
-					if (nextEscape === -1 || nextEscape >= frameEnd) {
-						// No more escapes - copy remaining chunk directly
-						this.inbuf.writeBuffer(buf.subarray(chunkOffset, frameEnd))
-						break
-					}
-
-					// Copy chunk up to escape character
-					if (nextEscape > chunkOffset) {
-						this.inbuf.writeBuffer(buf.subarray(chunkOffset, nextEscape))
-					}
-
-					// Convert escaped byte
-					if (nextEscape + 1 < frameEnd) {
-						this.inbuf.writeUInt8(buf[nextEscape + 1] ^ S101_XOR)
-					}
-					// set offSet after escape and escaped byte
-					chunkOffset = nextEscape + 2
-				}
-
-				this.inbuf.moveTo(0)
-				this.handleFrame(this.inbuf)
-
-				frameOffset = frameEnd + 1
+			const frameEnd = buf.indexOf(S101_EOF, frameStart + 1)
+			if (frameEnd === -1) {
+				console.log('Parsing frameEnd to next chunk')
+				this.frameBuffer = buf.subarray(frameStart)
+				break
 			}
-		} else {
-			this.ignoreBuffer = false
+
 			this.inbuf.clear()
+			let chunkOffset = frameStart + 1
+			// Reset escaped state at frame start
+			this.escaped = false
+
+			while (chunkOffset < frameEnd) {
+				const b = buf[chunkOffset]
+
+				if (this.escaped) {
+					this.inbuf.writeUInt8(b ^ S101_XOR)
+					this.escaped = false
+					chunkOffset++
+				} else if (b === S101_CE) {
+					this.escaped = true
+					chunkOffset++
+				} else {
+					// Find next escape or end
+					let nextSpecial = chunkOffset + 1
+					while (nextSpecial < frameEnd) {
+						const nb = buf[nextSpecial]
+						if (nb === S101_CE || nb === S101_EOF) break
+						nextSpecial++
+					}
+
+					// Write the chunk up to the next special character
+					this.inbuf.writeBuffer(buf.subarray(chunkOffset, nextSpecial))
+					chunkOffset = nextSpecial
+				}
+			}
+
+			this.escaped = false // Reset escaped state at frame end
+			this.inbuf.moveTo(0)
+			const now = Date.now()
+			let isStreamPacket = false
+			for (let i = 6; i < 16; i++) {
+				// Only check for stream packet in the possible bytes
+				if (buf[i] === 0x60 && buf[i + 2] === 0x66) {
+					isStreamPacket = true
+				}
+			}
+
+			if (isStreamPacket && now - this.lastStreamTimeStamp < METERING_CAP) {
+				// skip stream packets if they are too close together
+			} else {
+				this.lastStreamTimeStamp = now
+				// console.log('Buffer 00-16', this.inbuf.toString('hex').substring(0, 40))
+				// console.log('Send to handle frame: ', this.inbuf.toString('hex'))
+				this.handleFrame(this.inbuf)
+			}
+			frameOffset = frameEnd + 1
 		}
 	}
 
