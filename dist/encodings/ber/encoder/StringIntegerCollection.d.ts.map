@@ -1,1 +1,0 @@
-{"version":3,"file":"StringIntegerCollection.d.ts","sourceRoot":"","sources":["../../../../src/encodings/ber/encoder/StringIntegerCollection.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,GAAG,MAAM,cAAc,CAAA;AACnC,OAAO,EAAE,uBAAuB,EAAE,MAAM,sBAAsB,CAAA;AAG9D,wBAAgB,6BAA6B,CAAC,UAAU,EAAE,uBAAuB,EAAE,MAAM,EAAE,GAAG,CAAC,MAAM,GAAG,IAAI,CAiB3G"}

@@ -1,1 +1,0 @@
-{"version":3,"file":"RootElement.js","sourceRoot":"","sources":["../../../../src/encodings/ber/encoder/RootElement.ts"],"names":[],"mappings":";;;AAEA,iCAA8C;AAC9C,2CAAmD;AAEnD,SAAgB,iBAAiB,CAAC,EAAe,EAAE,MAAc;IAChE,IAAI,MAAM,IAAI,EAAE,EAAE;QACjB,IAAA,iCAAqB,EAAC,EAAE,EAAE,MAAM,CAAC,CAAA;KACjC;SAAM;QACN,IAAA,4BAAqB,EAAC,EAAE,EAAE,MAAM,CAAC,CAAA;KACjC;AACF,CAAC;AAND,8CAMC"}

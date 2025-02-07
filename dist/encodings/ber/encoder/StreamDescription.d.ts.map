@@ -1,1 +1,0 @@
-{"version":3,"file":"StreamDescription.d.ts","sourceRoot":"","sources":["../../../../src/encodings/ber/encoder/StreamDescription.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,GAAG,MAAM,cAAc,CAAA;AACnC,OAAO,EAAE,iBAAiB,EAAgB,MAAM,kCAAkC,CAAA;AAGlF,wBAAgB,uBAAuB,CAAC,WAAW,EAAE,iBAAiB,EAAE,MAAM,EAAE,GAAG,CAAC,MAAM,GAAG,IAAI,CAYhG"}
