@@ -6,6 +6,7 @@ node_modules
 package-lock.json
 yarn-error.log
 /lib
+/dist
 /scratch
 
 .pnp.*
