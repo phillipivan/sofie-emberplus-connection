@@ -635,7 +635,6 @@ describe('client', () => {
 
 				streamManager.updateStreamValues(decoded)
 				const stream1 = streamManager.getStreamInfoByPath(path1)
-				console.log('stream1', stream1)
 				const stream2 = streamManager.getStreamInfoByPath(path2)
 
 				expect(stream1?.parameter.value).toBeCloseTo(-39.67915344238281)

@@ -127,7 +127,6 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			this.inbuf.moveTo(0)
 
 			// console.log('Buffer 00-16', this.inbuf.toString('hex').substring(0, 40))
-			// console.log('Send to handle frame: ', this.inbuf.toString('hex'))
 			this.handleFrame(this.inbuf)
 			frameOffset = frameEnd + 1
 		}
