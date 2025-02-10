@@ -33,12 +33,16 @@ client.on('error', (e) => {
 await client.connect()
 
 // If you want to listen to stream updates - you can do it like this:
-client.on('streamUpdate', (path, value) => {
+client.on('streamUpdate', (internalNodePath, value) => {
 	console.log('Stream Update:', {
-		path: path,
+		path: internalNodePath,
 		value: value,
 	})
+	// You can get the internal node path, the internal path can be different from the path you requested,
+	// depending on wheter you request a numbered node or via the description
+	// the client has a client.getInternalNodePath(node) that you can request and use as reference when subsribing to a node
 })
+
 // Get Root info
 const req = await client.getDirectory(client.tree)
 await req.response
@@ -95,6 +99,12 @@ client
 			console.log(update)
 		})
 	)
+client.on('streamUpdate', (internalNodePath, value) => {
+	console.log('Stream Update:', {
+		path: internalNodePath,
+		value: value,
+	})
+})
 ```
 
 ### Setting New Value

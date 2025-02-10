@@ -1,12 +1,21 @@
-//process.env.DEBUG = 'emberplus-connection:*'
+// Setting the environment variable DEBUG=emberplus-connection:*
+// will show debug information from the emberplus-connection module
+
+process.env.DEBUG = 'emberplus-connection:*'
+// Note: it's also possible to only log parts of the module by using a subset of the debug name,
+// 'emberplus-connection:S101Client' // for the S101Client class
+// 'emberplus-connection:S101Codec' // for the S101Codec class
+// 'emberplus-connection:StreamManager' // for the StreamManager class
+
 const { EmberClient } = require('../dist/index')
 
 //-------------------------------------------------------------------------
 // Client
-// log output from mc2_1_fader_mock.js
+// log output from lawo_mc2_fader_metering_mock.js
 // ------------------------------------------------------------------------
 
 const client = new EmberClient('192.168.1.67', 9000)
+let node1InternalNodePath = ''
 
 client.on('disconnected', () => {
 	console.error('Client Lost Ember connection')
@@ -35,6 +44,7 @@ client.on('connected', () => {
 				throw new Error(' Could not find node 1')
 			}
 			console.log('Found node:', node1)
+			node1InternalNodePath = client.getInternalNodePath(node1)
 
 			// Subscribe to changes
 			client.subscribe(node1, (node1) => {
@@ -46,15 +56,18 @@ client.on('connected', () => {
 			console.error(' Error:', error)
 		})
 })
-client.on('streamUpdate', (path, value) => {
+client.on('streamUpdate', (internalNodePath, value) => {
+	if (internalNodePath !== node1InternalNodePath) {
+		return
+	}
 	console.log('Stream Update:', {
-		path: path,
+		path: internalNodePath,
 		value: value,
 	})
 })
 
 console.log('-----------------------------------------------------------------------------')
-console.log('log output from mc2_1_fader_mock.js')
+console.log('log output from mc2_fader_metering_example.js')
 console.log('Connecting to Client...')
 client.connect().catch((error) => {
 	console.error('Client 2 Error when connecting:', error)
