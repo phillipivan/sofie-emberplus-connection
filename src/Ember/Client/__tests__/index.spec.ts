@@ -6,11 +6,14 @@ import {
 	ParameterImpl,
 	ParameterType,
 	QualifiedElementImpl,
+	StreamFormat,
 } from '../../../model'
-import { Collection, Root, RootElement } from '../../../types/types'
+import { Collection, EmberTypedValue, Root, RootElement } from '../../../types/types'
 import { EmberClient } from '../'
 import S101ClientMock from '../../../__mocks__/S101Client'
 import { DecodeResult } from '../../../encodings/ber/decoder/DecodeResult'
+import { StreamDescriptionImpl } from '../../../model/StreamDescription'
+import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry'
 // import { EmberTreeNode, RootElement } from '../../../types/types'
 // import { ElementType, EmberElement } from '../../../model/EmberElement'
 // import { Parameter, ParameterType } from '../../../model/Parameter'
@@ -104,6 +107,40 @@ describe('client', () => {
 			value: {
 				0: parent as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
 			},
+		}
+	}
+
+	function createStreamParameter(opts: {
+		identifier: string
+		streamId: number
+		value?: number
+		offset?: number
+		format?: StreamFormat
+	}) {
+		return new ParameterImpl(
+			ParameterType.Real,
+			opts.identifier,
+			undefined, // description
+			opts.value ?? 0.0,
+			undefined, // maximum
+			undefined, // minimum
+			undefined, // access
+			undefined, // format
+			undefined, // enumeration
+			undefined, // factor
+			undefined, // isOnline
+			undefined, // formula
+			undefined, // step
+			undefined, // defaultValue
+			opts.streamId,
+			undefined, // enumMap
+			new StreamDescriptionImpl(opts.format ?? StreamFormat.Float32LE, opts.offset ?? 0)
+		)
+	}
+
+	function createStreamEntryResponse(entries: Array<{ identifier: number; value: EmberTypedValue }>) {
+		return {
+			value: entries.map((entry) => new StreamEntryImpl(entry.identifier, entry.value)),
 		}
 	}
 
@@ -380,6 +417,229 @@ describe('client', () => {
 
 			const res = await req.response
 			expect(res).toBeTruthy()
+		})
+	})
+
+	describe('StreamManager Integration', () => {
+		it('registers stream parameter when subscribing', async () => {
+			await runWithConnection(async (client, socket) => {
+				const streamParam = createStreamParameter({
+					identifier: 'test-stream',
+					streamId: 1,
+					value: 0.5,
+					offset: 0,
+				})
+
+				const paramNode = new NumberedTreeNodeImpl(1, streamParam)
+
+				// Subscribe to parameter
+				const subscribeReq = await client.subscribe(paramNode)
+				subscribeReq.response?.catch(() => null)
+
+				expect(onSocketWrite).toHaveBeenCalledTimes(1)
+
+				// Mock successful subscription
+				socket.mockData(createQualifiedNodeResponse('1', streamParam, undefined))
+
+				// Wait for registration to complete
+				await new Promise(setImmediate)
+
+				// Get StreamManager instance and check registration
+				//@ts-expect-error - private method
+				const streamManager = client._streamManager
+				const streamInfo = streamManager.getStreamInfoByPath('1')
+
+				expect(streamInfo).toBeDefined()
+				expect(streamInfo?.parameter.streamIdentifier).toBe(1)
+				expect(streamInfo?.parameter.value).toBe(0.5)
+			})
+		})
+
+		it('deregisters stream parameter when unsubscribing', async () => {
+			await runWithConnection(async (client, socket) => {
+				const streamParam = createStreamParameter({
+					identifier: 'test-stream',
+					streamId: 1,
+				})
+
+				const paramNode = new NumberedTreeNodeImpl(1, streamParam)
+
+				// First subscribe
+				const subscribeReq = await client.subscribe(paramNode)
+				subscribeReq.response?.catch(() => null)
+
+				socket.mockData(createQualifiedNodeResponse('1', streamParam, undefined))
+
+				await new Promise(setImmediate)
+
+				// Then unsubscribe
+				const unsubscribeReq = await client.unsubscribe(paramNode)
+				unsubscribeReq.response?.catch(() => null)
+
+				socket.mockData(createQualifiedNodeResponse('1', streamParam, undefined))
+
+				// Mock receiving stream data
+				const streamData = createStreamEntryResponse([
+					{
+						identifier: 1,
+						value: { type: ParameterType.Octets, value: 42.5 },
+					},
+				])
+				socket.mockData(streamData)
+
+				await new Promise(setImmediate)
+
+				// Check parameter was deregistered
+				//@ts-expect-error - private method
+				const streamManager = client._streamManager
+				const streamInfo = streamManager.getStreamInfoByPath('1')
+
+				expect(streamInfo).toBeUndefined()
+			})
+		})
+
+		it('processes stream data with specific offsets', async () => {
+			await runWithConnection(async (client, socket) => {
+				// Create test parameters with specific offsets
+				const streamParam1 = createStreamParameter({
+					identifier: 'test-stream1',
+					streamId: 1,
+					offset: 64,
+					format: StreamFormat.Float32LE,
+				})
+
+				const streamParam2 = createStreamParameter({
+					identifier: 'test-stream2',
+					streamId: 1,
+					offset: 68,
+					format: StreamFormat.Float32LE,
+				})
+
+				const path1 = '1.3.17.3'
+				const path2 = '1.3.18.3'
+
+				// Create qualified element wrappers for the parameters
+				const param1Element = new QualifiedElementImpl(path1, streamParam1)
+				const param2Element = new QualifiedElementImpl(path2, streamParam2)
+
+				// Subscribe to parameters using qualified elements
+				const subscribe1 = await client.subscribe(param1Element)
+				const subscribe2 = await client.subscribe(param2Element)
+
+				subscribe1.response?.catch(() => null)
+				subscribe2.response?.catch(() => null)
+
+				// Mock successful subscriptions with qualified paths
+				socket.mockData({
+					value: {
+						1: param1Element,
+					},
+				})
+				socket.mockData({
+					value: {
+						1: param2Element,
+					},
+				})
+
+				await new Promise(setImmediate)
+
+				// Create the buffer with repeating values except last 8 bytes
+				const buffer = Buffer.from([
+					0x00,
+					0x00,
+					0x48,
+					0xc3, // -200.0 repeated multiple times
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x00,
+					0x00,
+					0x48,
+					0xc3,
+					0x74,
+					0xb7,
+					0x1e,
+					0xc2, // -39.67915344238281 at offset 64
+					0xb6,
+					0xe1,
+					0xbe,
+					0xc1, // -23.860210418701172 at offset 68
+				])
+
+				// Get StreamManager instance and verify values
+				//@ts-expect-error - private method
+				const streamManager = client._streamManager
+
+				const decoded: Collection<StreamEntry> = [
+					{
+						identifier: 1,
+						value: {
+							type: ParameterType.Octets,
+							value: buffer,
+						},
+					},
+				]
+
+				streamManager.updateStreamValues(decoded)
+				const stream1 = streamManager.getStreamInfoByPath(path1)
+				const stream2 = streamManager.getStreamInfoByPath(path2)
+
+				expect(stream1?.parameter.value).toBeCloseTo(-39.67915344238281)
+				expect(stream2?.parameter.value).toBeCloseTo(-23.860210418701172)
+			})
 		})
 	})
 })

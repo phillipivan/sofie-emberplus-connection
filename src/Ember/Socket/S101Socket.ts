@@ -12,8 +12,8 @@ export type Request = any
 
 export type S101SocketEvents = {
 	error: [Error]
-	emberPacket: [packet: Buffer]
 	emberTree: [root: DecodeResult<Root>]
+	emberStreamTree: [root: DecodeResult<Root>]
 	connecting: []
 	connected: []
 	disconnected: []
@@ -44,11 +44,20 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 		})
 
 		this.codec.on('emberPacket', (packet) => {
-			this.emit('emberPacket', packet)
 			try {
 				const root = berDecode(packet)
 				if (root != null) {
 					this.emit('emberTree', root)
+				}
+			} catch (e) {
+				this.emit('error', normalizeError(e))
+			}
+		})
+		this.codec.on('emberStreamPacket', (packet) => {
+			try {
+				const root = berDecode(packet)
+				if (root != null) {
+					this.emit('emberStreamTree', root)
 				}
 			} catch (e) {
 				this.emit('error', normalizeError(e))

@@ -2,9 +2,12 @@ import { EventEmitter } from 'eventemitter3'
 import { SmartBuffer } from 'smart-buffer'
 import Debug from 'debug'
 import { format } from 'util'
+import { berDecode } from '../encodings/ber'
+
 const debug = Debug('emberplus-connection:S101Codec')
 
 const S101_BOF = 0xfe
+/** End of Frame!!! NOT end of file! */
 const S101_EOF = 0xff
 const S101_CE = 0xfd
 const S101_XOR = 0x20
@@ -54,34 +57,103 @@ const CRC_TABLE = [
 
 export type S101CodecEvents = {
 	emberPacket: [packet: Buffer]
+	emberStreamPacket: [packet: Buffer]
 	keepaliveReq: []
 	keepaliveResp: []
 }
 
+// This is enough for typical size of Ember data, but buffer is Dynamic to allow for larger data if needed
+const BUFFER_FRAME_SIZE = 64 * 1024
+
 export default class S101Codec extends EventEmitter<S101CodecEvents> {
-	inbuf = new SmartBuffer()
-	emberbuf = new SmartBuffer()
+	inbuf = new SmartBuffer({ size: BUFFER_FRAME_SIZE })
+	private frameBuffer?: Buffer
 	escaped = false
 
+	private multiPacketBuffer?: SmartBuffer
+	private isMultiPacket = false
+
 	dataIn(buf: Buffer): void {
-		for (let i = 0; i < buf.length; i++) {
-			const b = buf.readUInt8(i)
-			if (this.escaped) {
-				this.inbuf.writeUInt8(b ^ S101_XOR)
-				this.escaped = false
-			} else if (b === S101_CE) {
-				this.escaped = true
-			} else if (b === S101_BOF) {
-				this.inbuf.clear()
-				this.escaped = false
-			} else if (b === S101_EOF) {
-				this.inbuf.moveTo(0)
-				this.handleFrame(this.inbuf)
-				this.inbuf.clear()
+		// console.log('TimeStamp: ', Date.now(), 'dataIn', buf.toString('hex'))
+
+		// If we have leftover data from a previous incomplete frame, prepend it
+		if (this.frameBuffer) {
+			buf = Buffer.concat([this.frameBuffer, buf])
+			this.frameBuffer = undefined
+		}
+
+		let frameOffset = 0
+		while (frameOffset < buf.length) {
+			const frameStart = buf.indexOf(S101_BOF, frameOffset)
+			if (frameStart === -1) break
+
+			const frameEnd = buf.indexOf(S101_EOF, frameStart + 1)
+			if (frameEnd === -1 || frameEnd - frameStart < 4) {
+				//console.log('Parsing frameEnd to next chunk')
+				this.frameBuffer = buf.subarray(frameStart)
+				break
+			}
+
+			this.inbuf.clear()
+			let chunkOffset = frameStart + 1
+			// Reset escaped state at frame start
+			this.escaped = false
+
+			while (chunkOffset < frameEnd) {
+				const b = buf[chunkOffset]
+
+				if (this.escaped) {
+					this.inbuf.writeUInt8(b ^ S101_XOR)
+					this.escaped = false
+					chunkOffset++
+				} else if (b === S101_CE) {
+					this.escaped = true
+					chunkOffset++
+				} else {
+					// Find next escape or end
+					let nextSpecial = chunkOffset + 1
+					while (nextSpecial < frameEnd) {
+						const nb = buf[nextSpecial]
+						if (nb === S101_CE || nb === S101_EOF) break
+						nextSpecial++
+					}
+
+					// Write the chunk up to the next special character
+					this.inbuf.writeBuffer(buf.subarray(chunkOffset, nextSpecial))
+					chunkOffset = nextSpecial
+				}
+			}
+
+			this.escaped = false // Reset escaped state at frame end
+			this.inbuf.moveTo(0)
+
+			// console.log('Buffer 00-16', this.inbuf.toString('hex').substring(0, 40))
+			this.handleFrame(this.inbuf)
+			frameOffset = frameEnd + 1
+		}
+	}
+
+	private isEmberStreamPacket(buffer: Buffer): boolean {
+		// Fast skip if not minimum stream structure
+		if (buffer.length < 3) return false
+
+		// Check for stream structure
+		if (buffer[0] === 0x60) {
+			// Check the length byte
+			const lengthByte = buffer[1]
+
+			if (lengthByte < 0x80) {
+				// Simple length, next byte should be 0x66
+				return buffer[2] === 0x66
 			} else {
-				this.inbuf.writeUInt8(b)
+				// Complex length encoding
+				const numLengthBytes = lengthByte & 0x7f
+				if (buffer.length >= 2 + numLengthBytes) {
+					return buffer[2 + numLengthBytes] === 0x66
+				}
 			}
 		}
+		return false
 	}
 
 	handleFrame(frame: SmartBuffer): void {
@@ -105,7 +177,9 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			debug('received keepalive response')
 			this.emit('keepaliveResp')
 		} else if (command === CMD_EMBER) {
-			this.handleEmberFrame(frame)
+			const remainingData = frame.readBuffer()
+			const emberFrame = SmartBuffer.fromBuffer(remainingData)
+			this.handleEmberFrame(emberFrame)
 		} else {
 			throw new Error(format('dropping frame of length %d with unknown command %d', frame.length, command))
 		}
@@ -122,15 +196,16 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		}
 
 		if (dtd !== DTD_GLOW) {
-			throw new Error('Dropping frame with non-Glow DTD')
+			// Don't throw, just warn and continue processing
+			debug('Warning: Received frame with DTD %d, expected %d', dtd, DTD_GLOW)
 		}
 
 		if (appBytes < 2) {
 			debug('Warning: Frame missing Glow DTD version')
 			frame.skip(appBytes)
 		} else {
-			frame.readUInt8() // glowMinor
-			frame.readUInt8() // glowMajor
+			frame.skip(1) // Skip minor version
+			frame.skip(1) // Skip major version
 			appBytes -= 2
 			if (appBytes > 0) {
 				frame.skip(appBytes)
@@ -139,26 +214,67 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		}
 
 		let payload = frame.readBuffer()
-		payload = payload.slice(0, payload.length - 2)
-		if (flags & FLAG_FIRST_MULTI_PACKET) {
-			debug('multi ember packet start')
-			this.emberbuf.clear()
+		payload = payload.slice(0, payload.length - 2) // Remove CRC
+
+		if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
+			if ((flags & FLAG_EMPTY_PACKET) === 0) {
+				// Check if this is a metering packet
+				if (this.isEmberStreamPacket(payload)) {
+					this.handleEmberStreamPacket(payload)
+				} else {
+					this.handleEmberPacket(payload)
+				}
+			}
+		} else {
+			// Multi-packet handling
+			if ((flags & FLAG_FIRST_MULTI_PACKET) === FLAG_FIRST_MULTI_PACKET) {
+				debug('multi ember packet start')
+				this.multiPacketBuffer = new SmartBuffer()
+				this.isMultiPacket = true
+				this.multiPacketBuffer.writeBuffer(payload)
+			} else if (this.isMultiPacket && this.multiPacketBuffer) {
+				this.multiPacketBuffer.writeBuffer(payload)
+
+				if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
+					debug('multi ember packet end')
+					const completeData = this.multiPacketBuffer.toBuffer()
+					// Check if this is a stream packet, can also be a normal packet
+					if (completeData[0] === 0x60 && completeData[2] === 0x66) {
+						this.handleEmberStreamPacket(completeData)
+					} else {
+						this.handleEmberPacket(completeData)
+					}
+					this.resetMultiPacketBuffer()
+				}
+			}
 		}
-		if ((flags & FLAG_EMPTY_PACKET) === 0) {
-			// not empty, save the payload
-			this.emberbuf.writeBuffer(payload)
-		}
-		if (flags & FLAG_LAST_MULTI_PACKET) {
-			debug('multi ember packet end')
-			this.emberbuf.moveTo(0)
-			this.handleEmberPacket(this.emberbuf)
-			this.emberbuf.clear()
+	}
+	private handleEmberPacket(data: Buffer): void {
+		try {
+			const decoded = berDecode(data)
+			if (data[0] === 0x60) {
+				// Root tag check
+				if (decoded.value) {
+					this.emit('emberPacket', data)
+				}
+			}
+		} catch (error) {
+			console.error('Error decoding packet:', error)
 		}
 	}
 
-	handleEmberPacket(packet: SmartBuffer): void {
-		debug('ember packet')
-		this.emit('emberPacket', packet.toBuffer())
+	private handleEmberStreamPacket(data: Buffer): void {
+		try {
+			this.emit('emberStreamPacket', data)
+		} catch (error) {
+			console.error('Error decoding stream packet:', error)
+			this.resetMultiPacketBuffer()
+		}
+	}
+
+	resetMultiPacketBuffer(): void {
+		this.multiPacketBuffer = undefined
+		this.isMultiPacket = false
 	}
 
 	encodeBER(data: Buffer): Buffer[] {

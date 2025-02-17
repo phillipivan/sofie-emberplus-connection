@@ -30,10 +30,12 @@ import { EmberNode } from '../../model/EmberNode'
 import { EventEmitter } from 'eventemitter3'
 import { S101Client } from '../Socket'
 import { getPath, assertQualifiedEmberNode, insertCommand, updateProps, isEmptyNode } from '../Lib/util'
-import { berEncode } from '../..'
+import { berEncode } from '../../encodings/ber'
 import { NumberedTreeNodeImpl } from '../../model/Tree'
 import { EmberFunction } from '../../model/EmberFunction'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
+import { StreamEntry } from '../../model/StreamEntry'
+import { StreamManager } from './StreamManager'
 
 export type RequestPromise<T> = Promise<RequestPromiseArguments<T>>
 export interface RequestPromiseArguments<T> {
@@ -86,6 +88,7 @@ export type EmberClientEvents = {
 
 	connected: []
 	disconnected: []
+	streamUpdate: [path: string, value: EmberValue]
 }
 
 export class EmberClient extends EventEmitter<EmberClientEvents> {
@@ -93,6 +96,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	port: number
 	tree: Collection<NumberedTreeNode<EmberElement>> = []
 
+	private _streamManager: StreamManager
 	private _requests = new Map<string, Request>()
 	private _lastInvocation = 0
 	private _client: S101Client
@@ -111,6 +115,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._timeout = timeout
 		this._resendTimeout = resendTimeout
 		this._resends = enableResends
+		this._streamManager = new StreamManager()
+
+		// Forward stream events from StreamManager
+		this._streamManager.on('streamUpdate', (path, value) => {
+			this.emit('streamUpdate', path, value)
+		})
 
 		// resend timer runs at greatest common divisor of timeouts and resends
 		const findGcd = (a: number, b: number) => {
@@ -125,7 +135,15 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._timer = setInterval(() => this._resendTimer(), findGcd(this._timeout, this._resendTimeout))
 
 		this._client = new S101Client(this.host, this.port)
-		this._client.on('emberTree', (tree: DecodeResult<Root>) => this._handleIncoming(tree))
+		this._client.on('emberTree', (tree: DecodeResult<Root>) => {
+			// Regular ember tree
+			this._handleIncoming(tree)
+		})
+		this._client.on('emberStreamTree', (tree: DecodeResult<Root>) => {
+			// Ember Tree with Stream
+			const entries = tree.value as Collection<StreamEntry>
+			this._streamManager.updateStreamValues(entries)
+		})
 
 		this._client.on('error', (e) => this.emit('error', e))
 		this._client.on('connected', () => this.emit('connected'))
@@ -232,6 +250,14 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
 		}
 
+		// Check if this is a Parameter with streamIdentifier
+		if (node.contents.type === ElementType.Parameter) {
+			const parameter = node.contents
+			if (parameter.streamIdentifier !== undefined) {
+				this._streamManager.registerParameter(parameter, getPath(node))
+			}
+		}
+
 		if (cb)
 			this._subscriptions.push({
 				path: getPath(node),
@@ -248,9 +274,19 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const command: Unsubscribe = new UnsubscribeImpl()
 
 		const path = Array.isArray(node) ? '' : getPath(node)
+
+		// Clean up subscriptions
 		for (const i in this._subscriptions) {
 			if (this._subscriptions[i].path === path) {
 				this._subscriptions.splice(Number(i), 1)
+			}
+		}
+
+		// Deregister from StreamManager if this was a Parameter with streamIdentifier
+		if (!Array.isArray(node) && node.contents.type === ElementType.Parameter) {
+			const parameter = node.contents
+			if (parameter.streamIdentifier !== undefined) {
+				this._streamManager.unregisterParameter(path)
 			}
 		}
 
@@ -293,7 +329,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const qualifiedParam = assertQualifiedEmberNode(node) as QualifiedElement<Parameter>
 
 		// TODO - validate value
-		// TODO - should other properties be scrapped?
+		// TODO - should other properties be scrapped
+
 		qualifiedParam.contents.value = value
 
 		return this._sendRequest<TreeElement<Parameter>>(
@@ -418,6 +455,31 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		return tree
 	}
 
+	// This function handles the fact that the path in the Ember+ tree is not always the same as the path in requested from the provider
+	getInternalNodePath(node: TreeElement<EmberElement>): string | undefined {
+		if ('path' in node && typeof node.path === 'string') {
+			// QualifiedElement case
+			return node.path
+		} else if ('number' in node) {
+			// NumberedTreeNode case
+			const numbers: number[] = []
+			let current: NumberedTreeNode<EmberElement> | undefined = node as NumberedTreeNode<EmberElement>
+
+			while (current) {
+				numbers.unshift(current.number)
+				if (current.parent && 'number' in current.parent) {
+					current = current.parent as NumberedTreeNode<EmberElement>
+				} else {
+					current = undefined
+				}
+			}
+
+			return numbers.join('.')
+		}
+
+		return undefined
+	}
+
 	private async _matrixMutation(
 		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
@@ -496,6 +558,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 	private _handleIncoming(incoming: DecodeResult<Root>) {
 		const node = incoming.value
+
 		// update tree:
 		const changes = this._applyRootToTree(node)
 

@@ -54,6 +54,7 @@ function decodeStreamEntry(reader: Ber.Reader, options: DecodeOptions = defaultD
 				break
 			case Ber.CONTEXT(1):
 				value = reader.readValue()
+				// return the full stream for later processing
 				break
 			case 0:
 				break // indefinite length
