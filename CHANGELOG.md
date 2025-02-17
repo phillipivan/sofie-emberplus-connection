@@ -2,6 +2,55 @@
 
 All notable changes to this project will be documented in this file. See [Convential Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) for commit guidelines.
 
+## [0.3.0](https://github.com/nrkno/sofie-emberplus-connection/compare/v0.2.2...v0.3.0) (Mon Feb 17 2025)
+
+
+### Features
+
+* revert gitignore to non dist branch [e9fe8ba](https://github.com/nrkno/sofie-emberplus-connection/commit/e9fe8bae60d0bbf06ea238770c425b0bb7b91766)
+* cleanup console.logs prior to PR [c30b120](https://github.com/nrkno/sofie-emberplus-connection/commit/c30b120856a5aeba76664d576fb80a3617fae5f2)
+* treat data in chunks handling only escaped characters [74dca29](https://github.com/nrkno/sofie-emberplus-connection/commit/74dca299038d735bb8967aa0294e51dd86fb48d2)
+* remove ratelimit in streamManager (as one is added in dataIn() [2ddaeda](https://github.com/nrkno/sofie-emberplus-connection/commit/2ddaeda24cfc0cf0afca828e4b6da486337e2b02)
+* optimisation in dataIn() - iterate over frames instead of each byte [5847f0a](https://github.com/nrkno/sofie-emberplus-connection/commit/5847f0a02156d632cb53b5b151f838b01e2d5ffb)
+* cap limit on streams in dataIn() [1d5ba59](https://github.com/nrkno/sofie-emberplus-connection/commit/1d5ba59155bc73dc2133976403cd61b430706139)
+* Simplify stream handling to parse meter data without BER decoding [560fd54](https://github.com/nrkno/sofie-emberplus-connection/commit/560fd546f313332298999f79cb2a9db621770256)
+* ratelimit meter updates [48d50bc](https://github.com/nrkno/sofie-emberplus-connection/commit/48d50bc7e5f019ba4026524cbcc1d9fa39fbcedb)
+* update mc2 mocks [180bbce](https://github.com/nrkno/sofie-emberplus-connection/commit/180bbcef8b5a551483af9c002e858399e55cf87f)
+* optimise StreamManage with identifier lookup table [be86a3d](https://github.com/nrkno/sofie-emberplus-connection/commit/be86a3dddd7a66a70dbf67575760fdd0186eee30)
+* Streamanager log if unregistered update [477e0f8](https://github.com/nrkno/sofie-emberplus-connection/commit/477e0f88f2e88bb78ee8fbfb23817b5acaf17d82)
+* example of r3lay patchbay streaming [2de55f5](https://github.com/nrkno/sofie-emberplus-connection/commit/2de55f5c24fa87e5d3f8cdc095a027c3456d2038)
+* add debugging in S101Client [3b95449](https://github.com/nrkno/sofie-emberplus-connection/commit/3b9544914e4943ad782eecc0da91fd0daac9a7b7)
+* add a MC2_mock.js in examples folder [a532c3b](https://github.com/nrkno/sofie-emberplus-connection/commit/a532c3bc7a93c05c1fd1cc9c3f3b36e029e3651e)
+* update tests to client's internal StreamManager [bb60778](https://github.com/nrkno/sofie-emberplus-connection/commit/bb6077816f0410a94fee820fbcb5a72749538787)
+* update README.md [616d8cc](https://github.com/nrkno/sofie-emberplus-connection/commit/616d8ccc96c81fc2771c5926e812b5134a9f18fa)
+* StreamManager is only used internally [e2d5072](https://github.com/nrkno/sofie-emberplus-connection/commit/e2d5072ad0b6da5521dc70ccf4de2911c9733e32)
+* separate emberPackets and emberStreamPackets [c00bb10](https://github.com/nrkno/sofie-emberplus-connection/commit/c00bb108abcca329d9cdf6a25a8a420fabd20824)
+* getInternalNodePath() to handle that there's no path on numbered Tree nodes and this must be calculated. [99541a0](https://github.com/nrkno/sofie-emberplus-connection/commit/99541a0317010b12f780b6851b2347612e7c2dd4)
+* cleaup code from first stream implementation [1284b28](https://github.com/nrkno/sofie-emberplus-connection/commit/1284b2828a15fb9f787ce53ecebcc7e992ec2e2c)
+* use path to register streams and handle decoding in StreamManager [a396b0d](https://github.com/nrkno/sofie-emberplus-connection/commit/a396b0d9e708d00d8de507370a946f33132a9c5d)
+* StreamManager class for handling stream subscriptions [2b638fd](https://github.com/nrkno/sofie-emberplus-connection/commit/2b638fd6adff9800a3998060c7029eacee8b6f10)
+
+### Fixes
+
+* isEmberStreampacket() function to ensure different size of stream packages [1022745](https://github.com/nrkno/sofie-emberplus-connection/commit/10227455e7b49309c4d66ff09083a52e97be3ceb)
+* add stream cap limit in new chunk based structure [143d6ca](https://github.com/nrkno/sofie-emberplus-connection/commit/143d6caf88daf50fd43f14e76d7369301f07c2f1)
+* look for streaming data in the correct posistion [e49c42f](https://github.com/nrkno/sofie-emberplus-connection/commit/e49c42f1cc2ac6f6efb1708ab8561539d3dbe4d7)
+* extract correct values from raw streamPackage [091de84](https://github.com/nrkno/sofie-emberplus-connection/commit/091de8447898d96e81a89dded36edcdb91c802b4)
+* read correct streamIdentifier in parseStreamPacket [e79cc5f](https://github.com/nrkno/sofie-emberplus-connection/commit/e79cc5fb2c8d0bd6b4c2bfb015e26209f8737a2a)
+* remove unwanted extensive log in client [e6d9fc8](https://github.com/nrkno/sofie-emberplus-connection/commit/e6d9fc8bc40529714ca835c201df477b853deb8a)
+* ensure value on offset [1c85dac](https://github.com/nrkno/sofie-emberplus-connection/commit/1c85dac94ce169824576e0fdc00e27dd345564c6)
+* only register a parameter once [eb0f9e7](https://github.com/nrkno/sofie-emberplus-connection/commit/eb0f9e7574f812436f60cbd2ada706f231834e90)
+* emit emberStreamTree if stream packet [3e0aff9](https://github.com/nrkno/sofie-emberplus-connection/commit/3e0aff9dec8b5a24354263f50d6018243536c007)
+* handle single stream packets [2e8d917](https://github.com/nrkno/sofie-emberplus-connection/commit/2e8d91724110ffd5e0c61720b47a6a19450076c0)
+* multiPacket can also be non stream packets [7346f7d](https://github.com/nrkno/sofie-emberplus-connection/commit/7346f7d2cf89b92be9ea6bb882078545298ba77e)
+* revert check if node is a parameter [684609a](https://github.com/nrkno/sofie-emberplus-connection/commit/684609aebfa0c7e658d861f420a1dde0cf127284)
+* StreamManager should not be a singleton [22d61b9](https://github.com/nrkno/sofie-emberplus-connection/commit/22d61b9bd75d984981a0b1b0eeb0911bb0a5ef68)
+* handle integer stream type [bb3ca20](https://github.com/nrkno/sofie-emberplus-connection/commit/bb3ca20b8e5727909a471d457fac6b7a2d41bdbc)
+* StreamManager test use real values. [63dea41](https://github.com/nrkno/sofie-emberplus-connection/commit/63dea41999a6365d1029f6744780a123f0be6de2)
+* streamEntry.value can be zero [60a0e8f](https://github.com/nrkno/sofie-emberplus-connection/commit/60a0e8ffc75fd35265e002e5ca87c274c4d819a8)
+* handle offset=0 [78c1660](https://github.com/nrkno/sofie-emberplus-connection/commit/78c16601a94a8fc3d1facb29b6cb44342594764b)
+* some Ember implementations has an empty string as identifier [d46a5a3](https://github.com/nrkno/sofie-emberplus-connection/commit/d46a5a37dcf015e38141e37854059319a62d631b)
+
 ## [0.2.2](https://github.com/nrkno/sofie-emberplus-connection/compare/v0.2.1...v0.2.2) (Fri Sep 20 2024)
 
 
