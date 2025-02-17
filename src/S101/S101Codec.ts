@@ -7,6 +7,7 @@ import { berDecode } from '../encodings/ber'
 const debug = Debug('emberplus-connection:S101Codec')
 
 const S101_BOF = 0xfe
+/** End of Frame!!! NOT end of file! */
 const S101_EOF = 0xff
 const S101_CE = 0xfd
 const S101_XOR = 0x20

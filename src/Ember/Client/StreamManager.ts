@@ -20,9 +20,11 @@ interface StreamInfo {
 }
 
 export class StreamManager extends EventEmitter<StreamManagerEvents> {
+	/** Maps path -> StreamInfo  */
 	private registeredStreams: Map<string, StreamInfo> = new Map()
-	// Lookup by identifier for O(1) access
-	private streamsByIdentifier: Map<number, Set<string>> = new Map()
+
+	/** Maps streamIdentifier -> Set<path> */
+	private streamsByIdentifier: Map<number, Set<string>> = new Map() // Lookup by identifier for O(1) access
 
 	constructor() {
 		super()
@@ -118,12 +120,12 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 						const decodedValue = view.getFloat32(streamInfo.offset, true)
 						this.updateStreamValue(path, decodedValue)
 					}
-				}
+				} // Note: we've never seen any other type of stream value, so not implementing for now.
 			})
 		})
 	}
 
-	public updateStreamValue(path: string, value: EmberValue): void {
+	private updateStreamValue(path: string, value: EmberValue): void {
 		if (path) {
 			const streamInfo = this.registeredStreams.get(path)
 			if (streamInfo) {
