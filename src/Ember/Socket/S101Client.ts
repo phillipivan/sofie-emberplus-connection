@@ -27,14 +27,18 @@ export default class S101Client extends S101Socket {
 	 *
 	 * @param {string} address
 	 * @param {number} port=9000
+	 * @param {boolean} autoConnect
+	 * @param {number} reconnectAttempts Default 60, set to 0 for infinity
 	 */
-	constructor(address: string, port = DEFAULT_PORT, autoConnect?: boolean) {
+	constructor(address: string, port: number = DEFAULT_PORT, autoConnect?: boolean, reconnectAttempts?: number) {
 		super()
 		this.address = address
 		this.port = port
 
 		this.autoConnect = !!autoConnect
 		this._shouldBeConnected = this.autoConnect
+
+		this._reconnectAttempts = reconnectAttempts && reconnectAttempts >= 0 ? reconnectAttempts : RECONNECT_ATTEMPTS
 
 		if (this.autoConnect) this.connect().catch(() => null) // errors are already emitted
 	}
@@ -131,6 +135,11 @@ export default class S101Client extends S101Socket {
 					return
 				}
 				// new attempt if not already connected
+				if (this.status !== ConnectionStatus.Connected) {
+					this._reconnectAttempt++
+					this.connect().catch(() => null)
+				}
+			} else if (this._reconnectAttempts == 0) {
 				if (this.status !== ConnectionStatus.Connected) {
 					this._reconnectAttempt++
 					this.connect().catch(() => null)
