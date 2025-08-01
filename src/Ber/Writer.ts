@@ -49,11 +49,7 @@ class ExtendedWriter extends Writer {
 			.and(Long.fromBits(0xffffffff, 0x000fffff, true))
 			.or(Long.fromBits(0x00000000, 0x00100000, true))
 
-		let exponent: Long.Long | number = bits
-			.and(Long.fromBits(0x00000000, 0x7ff00000, true))
-			.shru(52)
-			.sub(1023)
-			.toSigned()
+		let exponent: Long | number = bits.and(Long.fromBits(0x00000000, 0x7ff00000, true)).shru(52).sub(1023).toSigned()
 
 		while (significand.and(0xff).toNumber() === 0) {
 			significand = significand.shru(8)

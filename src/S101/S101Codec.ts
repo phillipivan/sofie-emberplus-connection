@@ -78,7 +78,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 		// If we have leftover data from a previous incomplete frame, prepend it
 		if (this.frameBuffer) {
-			buf = Buffer.concat([this.frameBuffer, buf])
+			buf = Buffer.concat([new Uint8Array(this.frameBuffer), new Uint8Array(buf)])
 			this.frameBuffer = undefined
 		}
 
