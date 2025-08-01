@@ -1,0 +1,16 @@
+/.idea/*
+.vscode
+node_modules
+.*.swp
+/coverage
+yarn-error.log
+/lib
+/scratch
+
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
