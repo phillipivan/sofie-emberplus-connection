@@ -4,9 +4,16 @@ All notable changes to this project will be documented in this file. See [Conven
 
 ## [0.4.1](https://github.com/nrkno/sofie-emberplus-connection/compare/...v0.4.1) (Fri Aug 01 2025)
 
+### Features
+
+* S101 Client: add reconnectAttempts option to constructor [54f76dd](https://github.com/phillipivan/sofie-emberplus-connection/commit/54f76ddff5228859d71a7c0b254d04e3c6f69d84)
+* Ember Client: define EmberClientOptions interface. Add reconnectAttempts & getDirectoryOnParams options [72afb03](https://github.com/phillipivan/sofie-emberplus-connection/commit/72afb03b707b2ca9b20facf13c071074dbb277a6)
+
+### Chores
+
+* Update dependencies [ec4af27](https://github.com/phillipivan/sofie-emberplus-connection/commit/ec4af27afc16d22577caca87d9e46cc423382070)
 
 ## [0.3.0](https://github.com/nrkno/sofie-emberplus-connection/compare/v0.2.2...v0.3.0) (Mon Feb 17 2025)
-
 
 ### Features
 
