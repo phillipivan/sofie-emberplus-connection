@@ -58,6 +58,7 @@
 		"@types/debug": "^4.1.12",
 		"@types/jest": "^30.0.0",
 		"@types/long": "^5.0.0",
+		"husky": "^9.1.7",
 		"jest": "^30.0.5",
 		"rimraf": "^6.0.1",
 		"ts-jest": "^29.4.0",
