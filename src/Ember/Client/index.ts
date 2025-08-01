@@ -91,6 +91,14 @@ export type EmberClientEvents = {
 	streamUpdate: [path: string, value: EmberValue]
 }
 
+export interface EmberClientOptions {
+	timeout?: number
+	enableResends?: boolean
+	resendTimeout?: number
+	reconnectAttempts?: number
+	getDirectoryOnParams?: boolean
+}
+
 export class EmberClient extends EventEmitter<EmberClientEvents> {
 	host: string
 	port: number
@@ -106,15 +114,19 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _resendTimeout = 1000
 	private _resends = false
 	private _timer: NodeJS.Timeout
+	private _getDirectoryOnParams = true
+	private _reconnectAttempts = 60
 
-	constructor(host: string, port = 9000, timeout = 3000, enableResends = false, resendTimeout = 1000) {
+	constructor(host: string, port = 9000, options: EmberClientOptions) {
 		super()
 
 		this.host = host
 		this.port = port
-		this._timeout = timeout
-		this._resendTimeout = resendTimeout
-		this._resends = enableResends
+		this._timeout = options.timeout ?? 3000
+		this._resendTimeout = options.resendTimeout ?? 1000
+		this._resends = options.enableResends ?? false
+		this._getDirectoryOnParams = options.getDirectoryOnParams ?? true
+		this._reconnectAttempts = options.reconnectAttempts ?? 60
 		this._streamManager = new StreamManager()
 
 		// Forward stream events from StreamManager
@@ -134,7 +146,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		}
 		this._timer = setInterval(() => this._resendTimer(), findGcd(this._timeout, this._resendTimeout))
 
-		this._client = new S101Client(this.host, this.port)
+		this._client = new S101Client(this.host, this.port, true, this._reconnectAttempts)
 		this._client.on('emberTree', (tree: DecodeResult<Root>) => {
 			// Regular ember tree
 			this._handleIncoming(tree)
@@ -439,7 +451,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			if (tree?.number !== undefined) numberedPath.push(tree.number)
 		}
 
-		if (tree?.contents.type === ElementType.Parameter) {
+		if (tree?.contents.type === ElementType.Parameter && this._getDirectoryOnParams) {
 			// do an additional getDirectory because Providers do not _have_ to send updates without that (should vs shall)
 			const req = await this.getDirectory(tree)
 			await req.response
