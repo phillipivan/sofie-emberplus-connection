@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file. See [Convential Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) for commit guidelines.
 
+## [0.4.1](https://github.com/nrkno/sofie-emberplus-connection/compare/...v0.4.1) (Fri Aug 01 2025)
+
+
 ## [0.3.0](https://github.com/nrkno/sofie-emberplus-connection/compare/v0.2.2...v0.3.0) (Mon Feb 17 2025)
 
 
