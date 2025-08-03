@@ -1228,7 +1228,7 @@ __metadata:
     long: "npm:^5.3.2"
     prettier: "npm:^3.6.2"
     rimraf: "npm:^6.0.1"
-    smart-buffer: "npm:^3.0.3"
+    smart-buffer: "npm:^4.2.0"
     ts-jest: "npm:^29.4.0"
     tslib: "npm:^2.8.1"
     typescript: "npm:~5.9.2"
@@ -1464,13 +1464,6 @@ __metadata:
   dependencies:
     undici-types: "npm:~6.21.0"
   checksum: 10/f77b0e1c3c00e438b56c726d6b1170d4969c600cc8d4ecf2c2aa7692243a8ff455a3d530760da95e0b6aab059c4605a384b43d18f96646c745ff133c00b84875
-  languageName: node
-  linkType: hard
-
-"@types/node@npm:^7.0.4":
-  version: 7.10.14
-  resolution: "@types/node@npm:7.10.14"
-  checksum: 10/a01e642368c5ed2db0ef09f0ad1f6fff6bdb70ee83083b61f03ae29cc009a22128fe8e1621f03eacb78518c4244ade12e17495a81c484072089b76d803401683
   languageName: node
   linkType: hard
 
@@ -5569,15 +5562,6 @@ asn1@evs-broadcast/node-asn1:
   version: 1.1.6
   resolution: "slide@npm:1.1.6"
   checksum: 10/3bf19297b9798a31cda0c1c81f98f6f439b34ab011f73474b3f38b680a7fe9a1326b401d00b9fee08655f545c2d3ee0a0f45c46abd79293f6fabf5580ffacb5d
-  languageName: node
-  linkType: hard
-
-"smart-buffer@npm:^3.0.3":
-  version: 3.0.3
-  resolution: "smart-buffer@npm:3.0.3"
-  dependencies:
-    "@types/node": "npm:^7.0.4"
-  checksum: 10/159da67e7e75e0ab6473e20c486f6f8e313df0971d251563dd074382eb55b11f26911883d106ccd4d268eb9ad3f31ff05efaeb330892acdc4b6f1b37b25dc3d7
   languageName: node
   linkType: hard
 
