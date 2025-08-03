@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file. See [Conven
 
 ## [0.4.3](https://github.com/phillipivan/sofie-emberplus-connection.git/compare/v0.4.2...v0.4.3) (Mon Aug 04 2025)
 
+### Features
+
+* Set EmberClientOptions.reconnectAttempts to -ve value to make infinite[65f14d9](https://github.com/phillipivan/sofie-emberplus-connection/commit/65f14d9cf12155efa4b8059d24439a7ad922bed8)
 
 ## [0.4.2](https://github.com/phillipivan/sofie-emberplus-connection/compare/v0.4.1...v0.4.2) (Sun Aug 03 2025)
 
