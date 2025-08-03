@@ -1,8 +1,8 @@
 import net from 'net'
-import S101Socket from './S101Socket'
-import { ConnectionStatus } from '../Client'
-import { normalizeError } from '../Lib/util'
-
+import S101Socket from './S101Socket.js'
+import { ConnectionStatus } from '../Client/index.js'
+import { normalizeError } from '../Lib/util.js'
+//@ts-expect-error missing type decs
 import Debug from 'debug'
 const debug = Debug('emberplus-connection:S101Client')
 

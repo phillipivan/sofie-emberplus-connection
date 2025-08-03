@@ -1,11 +1,12 @@
-import * as Ber from '../../../Ber'
-import { Parameter, ParameterType, ParameterAccess } from '../../../model/Parameter'
-import { EmberValue } from '../../../types/types'
-import { encodeStringIntegerCollection } from './StringIntegerCollection'
-import { encodeStreamDescription } from './StreamDescription'
+/* eslint-disable @typescript-eslint/unbound-method */
+import * as Ber from '../../../Ber/index.js'
+import { Parameter, ParameterType, ParameterAccess } from '../../../model/Parameter.js'
+import { EmberValue } from '../../../types/types.js'
+import { encodeStringIntegerCollection } from './StringIntegerCollection.js'
+import { encodeStreamDescription } from './StreamDescription.js'
 // import { elementTypeToInt } from './Matrix'
 
-export function encodeParameter(parameter: Parameter, writer: Ber.Writer): void {
+export const encodeParameter = (parameter: Parameter, writer: Ber.Writer): void => {
 	writer.startSequence(Ber.BERDataTypes.SET)
 
 	const writeValue = (value: EmberValue): void => {
@@ -102,7 +103,7 @@ export function encodeParameter(parameter: Parameter, writer: Ber.Writer): void 
 	writer.endSequence()
 }
 
-function parameterAccessToInt(parameter: ParameterAccess): number {
+const parameterAccessToInt = (parameter: ParameterAccess): number => {
 	const paramToInt = {
 		[ParameterAccess.None]: 0,
 		[ParameterAccess.Read]: 1,
@@ -113,7 +114,7 @@ function parameterAccessToInt(parameter: ParameterAccess): number {
 	return paramToInt[parameter]
 }
 
-function parameterTypeToInt(pt: ParameterType): number {
+const parameterTypeToInt = (pt: ParameterType): number => {
 	const paramTypeToInt = {
 		[ParameterType.Null]: 0,
 		[ParameterType.Integer]: 1,

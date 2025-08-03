@@ -1,12 +1,12 @@
 import { EventEmitter } from 'eventemitter3'
 import { Socket } from 'net'
 
-import { S101Codec } from '../../S101'
-import { berDecode } from '../..'
-import { ConnectionStatus } from '../Client'
-import { normalizeError } from '../Lib/util'
-import { Root } from '../../types'
-import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
+import { S101Codec } from '../../S101/index.js'
+import { berDecode } from '../../encodings/ber/index.js'
+import { ConnectionStatus } from '../Client/index.js'
+import { normalizeError } from '../Lib/util.js'
+import { Root } from '../../types/index.js'
+import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult.js'
 
 export type Request = any
 
@@ -43,7 +43,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 			clearInterval(<NodeJS.Timeout>this.keepaliveResponseWindowTimer)
 		})
 
-		this.codec.on('emberPacket', (packet) => {
+		this.codec.on('emberPacket', (packet: any) => {
 			try {
 				const root = berDecode(packet)
 				if (root != null) {
@@ -53,7 +53,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 				this.emit('error', normalizeError(e))
 			}
 		})
-		this.codec.on('emberStreamPacket', (packet) => {
+		this.codec.on('emberStreamPacket', (packet: any) => {
 			try {
 				const root = berDecode(packet)
 				if (root != null) {
@@ -147,7 +147,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 					this.socket.write(frames[i])
 				}
 				return true
-			} catch (e) {
+			} catch (_e) {
 				this.handleClose()
 				return false
 			}
@@ -166,7 +166,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 				this.keepaliveResponseWindowTimer = setTimeout(() => {
 					this.handleClose()
 				}, this.keepaliveMaxResponseTime)
-			} catch (e) {
+			} catch (_e) {
 				this.handleClose()
 			}
 		}
@@ -179,7 +179,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 		if (this.isConnected() && this.socket) {
 			try {
 				this.socket.write(this.codec.keepAliveResponse())
-			} catch (e) {
+			} catch (_e) {
 				this.handleClose()
 			}
 		}

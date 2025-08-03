@@ -1,8 +1,9 @@
 import { EventEmitter } from 'eventemitter3'
 import { SmartBuffer } from 'smart-buffer'
+//@ts-expect-error no decl file found
 import Debug from 'debug'
 import { format } from 'util'
-import { berDecode } from '../encodings/ber'
+import { berDecode } from '../encodings/ber/index.js'
 
 const debug = Debug('emberplus-connection:S101Codec')
 
@@ -78,7 +79,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 		// If we have leftover data from a previous incomplete frame, prepend it
 		if (this.frameBuffer) {
-			buf = Buffer.concat([new Uint8Array(this.frameBuffer), new Uint8Array(buf)])
+			buf = Buffer.concat([this.frameBuffer, buf])
 			this.frameBuffer = undefined
 		}
 

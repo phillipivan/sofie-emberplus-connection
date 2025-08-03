@@ -7,17 +7,18 @@ import {
 	ParameterType,
 	QualifiedElementImpl,
 	StreamFormat,
-} from '../../../model'
-import { Collection, EmberTypedValue, Root, RootElement } from '../../../types/types'
-import { EmberClient } from '../'
-import S101ClientMock from '../../../__mocks__/S101Client'
-import { DecodeResult } from '../../../encodings/ber/decoder/DecodeResult'
-import { StreamDescriptionImpl } from '../../../model/StreamDescription'
-import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry'
+} from '../../../model/index.js'
+import { Collection, EmberTypedValue, Root, RootElement } from '../../../types/types.js'
+import { EmberClient } from '../index.js'
+import S101ClientMock from '../../../__mocks__/S101Client.js'
+import { DecodeResult } from '../../../encodings/ber/decoder/DecodeResult.js'
+import { StreamDescriptionImpl } from '../../../model/StreamDescription.js'
+import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
 // import { EmberTreeNode, RootElement } from '../../../types/types'
 // import { ElementType, EmberElement } from '../../../model/EmberElement'
 // import { Parameter, ParameterType } from '../../../model/Parameter'
 
+// eslint-disable-next-line
 jest.mock('../../Socket/S101Client', () => require('../../../__mocks__/S101Client'))
 
 describe('client', () => {
@@ -53,12 +54,14 @@ describe('client', () => {
 		onConnectionChanged.mockClear()
 
 		// Just a check to ensure that the unit tests cleaned up the socket after themselves:
-		// eslint-disable-next-line jest/no-standalone-expect
+
+		// jest/no-standalone-expect
+		// eslint-disable-next-line
 		expect(sockets).toHaveLength(0)
 	})
 
 	async function runWithConnection(fn: (connection: EmberClient, socket: S101ClientMock) => Promise<void>) {
-		const client = new EmberClient('test')
+		const client = new EmberClient('test', 9000)
 		try {
 			expect(client).toBeTruthy()
 

@@ -1,9 +1,9 @@
-import { ConnectionStatus } from '../Ember/Client'
-import type OrigS101Client from '../Ember/Socket/S101Client'
+import { ConnectionStatus } from '../Ember/Client/index.js'
+import type OrigS101Client from '../Ember/Socket/S101Client.js'
 import { EventEmitter } from 'eventemitter3'
-import { S101SocketEvents } from '../Ember/Socket/S101Socket'
-import { DecodeResult } from '../encodings/ber/decoder/DecodeResult'
-import { Root } from '../types'
+import { S101SocketEvents } from '../Ember/Socket/S101Socket.js'
+import { DecodeResult } from '../encodings/ber/decoder/DecodeResult.js'
+import { Root } from '../types/index.js'
 const sockets: Array<S101Client> = []
 const onNextSocket: Array<(socket: S101Client) => void> = []
 
@@ -48,6 +48,7 @@ export default class S101Client
 
 		if (this.autoConnect) this.connect().catch(() => null) // errors are already emitted
 	}
+
 	async connect(_timeout?: number): Promise<void | Error> {
 		this.status = ConnectionStatus.Connecting
 
@@ -56,7 +57,8 @@ export default class S101Client
 			this.setConnected()
 		})
 	}
-	async disconnect(_timeout?: number | undefined): Promise<void> {
+
+	async disconnect(_timeout?: number): Promise<void> {
 		if (this.onConnect) this.onConnect()
 		orgSetImmediate(() => {
 			this.setDisconnected()

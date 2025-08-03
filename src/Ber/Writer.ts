@@ -1,10 +1,10 @@
 import Long from 'long'
 import { Writer, WriterOptions } from 'asn1'
 
-import { CONTEXT, UNIVERSAL } from './functions'
-import { BERDataTypes } from './BERDataTypes'
-import { Parameter, ParameterType, isParameter } from '../model/Parameter'
-import { EmberValue, EmberTypedValue } from '../types/types'
+import { CONTEXT, UNIVERSAL } from './functions.js'
+import { BERDataTypes } from './BERDataTypes.js'
+import { Parameter, ParameterType, isParameter } from '../model/Parameter.js'
+import { EmberValue, EmberTypedValue } from '../types/types.js'
 
 export { ExtendedWriter as Writer }
 
@@ -49,7 +49,11 @@ class ExtendedWriter extends Writer {
 			.and(Long.fromBits(0xffffffff, 0x000fffff, true))
 			.or(Long.fromBits(0x00000000, 0x00100000, true))
 
-		let exponent: Long | number = bits.and(Long.fromBits(0x00000000, 0x7ff00000, true)).shru(52).sub(1023).toSigned()
+		let exponent: Long | number = bits
+			.and(Long.fromBits(0x00000000, 0x7ff00000, true))
+			.shru(52)
+			.sub(1023)
+			.toSigned()
 
 		while (significand.and(0xff).toNumber() === 0) {
 			significand = significand.shru(8)

@@ -8,10 +8,10 @@ import {
 	RootType,
 	Collection,
 	Root,
-} from '../../types/types'
-import { InvocationResult } from '../../model/InvocationResult'
-import { Matrix } from '../../model/Matrix'
-import { EmberElement, ElementType } from '../../model/EmberElement'
+} from '../../types/types.js'
+import { InvocationResult } from '../../model/InvocationResult.js'
+import { Matrix } from '../../model/Matrix.js'
+import { EmberElement, ElementType } from '../../model/EmberElement.js'
 import {
 	Command,
 	GetDirectoryImpl,
@@ -23,19 +23,19 @@ import {
 	FieldFlags,
 	Subscribe,
 	Invoke,
-} from '../../model/Command'
-import { Parameter } from '../../model/Parameter'
-import { Connection, ConnectionDisposition, ConnectionOperation } from '../../model/Connection'
-import { EmberNode } from '../../model/EmberNode'
+} from '../../model/Command.js'
+import { Parameter } from '../../model/Parameter.js'
+import { Connection, ConnectionDisposition, ConnectionOperation } from '../../model/Connection.js'
+import { EmberNode } from '../../model/EmberNode.js'
 import { EventEmitter } from 'eventemitter3'
-import { S101Client } from '../Socket'
-import { getPath, assertQualifiedEmberNode, insertCommand, updateProps, isEmptyNode } from '../Lib/util'
-import { berEncode } from '../../encodings/ber'
-import { NumberedTreeNodeImpl } from '../../model/Tree'
-import { EmberFunction } from '../../model/EmberFunction'
-import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult'
-import { StreamEntry } from '../../model/StreamEntry'
-import { StreamManager } from './StreamManager'
+import { S101Client } from '../Socket/index.js'
+import { getPath, assertQualifiedEmberNode, insertCommand, updateProps, isEmptyNode } from '../Lib/util.js'
+import { berEncode } from '../../encodings/ber/index.js'
+import { NumberedTreeNodeImpl } from '../../model/Tree.js'
+import { EmberFunction } from '../../model/EmberFunction.js'
+import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult.js'
+import { StreamEntry } from '../../model/StreamEntry.js'
+import { StreamManager } from './StreamManager.js'
 
 export type RequestPromise<T> = Promise<RequestPromiseArguments<T>>
 export interface RequestPromiseArguments<T> {
@@ -56,6 +56,7 @@ export interface Request {
 	node: RootElement
 	// Basic validation of the response change
 	nodeResponse: ExpectResponse
+
 	resolve: (res: any) => void
 	reject: (err: Error) => void
 	cb?: (EmberNode: TreeElement<EmberElement>) => void
@@ -117,16 +118,16 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _getDirectoryOnParams = true
 	private _reconnectAttempts = 60
 
-	constructor(host: string, port = 9000, options: EmberClientOptions) {
+	constructor(host: string, port = 9000, options?: EmberClientOptions) {
 		super()
 
 		this.host = host
 		this.port = port
-		this._timeout = options.timeout ?? 3000
-		this._resendTimeout = options.resendTimeout ?? 1000
-		this._resends = options.enableResends ?? false
-		this._getDirectoryOnParams = options.getDirectoryOnParams ?? true
-		this._reconnectAttempts = options.reconnectAttempts ?? 60
+		this._timeout = options?.timeout ?? 3000
+		this._resendTimeout = options?.resendTimeout ?? 1000
+		this._resends = options?.enableResends ?? false
+		this._getDirectoryOnParams = options?.getDirectoryOnParams ?? true
+		this._reconnectAttempts = options?.reconnectAttempts ?? 60
 		this._streamManager = new StreamManager()
 
 		// Forward stream events from StreamManager
@@ -177,6 +178,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (host) this.host = host
 		if (port) this.port = port
 
+		// eslint-disable-next-line
 		if (!this.host) return Promise.reject('No host specified')
 
 		this._client.address = this.host
@@ -288,11 +290,17 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const path = Array.isArray(node) ? '' : getPath(node)
 
 		// Clean up subscriptions
-		for (const i in this._subscriptions) {
+		/* 		for (const i in this._subscriptions) {
 			if (this._subscriptions[i].path === path) {
 				this._subscriptions.splice(Number(i), 1)
 			}
-		}
+		} */
+		// Clean up subscriptions
+		this._subscriptions.forEach((sub, i) => {
+			if (sub.path === path) {
+				this._subscriptions.splice(i, 1)
+			}
+		})
 
 		// Deregister from StreamManager if this was a Parameter with streamIdentifier
 		if (!Array.isArray(node) && node.contents.type === ElementType.Parameter) {

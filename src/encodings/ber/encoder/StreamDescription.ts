@@ -1,22 +1,24 @@
-import * as Ber from '../../../Ber'
-import { StreamDescription, StreamFormat } from '../../../model/StreamDescription'
-import { StreamDescriptionBERID } from '../constants'
+import * as Ber from '../../../Ber/index.js'
+import { StreamDescription, StreamFormat } from '../../../model/StreamDescription.js'
+import { StreamDescriptionBERID } from '../constants.js'
 
-export function encodeStreamDescription(description: StreamDescription, writer: Ber.Writer): void {
+export const encodeStreamDescription = (description: StreamDescription, writer: Ber.Writer): void => {
 	writer.startSequence(StreamDescriptionBERID)
 
 	writer.writeIfDefined(
 		description.format && formatToInt(description.format),
+		// eslint-disable-next-line @typescript-eslint/unbound-method
 		writer.writeInt,
 		0,
 		Ber.BERDataTypes.INTEGER
 	)
+	// eslint-disable-next-line @typescript-eslint/unbound-method
 	writer.writeIfDefined(description.offset, writer.writeInt, 1, Ber.BERDataTypes.INTEGER)
 
 	writer.endSequence()
 }
 
-function formatToInt(format: StreamFormat): number {
+const formatToInt = (format: StreamFormat): number => {
 	const formatToInt = {
 		[StreamFormat.UInt8]: 0,
 		[StreamFormat.UInt16BE]: 2,

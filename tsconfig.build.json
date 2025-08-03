@@ -10,6 +10,9 @@
 			"emberplus-connection": ["./src/index.ts"]
 		},
 		"types": ["node"],
-		"esModuleInterop": true
+		"esModuleInterop": true,
+		"module": "node18",
+		"moduleResolution": "node16",
+		"skipLibCheck": true
 	}
 }

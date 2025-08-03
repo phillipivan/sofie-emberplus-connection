@@ -1,12 +1,16 @@
 import { Reader } from 'asn1'
 import Long from 'long'
-import { ASN1Error, UnimplementedEmberTypeError } from '../Errors'
-import { BERDataTypes } from './BERDataTypes'
-import { UNIVERSAL } from './functions'
-import { EmberTypedValue } from '../types/types'
-import { ParameterType } from '../model/Parameter'
+import { ASN1Error, UnimplementedEmberTypeError } from '../Errors.js'
+import { BERDataTypes } from './BERDataTypes.js'
+import { UNIVERSAL } from './functions.js'
+import { EmberTypedValue } from '../types/types.js'
+import { ParameterType } from '../model/Parameter.js'
 
 export { ExtendedReader as Reader }
+
+function isBerDataType(test: number | string): test is BERDataTypes {
+	return Object.values<number | string>(BERDataTypes).indexOf(test) !== -1
+}
 
 class ExtendedReader extends Reader {
 	constructor(data: Buffer) {
@@ -24,7 +28,7 @@ class ExtendedReader extends Reader {
 		if (!tag) {
 			throw new Error('No tag available')
 		}
-
+		if (!isBerDataType(tag)) throw new UnimplementedEmberTypeError(tag)
 		switch (tag) {
 			case BERDataTypes.STRING:
 				return { type: ParameterType.String, value: this.readString(BERDataTypes.STRING) }

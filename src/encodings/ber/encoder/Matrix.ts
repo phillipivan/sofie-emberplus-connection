@@ -1,11 +1,12 @@
-import * as Ber from '../../../Ber'
-import { Matrix, MatrixType, MatrixAddressingMode } from '../../../model/Matrix'
-import { ElementType } from '../../../model/EmberElement'
-import { encodeLabel } from './Label'
-import { RelativeOID } from '../../../types/types'
-import { TargetBERID, SourceBERID } from '../constants'
+/* eslint-disable @typescript-eslint/unbound-method */
+import * as Ber from '../../../Ber/index.js'
+import { Matrix, MatrixType, MatrixAddressingMode } from '../../../model/Matrix.js'
+import { ElementType } from '../../../model/EmberElement.js'
+import { encodeLabel } from './Label.js'
+import { RelativeOID } from '../../../types/types.js'
+import { TargetBERID, SourceBERID } from '../constants.js'
 
-export function encodeMatrix(matrix: Matrix, writer: Ber.Writer): void {
+export const encodeMatrix = (matrix: Matrix, writer: Ber.Writer): void => {
 	writer.startSequence(Ber.BERDataTypes.SET)
 
 	writer.writeIfDefined(matrix.identifier, writer.writeString, 0, Ber.BERDataTypes.STRING)
@@ -63,7 +64,7 @@ export function encodeMatrix(matrix: Matrix, writer: Ber.Writer): void {
 	writer.endSequence()
 }
 
-export function encodeTarget(target: number, writer: Ber.Writer): void {
+export const encodeTarget = (target: number, writer: Ber.Writer): void => {
 	writer.startSequence(TargetBERID)
 	writer.startSequence(Ber.CONTEXT(0))
 	writer.writeInt(target, Ber.BERDataTypes.INTEGER)
@@ -71,7 +72,7 @@ export function encodeTarget(target: number, writer: Ber.Writer): void {
 	writer.endSequence()
 }
 
-export function encodeSource(source: number, writer: Ber.Writer): void {
+export const encodeSource = (source: number, writer: Ber.Writer): void => {
 	writer.startSequence(SourceBERID)
 	writer.startSequence(Ber.CONTEXT(0))
 	writer.writeInt(source, Ber.BERDataTypes.INTEGER)
@@ -79,7 +80,7 @@ export function encodeSource(source: number, writer: Ber.Writer): void {
 	writer.endSequence()
 }
 
-export function elementTypeToInt(type: ElementType): number {
+export const elementTypeToInt = (type: ElementType): number => {
 	const typeToInt = {
 		[ElementType.Parameter]: 0,
 		[ElementType.Node]: 1,
@@ -92,7 +93,7 @@ export function elementTypeToInt(type: ElementType): number {
 	return typeToInt[type]
 }
 
-export function matrixTypeToInt(type: MatrixType): number {
+export const matrixTypeToInt = (type: MatrixType): number => {
 	const typeToInt = {
 		[MatrixType.OneToN]: 0,
 		[MatrixType.OneToOne]: 1,
@@ -102,7 +103,7 @@ export function matrixTypeToInt(type: MatrixType): number {
 	return typeToInt[type]
 }
 
-export function matrixModeToInt(mode: MatrixAddressingMode): number {
+export const matrixModeToInt = (mode: MatrixAddressingMode): number => {
 	const modeToInt = {
 		[MatrixAddressingMode.Linear]: 0,
 		[MatrixAddressingMode.NonLinear]: 1,
