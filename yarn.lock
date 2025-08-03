@@ -1166,6 +1166,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@phillipivan/emberplus-connection@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "@phillipivan/emberplus-connection@workspace:."
+  dependencies:
+    "@sofie-automation/code-standard-preset": "npm:~2.5.2"
+    "@types/debug": "npm:^4.1.12"
+    "@types/jest": "npm:^30.0.0"
+    "@types/long": "npm:^5.0.0"
+    asn1: evs-broadcast/node-asn1
+    debug: "npm:^4.4.1"
+    eventemitter3: "npm:^5.0.1"
+    husky: "npm:^9.1.7"
+    jest: "npm:^30.0.5"
+    long: "npm:^5.3.2"
+    rimraf: "npm:^6.0.1"
+    smart-buffer: "npm:^3.0.3"
+    ts-jest: "npm:^29.4.0"
+    tslib: "npm:^2.8.1"
+    typescript: "npm:~4.9.5"
+  languageName: unknown
+  linkType: soft
+
 "@pkgjs/parseargs@npm:^0.11.0":
   version: 0.11.0
   resolution: "@pkgjs/parseargs@npm:0.11.0"
@@ -2564,28 +2586,6 @@ asn1@evs-broadcast/node-asn1:
   checksum: 10/b2dbb7e0e7977c63b5a9eef1f1e93d64f416108916052c06525967d9234456a7b64f9d0b655fe04d4c56f71e8ffb61b4267b2dbbf514e41dcb3e74e096f51dd9
   languageName: node
   linkType: hard
-
-"emberplus-connection@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "emberplus-connection@workspace:."
-  dependencies:
-    "@sofie-automation/code-standard-preset": "npm:~2.5.2"
-    "@types/debug": "npm:^4.1.12"
-    "@types/jest": "npm:^30.0.0"
-    "@types/long": "npm:^5.0.0"
-    asn1: evs-broadcast/node-asn1
-    debug: "npm:^4.4.1"
-    eventemitter3: "npm:^5.0.1"
-    husky: "npm:^9.1.7"
-    jest: "npm:^30.0.5"
-    long: "npm:^5.3.2"
-    rimraf: "npm:^6.0.1"
-    smart-buffer: "npm:^3.0.3"
-    ts-jest: "npm:^29.4.0"
-    tslib: "npm:^2.8.1"
-    typescript: "npm:~4.9.5"
-  languageName: unknown
-  linkType: soft
 
 "emittery@npm:^0.13.1":
   version: 0.13.1

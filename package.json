@@ -1,5 +1,5 @@
 {
-	"name": "emberplus-connection",
+	"name": "@phillipivan/emberplus-connection",
 	"version": "0.4.1",
 	"description": "Javascript implementation of the Ember+ automation protocol",
 	"engines": {
