@@ -8,6 +8,25 @@ The current version is very losely based on the original library and Mr Gilles D
 
 Relative to the official Sofie branch this fork has some additional configuration options for the client, and updated depencies.
 
+## Changes in this fork
+
+### Client
+
+An options object
+
+```typescript
+import { EmberClient, EmberClientOptions } from '@phillipivan/emberplus-connection'
+
+const options: EmberClientOptions = {
+	timeout: 1000,
+	enableResends: false,
+	reconnectAttempts: -1, // Negative value for infinite reconnect attempts
+	getDirectoryOnParams: false, // Disable if this causes issues with ember+ provider
+}
+
+const client = new EmberClient('10.9.8.7', 9000, options)
+```
+
 ### Repository-specific Info for Developers
 
 - [Developer Info](DEVELOPER.md)
@@ -27,7 +46,7 @@ Relative to the official Sofie branch this fork has some additional configuratio
 Get Full tree:
 
 ```javascript
-const { EmberClient, StreamManager } = require('emberplus-connection')
+const { EmberClient, StreamManager } = require('@phillipivan/emberplus-connection')
 const client = new EmberClient('10.9.8.7', 9000)
 client.on('error', (e) => {
 	console.log(e)
@@ -65,7 +84,7 @@ console.log(client.tree)
 Subsribe to changes
 
 ```javascript
-const { EmberClient, EmberLib } = require('emberplus-connection')
+const { EmberClient, EmberLib } = require('@phillipivan/emberplus-connection')
 
 const client = new EmberClient(HOST, PORT)
 client
@@ -154,7 +173,7 @@ const {
 	MatrixImpl,
 	MatrixType,
 	MatrixAddressingMode,
-} = require('emberplus-connection')
+} = require('@phillipivan/emberplus-connection')
 
 const s = new EmberServer(9000) // start server on port 9000
 

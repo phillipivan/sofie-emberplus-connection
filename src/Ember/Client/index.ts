@@ -96,7 +96,7 @@ export interface EmberClientOptions {
 	timeout?: number
 	enableResends?: boolean
 	resendTimeout?: number
-	reconnectAttempts?: number
+	reconnectAttempts?: number // Set to negative value for infinite reconnect attempts
 	getDirectoryOnParams?: boolean
 }
 
