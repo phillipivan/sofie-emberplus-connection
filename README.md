@@ -6,6 +6,8 @@ It has been tested with _Lawo Ruby_, _Lawo R3lay_, and _Lawo MxGUI_.
 
 The current version is very losely based on the original library and Mr Gilles Dufour's rewrites. It is however rewritten almost completely from scratch and bears little to no resemblance to earlier libraries.
 
+Relative to the official Sofie branch this fork has some additional configuration options for the client, and updated depencies.
+
 ### Repository-specific Info for Developers
 
 - [Developer Info](DEVELOPER.md)

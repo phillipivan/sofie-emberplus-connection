@@ -2,10 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [Convential Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) for commit guidelines.
 
-## [0.4.2](https://github.com/nrkno/sofie-emberplus-connection/compare/v0.4.1...v0.4.2) (Sun Aug 03 2025)
+## [0.4.2](https://github.com/phillipivan/sofie-emberplus-connection/compare/v0.4.1...v0.4.2) (Sun Aug 03 2025)
 
+### Chores
 
-## [0.4.1](https://github.com/nrkno/sofie-emberplus-connection/compare/...v0.4.1) (Fri Aug 01 2025)
+* Change package name [5a8511e](https://github.com/phillipivan/sofie-emberplus-connection/commit/5a8511eccfaa0640b14467bc9b54fb169e260a9c)
+* Update to Typescript 5 [56b6cb7] (https://github.com/phillipivan/sofie-emberplus-connection/commit/56b6cb7e6e11052c6bcfcc674a94b9b9f5b043e5)
+* Update smart-buffer to 4.2 [dd048c2] (https://github.com/phillipivan/sofie-emberplus-connection/commit/dd048c22391d203f41701ab8fd7e4f5ee2a1ab24)
+* Update yarn & husky [5301a92] (https://github.com/phillipivan/sofie-emberplus-connection/commit/5301a9263346dfbd9634989ac1763448d1e5d66f)
+
+## [0.4.1](https://github.com/phillipivan/sofie-emberplus-connection/compare/...v0.4.1) (Fri Aug 01 2025)
 
 ### Features
 
