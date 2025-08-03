@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file. See [Convential Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) for commit guidelines.
 
+## [0.4.3](https://github.com/phillipivan/sofie-emberplus-connection.git/compare/v0.4.2...v0.4.3) (Mon Aug 04 2025)
+
+
 ## [0.4.2](https://github.com/phillipivan/sofie-emberplus-connection/compare/v0.4.1...v0.4.2) (Sun Aug 03 2025)
 
 ### Chores
