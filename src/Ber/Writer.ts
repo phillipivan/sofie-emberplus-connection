@@ -1,5 +1,5 @@
 import Long from 'long'
-import { Writer, WriterOptions } from 'asn1'
+import { Writer, WriterOptions } from 'gdnet-asn1'
 
 import { CONTEXT, UNIVERSAL } from './functions.js'
 import { BERDataTypes } from './BERDataTypes.js'

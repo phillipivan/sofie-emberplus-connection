@@ -1,4 +1,4 @@
-import { Reader } from 'asn1'
+import { Reader } from 'gdnet-asn1'
 import Long from 'long'
 import { ASN1Error, UnimplementedEmberTypeError } from '../Errors.js'
 import { BERDataTypes } from './BERDataTypes.js'
