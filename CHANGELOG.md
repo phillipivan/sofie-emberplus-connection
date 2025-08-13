@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file. See [Conven
 
 ## [0.4.4](https://github.com/phillipivan/sofie-emberplus-connection.git/compare/v0.4.3...v0.4.4) (Wed Aug 13 2025)
 
+* Use `gdnet-asn1` library [a7a0200](https://github.com/phillipivan/sofie-emberplus-connection/commit/a7a0200abf0781fb04b23005bdc67965624c45a6)
 
 ## [0.4.3](https://github.com/phillipivan/sofie-emberplus-connection.git/compare/v0.4.2...v0.4.3) (Mon Aug 04 2025)
 
