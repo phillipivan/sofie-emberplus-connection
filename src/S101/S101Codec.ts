@@ -6,6 +6,7 @@ import { format } from 'util'
 import { berDecode } from '../encodings/ber/index.js'
 
 const debug = Debug('emberplus-connection:S101Codec')
+debug.log = console.log.bind(console)
 
 const S101_BOF = 0xfe
 /** End of Frame!!! NOT end of file! */

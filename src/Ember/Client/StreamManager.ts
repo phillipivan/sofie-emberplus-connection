@@ -7,6 +7,7 @@ import { StreamEntry } from '../../model/index.js'
 import Debug from 'debug'
 
 const debug = Debug('emberplus-connection:StreamManager')
+debug.log = console.log.bind(console)
 
 export type StreamManagerEvents = {
 	streamUpdate: [path: string, value: EmberValue]

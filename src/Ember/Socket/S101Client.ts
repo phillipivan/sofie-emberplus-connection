@@ -5,6 +5,7 @@ import { normalizeError } from '../Lib/util.js'
 //@ts-expect-error missing type decs
 import Debug from 'debug'
 const debug = Debug('emberplus-connection:S101Client')
+debug.log = console.log.bind(console)
 
 const DEFAULT_PORT = 9000
 const RECONNECT_ATTEMPTS = 60
