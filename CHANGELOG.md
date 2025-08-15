@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file. See [Conven
 
 ## [0.4.5](https://github.com/phillipivan/sofie-emberplus-connection.git/compare/v0.4.4...v0.4.5) (Fri Aug 15 2025)
 
+* Bind `debug` function to console.log [b985110](https://github.com/phillipivan/sofie-emberplus-connection/commit/b9851102a38d98b52718bed5bbb0ed3f868ae0f1)
 
 ## [0.4.4](https://github.com/phillipivan/sofie-emberplus-connection.git/compare/v0.4.3...v0.4.4) (Wed Aug 13 2025)
 
