@@ -1,6 +1,6 @@
 <!--
 Before you open a PR, be sure to read our Contribution guidelines:
-https://nrkno.github.io/sofie-core/docs/for-developers/contribution-guidelines
+https://Sofie-Automation.github.io/sofie-core/docs/for-developers/contribution-guidelines
 -->
 
 ## About the Contributor
@@ -54,4 +54,4 @@ If they're not, please open the PR as a Draft.
 - [ ] PR is ready to be reviewed.
 - [ ] The functionality has been tested by the author.
 - [ ] Relevant unit tests has been added / updated.
-- [ ] Relevant documentation (code comments, [system documentation](https://nrkno.github.io/sofie-core/)) has been added / updated.
+- [ ] Relevant documentation (code comments, [system documentation](https://Sofie-Automation.github.io/sofie-core/)) has been added / updated.

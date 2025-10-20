@@ -1,6 +1,6 @@
 # Ember+ Connection (Sofie-specific Fork)
 
-A TypeScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plus) control protocol for _Node_, used by the [**Sofie** TV Automation System](https://github.com/nrkno/Sofie-TV-automation/).
+A TypeScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plus) control protocol for _Node_, used by the [**Sofie** TV Automation System](https://github.com/Sofie-Automation/Sofie-TV-automation/).
 
 It has been tested with _Lawo Ruby_, _Lawo R3lay_, and _Lawo MxGUI_.
 
@@ -34,8 +34,8 @@ const client = new EmberClient('10.9.8.7', 9000, options)
 
 ### General Sofie System Info
 
-- [Documentation](https://nrkno.github.io/sofie-core/)
-- [Releases](https://nrkno.github.io/sofie-core/releases)
+- [Documentation](https://Sofie-Automation.github.io/sofie-core/)
+- [Releases](https://Sofie-Automation.github.io/sofie-core/releases)
 
 ---
 
