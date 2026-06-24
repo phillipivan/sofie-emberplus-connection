@@ -2,6 +2,7 @@ import net from 'net'
 
 import Debug from 'debug'
 
+import { S101OversizedFrameError } from '../../Errors.js'
 import { ConnectionStatus } from '../Client/ConnectionStatus.js'
 import { normalizeError } from '../Lib/util.js'
 import S101Socket from './S101Socket.js'
@@ -81,6 +82,10 @@ export default class S101Client extends S101Socket {
 							this.codec.dataIn(data)
 						} catch (e) {
 							this.emit('error', normalizeError(e))
+							if (e instanceof S101OversizedFrameError) {
+								// Abusive/broken peer - drop the connection instead of continuing to buffer.
+								this.handleClose()
+							}
 						}
 					})
 					this.socket.on('error', (error) => this._onError(error))

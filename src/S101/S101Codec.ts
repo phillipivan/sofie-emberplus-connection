@@ -5,6 +5,7 @@ import { EventEmitter } from 'eventemitter3'
 import { SmartBuffer } from 'smart-buffer'
 
 import { berDecode } from '../encodings/ber/index.js'
+import { S101OversizedFrameError } from '../Errors.js'
 
 const debug = Debug('emberplus-connection:S101Codec')
 debug.log = console.log.bind(console)
@@ -107,7 +108,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 					this.frameBuffer = undefined
 					this.escaped = false
 					this.resetMultiPacketBuffer()
-					throw new Error(
+					throw new S101OversizedFrameError(
 						format('dropping oversized S101 frame: %d bytes buffered without EOF', pending.length)
 					)
 				}
@@ -258,7 +259,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 				if (this.multiPacketBuffer.length > MAX_MULTI_PACKET_SIZE) {
 					this.resetMultiPacketBuffer()
-					throw new Error(
+					throw new S101OversizedFrameError(
 						format('dropping oversized multi-packet message: exceeded %d bytes', MAX_MULTI_PACKET_SIZE)
 					)
 				}
