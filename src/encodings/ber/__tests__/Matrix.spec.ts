@@ -6,16 +6,19 @@ import { guarded } from '../decoder/DecodeResult.js'
 import { decodeMatrix } from '../decoder/Matrix.js'
 import { encodeQualifedElement } from '../encoder/Qualified.js'
 import { encodeNumberedElement } from '../encoder/Tree.js'
+import { toIndefiniteLength } from './indefiniteLength.js'
 
 describe('encodings/ber/Matrix', () => {
-	function roundtripMatrix(matrix: Matrix, qualified = false): void {
+	function roundtripMatrix(matrix: Matrix, qualified = false, indefinite = false): void {
 		const node = qualified ? new QualifiedElementImpl('1.2.3', matrix) : new NumberedTreeNodeImpl(0, matrix)
 		const writer = new Ber.Writer()
 		if (!qualified) encodeNumberedElement(node as NumberedTreeNode<Matrix>, writer)
 		else encodeQualifedElement(node as QualifiedElement<Matrix>, writer)
 		console.log(writer.buffer)
 		expect(writer.buffer.length).toBeGreaterThan(0)
-		const reader = new Ber.Reader(writer.buffer)
+		const buffer = indefinite ? toIndefiniteLength(writer.buffer) : writer.buffer
+		if (indefinite) expect(buffer[1]).toBe(0x80)
+		const reader = new Ber.Reader(buffer)
 		const decoded = guarded(decodeMatrix(reader, qualified))
 
 		expect(decoded).toEqual(node)
@@ -165,10 +168,68 @@ describe('encodings/ber/Matrix', () => {
 		})
 	}
 
+	// In the indefinite length form every container ends with a 00 00 end-of-contents marker, which the
+	// decoder loops meet after each entry. The lists have several entries because a marker used to make
+	// the connections loop skip the entry after it.
+	function runIndefiniteLengthTests(qualified: boolean): void {
+		test('multiple labels', () => {
+			const matrix: Matrix = new MatrixImpl('identifier')
+			matrix.labels = [
+				{ basePath: '1.2.3', description: 'Primary' },
+				{ basePath: '1.2.4', description: 'Secondary' },
+			]
+			roundtripMatrix(matrix, qualified, true)
+		})
+		test('multiple targets', () => {
+			const matrix: Matrix = new MatrixImpl('identifier')
+			matrix.targets = [0, 1, 2, 3, 4]
+			roundtripMatrix(matrix, qualified, true)
+		})
+		test('multiple sources', () => {
+			const matrix: Matrix = new MatrixImpl('identifier')
+			matrix.sources = [0, 1, 2, 3, 4]
+			roundtripMatrix(matrix, qualified, true)
+		})
+		test('multiple connections', () => {
+			const matrix: Matrix = new MatrixImpl('identifier')
+			matrix.connections = {
+				0: { target: 0, sources: [1] },
+				1: { target: 1, sources: [2] },
+				2: { target: 2, sources: [0, 3] },
+			}
+			roundtripMatrix(matrix, qualified, true)
+		})
+		test('all lists', () => {
+			const matrix: Matrix = new MatrixImpl('identifier')
+			matrix.matrixType = MatrixType.OneToN
+			matrix.addressingMode = MatrixAddressingMode.NonLinear
+			matrix.targetCount = 3
+			matrix.sourceCount = 4
+			matrix.labels = [
+				{ basePath: '1.2.3', description: 'Primary' },
+				{ basePath: '1.2.4', description: 'Secondary' },
+			]
+			matrix.targets = [0, 1, 2]
+			matrix.sources = [0, 1, 2, 3]
+			matrix.connections = {
+				0: { target: 0, sources: [1] },
+				1: { target: 1, sources: [2] },
+				2: { target: 2, sources: [3] },
+			}
+			roundtripMatrix(matrix, qualified, true)
+		})
+	}
+
 	describe('roundtrip numbered Matrix', () => {
 		runRoundtripTests(false)
 	})
 	describe('roundtrip qualified Matrix', () => {
 		runRoundtripTests(true)
+	})
+	describe('roundtrip numbered Matrix, indefinite length', () => {
+		runIndefiniteLengthTests(false)
+	})
+	describe('roundtrip qualified Matrix, indefinite length', () => {
+		runIndefiniteLengthTests(true)
 	})
 })
