@@ -1,4 +1,5 @@
 import * as Ber from '../../../Ber/index.js'
+import { ConnectionImpl, ConnectionOperation } from '../../../model/Connection.js'
 import { ElementType } from '../../../model/EmberElement.js'
 import { EmberNodeImpl } from '../../../model/EmberNode.js'
 import { InvocationResultImpl } from '../../../model/InvocationResult.js'
@@ -53,6 +54,22 @@ describe('encoders/Ber/index', () => {
 		}
 		res[0].children[0].parent = res[0]
 		roundTrip(res, RootType.Elements)
+	})
+	// A connect request as the specification's examples, Lawo's libember and Ember+ Viewer send it: a QualifiedMatrix
+	// with a path and a connection but no contents, which the Glow DTD makes optional
+	test('Qualified matrix with only connections', () => {
+		const matrix = (contents: Partial<Matrix>) =>
+			new QualifiedElementImpl<Matrix>('1.1', {
+				type: ElementType.Matrix,
+				connections: { 2: new ConnectionImpl(2, [3], ConnectionOperation.Connect) },
+				...contents,
+			} as Matrix)
+
+		expect(berEncode({ 0: matrix({}) }, RootType.Elements).toString('hex')).toBe(
+			'60236b21a01f711da0040d020101a5153013a011700fa003020102a1030d0103a203020101'
+		)
+		// anything that belongs in the contents still writes them
+		roundTrip({ 0: matrix({ identifier: 'matrix' }) }, RootType.Elements)
 	})
 	test('Unknown root', () => {
 		const testBuffer = Buffer.from([Ber.APPLICATION(30)])
