@@ -20,9 +20,9 @@ import { EmberFunction } from '../../model/EmberFunction.js'
 import { EmberNode } from '../../model/EmberNode.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
 import { Matrix } from '../../model/Matrix.js'
-import { Parameter } from '../../model/Parameter.js'
+import { Parameter, ParameterImpl } from '../../model/Parameter.js'
 import { StreamEntry } from '../../model/StreamEntry.js'
-import { NumberedTreeNodeImpl } from '../../model/Tree.js'
+import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
 import {
 	Collection,
 	EmberTypedValue,
@@ -335,15 +335,17 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			throw new Error('No node specified')
 		}
 
-		const qualifiedParam = assertQualifiedEmberNode(node) as QualifiedElement<Parameter>
-
 		// TODO - validate value
-		// TODO - should other properties be scrapped
 
-		qualifiedParam.contents.value = value
+		// Send only the path and the value, as the specification's examples and Lawo's libember do. The parameter type
+		// only decides how the value is encoded. The tree is updated when the provider replies.
+		const request = new QualifiedElementImpl<Parameter>(
+			getPath(node),
+			new ParameterImpl(node.contents.parameterType, undefined, undefined, value)
+		)
 
 		return this._sendRequest<TreeElement<Parameter>>(
-			qualifiedParam,
+			request,
 			awaitResponse ? ExpectResponse.Any : ExpectResponse.None
 		)
 	}
