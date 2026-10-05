@@ -2,8 +2,10 @@ import S101ClientMock from '../../../__mocks__/S101Client.js'
 import * as Ber from '../../../Ber/index.js'
 import { DecodeResult } from '../../../encodings/ber/decoder/DecodeResult.js'
 import { berDecode } from '../../../encodings/ber/index.js'
+import { CommandType } from '../../../model/Command.js'
 import { Connection, ConnectionOperation } from '../../../model/Connection.js'
 import {
+	ElementType,
 	EmberElement,
 	EmberNodeImpl,
 	Matrix,
@@ -17,12 +19,13 @@ import {
 	QualifiedElement,
 	QualifiedElementImpl,
 	StreamFormat,
+	TreeElement,
 } from '../../../model/index.js'
 import { Parameter, ParameterAccess } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl } from '../../../model/StreamDescription.js'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { Collection, EmberTypedValue, Root, RootElement } from '../../../types/types.js'
-import { EmberClient } from '../index.js'
+import { EmberClient, EmberClientOptions } from '../index.js'
 
 // import { EmberTreeNode, RootElement } from '../../../types/types.js'
 // import { ElementType, EmberElement } from '../../../model/EmberElement.js'
@@ -70,8 +73,11 @@ describe('client', () => {
 		expect(sockets).toHaveLength(0)
 	})
 
-	async function runWithConnection(fn: (connection: EmberClient, socket: S101ClientMock) => Promise<void>) {
-		const client = new EmberClient('test', 9000)
+	async function runWithConnection(
+		fn: (connection: EmberClient, socket: S101ClientMock) => Promise<void>,
+		options?: EmberClientOptions
+	) {
+		const client = new EmberClient('test', 9000, options)
 		try {
 			expect(client).toBeTruthy()
 
@@ -670,6 +676,75 @@ describe('client', () => {
 				expect(node.contents.identifier).toBe('matrix')
 				expect(node.contents.targets).toEqual([1, 2, 3])
 			})
+		})
+	})
+
+	describe('getElementByPath on a parameter', () => {
+		// A device, 1, with a parameter, 1.1, already in the tree from an earlier GetDirectory on the device
+		function seedParameter(client: EmberClient) {
+			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
+				1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0)),
+			})
+			if (!device.children?.[1]) throw new Error('Expected seeded parameter')
+			device.children[1].parent = device
+			client.tree[1] = device
+			return device.children[1] as NumberedTreeNode<Parameter>
+		}
+
+		// Some providers never answer a GetDirectory on a parameter
+		it('sends a GetDirectory to the parameter without waiting for a reply', async () => {
+			await runWithConnection(async (client) => {
+				const node = seedParameter(client)
+
+				let found: TreeElement<EmberElement> | undefined
+				client
+					.getElementByPath('1.1')
+					.then((element) => (found = element))
+					.catch(() => null) // without a reply, a lookup that waits is cancelled on disconnect
+				await new Promise(setImmediate)
+
+				expect(found).toBe(node)
+				expect(onSocketWrite).toHaveBeenCalledTimes(1)
+				const request = (berDecode(onSocketWrite.mock.calls[0][0]).value as Collection<RootElement>)[0]
+				expect(request).toMatchObject({ path: '1.1', contents: { type: ElementType.Parameter } })
+				expect(Object.values<NumberedTreeNode<EmberElement>>(request.children ?? {})).toMatchObject([
+					{ contents: { type: ElementType.Command, number: CommandType.GetDirectory } },
+				])
+			})
+		})
+
+		// Others may only report a parameter's changes once it has had a GetDirectory
+		it('applies the reply and calls the callback when the provider answers', async () => {
+			await runWithConnection(async (client, socket) => {
+				const node = seedParameter(client)
+				const cb = jest.fn()
+
+				await client.getElementByPath('1.1', cb)
+				socket.mockData(
+					createQualifiedNodeResponse(
+						'1.1',
+						new ParameterImpl(ParameterType.Integer, undefined, undefined, 5),
+						undefined
+					)
+				)
+				await new Promise(setImmediate)
+
+				expect(node.contents.value).toBe(5)
+				expect(cb).toHaveBeenCalledWith(node)
+			})
+		})
+
+		// The option this fork adds turns the GetDirectory off altogether
+		it('sends no GetDirectory to the parameter when getDirectoryOnParams is off', async () => {
+			await runWithConnection(
+				async (client) => {
+					const node = seedParameter(client)
+
+					await expect(client.getElementByPath('1.1')).resolves.toBe(node)
+					expect(onSocketWrite).not.toHaveBeenCalled()
+				},
+				{ getDirectoryOnParams: false }
+			)
 		})
 	})
 
