@@ -1,6 +1,5 @@
 import { EventEmitter } from 'eventemitter3'
 import { SmartBuffer } from 'smart-buffer'
-//@ts-expect-error no decl file found
 import Debug from 'debug'
 import { format } from 'util'
 import { berDecode } from '../encodings/ber/index.js'

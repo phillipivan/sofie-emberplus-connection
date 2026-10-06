@@ -2,7 +2,6 @@ import net from 'net'
 import S101Socket from './S101Socket.js'
 import { ConnectionStatus } from '../Client/index.js'
 import { normalizeError } from '../Lib/util.js'
-//@ts-expect-error missing type decs
 import Debug from 'debug'
 const debug = Debug('emberplus-connection:S101Client')
 debug.log = console.log.bind(console)
@@ -66,7 +65,9 @@ export default class S101Client extends S101Socket {
 					this.socket = new net.Socket()
 					this.socket.on('close', (hadError) => this._onClose(hadError))
 					this.socket.on('connect', () => this._onConnect())
-					this.socket.on('data', (data) => {
+					this.socket.on('data', (chunk) => {
+						// no encoding is set on the socket, so this is a Buffer
+						const data = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
 						debug('Data from Ember connection received:', {
 							address: this.socket?.remoteAddress,
 							port: this.socket?.remotePort,

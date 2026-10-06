@@ -71,7 +71,8 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 		if (this.socket != null) {
 			this.socket.on('data', (data) => {
 				try {
-					this.codec.dataIn(data)
+					// no encoding is set on the socket, so this is a Buffer
+					this.codec.dataIn(typeof data === 'string' ? Buffer.from(data) : data)
 				} catch (e) {
 					this.emit('error', normalizeError(e))
 				}

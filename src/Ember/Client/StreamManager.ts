@@ -3,7 +3,6 @@ import { Parameter, ParameterType } from '../../model/Parameter.js'
 import { EmberValue } from '../../types/index.js'
 import { Collection } from '../../types/types.js'
 import { StreamEntry } from '../../model/index.js'
-//@ts-expect-error no dec file
 import Debug from 'debug'
 
 const debug = Debug('emberplus-connection:StreamManager')
