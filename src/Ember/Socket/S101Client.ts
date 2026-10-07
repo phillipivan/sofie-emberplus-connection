@@ -1,6 +1,6 @@
 import net from 'net'
 import S101Socket from './S101Socket.js'
-import { ConnectionStatus } from '../Client/index.js'
+import { ConnectionStatus } from '../Client/ConnectionStatus.js'
 import { normalizeError } from '../Lib/util.js'
 import Debug from 'debug'
 const debug = Debug('emberplus-connection:S101Client')

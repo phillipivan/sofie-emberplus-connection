@@ -108,7 +108,9 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			const matrixUpdate: Partial<Matrix> = update as Partial<Matrix>
 
 			if (matrixUpdate.connections) {
+				// The Connections interface has no implicit string index signature, which Object.values needs
 				for (const connection of Object.values<Connection>(
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 					matrixUpdate.connections as { [target: number]: Connection }
 				)) {
 					this.updateMatrixConnection(matrix, connection)
@@ -374,7 +376,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 				qualified.contents = new EmberNodeImpl()
 				qualified.children = undefined
 			}
-			const data = berEncode([qualified as RootElement], RootType.Elements)
+			const data = berEncode([qualified], RootType.Elements)
 			client.sendBER(data)
 		}
 	}

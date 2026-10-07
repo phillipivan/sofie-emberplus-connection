@@ -36,6 +36,9 @@ import { EmberFunction } from '../../model/EmberFunction.js'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult.js'
 import { StreamEntry } from '../../model/StreamEntry.js'
 import { StreamManager } from './StreamManager.js'
+import { ConnectionStatus } from './ConnectionStatus.js'
+
+export { ConnectionStatus }
 
 export type RequestPromise<T> = Promise<RequestPromiseArguments<T>>
 export interface RequestPromiseArguments<T> {
@@ -74,13 +77,6 @@ export interface Change {
 	path: string | undefined
 	node: RootElement
 	emptyNode?: boolean
-}
-
-export enum ConnectionStatus {
-	Error,
-	Disconnected,
-	Connecting,
-	Connected,
 }
 
 export type EmberClientEvents = {
@@ -488,7 +484,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			while (current) {
 				numbers.unshift(current.number)
 				if (current.parent && 'number' in current.parent) {
-					current = current.parent as NumberedTreeNode<EmberElement>
+					current = current.parent
 				} else {
 					current = undefined
 				}
@@ -761,6 +757,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (update.connections) {
 			if (matrix.connections) {
 				// matrix already has connections
+				// The Connections interface has no implicit string index signature, which Object.values needs
+				// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 				for (const connection of Object.values<Connection>(update.connections as { [target: number]: Connection })) {
 					if (
 						!connection.disposition ||

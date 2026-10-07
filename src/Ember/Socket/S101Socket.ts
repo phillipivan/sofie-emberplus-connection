@@ -3,7 +3,7 @@ import { Socket } from 'net'
 
 import { S101Codec } from '../../S101/index.js'
 import { berDecode } from '../../encodings/ber/index.js'
-import { ConnectionStatus } from '../Client/index.js'
+import { ConnectionStatus } from '../Client/ConnectionStatus.js'
 import { normalizeError } from '../Lib/util.js'
 import { Root } from '../../types/index.js'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult.js'

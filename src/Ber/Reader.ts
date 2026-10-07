@@ -51,11 +51,8 @@ class ExtendedReader extends Reader {
 		}
 	}
 
-	readReal(tag?: number): number | null {
-		if (tag !== null) {
-			tag = UNIVERSAL(9)
-		}
-
+	// the tag is read from the data
+	readReal(_tag?: number): number | null {
 		const b = this.peek()
 		if (b === null) {
 			return null
