@@ -1,7 +1,7 @@
-import { Writer } from '../Writer.js'
+import { ParameterType } from '../../model/Parameter.js'
 import { BERDataTypes } from '../index.js'
 import { Reader } from '../Reader.js'
-import { ParameterType } from '../../model/Parameter.js'
+import { Writer } from '../Writer.js'
 
 describe('BER', () => {
 	describe('Roundtrip', () => {

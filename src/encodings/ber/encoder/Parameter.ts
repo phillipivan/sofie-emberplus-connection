@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import * as Ber from '../../../Ber/index.js'
-import { Parameter, ParameterType, ParameterAccess } from '../../../model/Parameter.js'
+import { Parameter, ParameterAccess, ParameterType } from '../../../model/Parameter.js'
 import { EmberValue } from '../../../types/types.js'
-import { encodeStringIntegerCollection } from './StringIntegerCollection.js'
 import { encodeStreamDescription } from './StreamDescription.js'
+import { encodeStringIntegerCollection } from './StringIntegerCollection.js'
+
 // import { elementTypeToInt } from './Matrix'
 
 export const encodeParameter = (parameter: Parameter, writer: Ber.Writer): void => {

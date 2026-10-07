@@ -1,20 +1,20 @@
 import * as Ber from '../../../Ber/index.js'
-import { Parameter, ParameterType, ParameterImpl, ParameterAccess } from '../../../model/Parameter.js'
+import { Parameter, ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Parameter.js'
+import { StreamDescription } from '../../../model/StreamDescription.js'
+import { EmberValue, RelativeOID, StringIntegerCollection } from '../../../types/types.js'
+import {
+	appendErrors,
+	check,
+	DecodeOptions,
+	DecodeResult,
+	defaultDecode,
+	makeResult,
+	skipNext,
+	unexpected,
+	unknownContext,
+} from './DecodeResult.js'
 import { decodeStreamDescription } from './StreamDescription.js'
 import { decodeStringIntegerCollection } from './StringIntegerCollection.js'
-import {
-	DecodeOptions,
-	defaultDecode,
-	DecodeResult,
-	check,
-	makeResult,
-	unexpected,
-	appendErrors,
-	unknownContext,
-	skipNext,
-} from './DecodeResult.js'
-import { EmberValue, StringIntegerCollection, RelativeOID } from '../../../types/types.js'
-import { StreamDescription } from '../../../model/StreamDescription.js'
 
 export { decodeParameter, readParameterType }
 
@@ -191,6 +191,12 @@ function readParameterType(value: number, options: DecodeOptions): DecodeResult<
 		case 7:
 			return makeResult(ParameterType.Octets)
 		default:
-			return unexpected([], 'read parameter type', `unexpected parameter type '${value}'`, ParameterType.Null, options)
+			return unexpected(
+				[],
+				'read parameter type',
+				`unexpected parameter type '${value}'`,
+				ParameterType.Null,
+				options
+			)
 	}
 }

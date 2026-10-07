@@ -2,13 +2,13 @@ import * as Ber from '../../../Ber/index.js'
 import { Label, LabelImpl } from '../../../model/Label.js'
 import { LabelBERID } from '../constants.js'
 import {
-	DecodeOptions,
-	defaultDecode,
-	DecodeResult,
-	unknownContext,
 	check,
+	DecodeOptions,
+	DecodeResult,
+	defaultDecode,
 	makeResult,
 	skipNext,
+	unknownContext,
 } from './DecodeResult.js'
 
 export { decodeLabel }

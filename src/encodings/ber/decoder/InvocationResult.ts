@@ -3,13 +3,13 @@ import { InvocationResult, InvocationResultImpl } from '../../../model/Invocatio
 import { EmberTypedValue } from '../../../types/types.js'
 import { InvocationResultBERID } from '../constants.js'
 import {
-	DecodeOptions,
-	defaultDecode,
-	DecodeResult,
-	makeResult,
-	unknownContext,
 	check,
+	DecodeOptions,
+	DecodeResult,
+	defaultDecode,
+	makeResult,
 	skipNext,
+	unknownContext,
 } from './DecodeResult.js'
 
 export function decodeInvocationResult(

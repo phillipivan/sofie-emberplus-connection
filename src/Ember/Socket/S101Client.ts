@@ -1,8 +1,11 @@
 import net from 'net'
-import S101Socket from './S101Socket.js'
+
+import Debug from 'debug'
+
 import { ConnectionStatus } from '../Client/ConnectionStatus.js'
 import { normalizeError } from '../Lib/util.js'
-import Debug from 'debug'
+import S101Socket from './S101Socket.js'
+
 const debug = Debug('emberplus-connection:S101Client')
 debug.log = console.log.bind(console)
 
@@ -110,7 +113,10 @@ export default class S101Client extends S101Socket {
 
 			// sets timer to retry when needed
 			if (!this._connectionAttemptTimer) {
-				this._connectionAttemptTimer = setInterval(() => this._autoReconnectionAttempt(), this._autoReconnectDelay)
+				this._connectionAttemptTimer = setInterval(
+					() => this._autoReconnectionAttempt(),
+					this._autoReconnectDelay
+				)
 			}
 		})
 	}

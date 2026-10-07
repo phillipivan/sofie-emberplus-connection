@@ -1,42 +1,43 @@
-import {
-	EmberValue,
-	RootElement,
-	QualifiedElement,
-	TreeElement,
-	NumberedTreeNode,
-	EmberTypedValue,
-	RootType,
-	Collection,
-	Root,
-} from '../../types/types.js'
-import { InvocationResult } from '../../model/InvocationResult.js'
-import { Matrix } from '../../model/Matrix.js'
-import { EmberElement, ElementType } from '../../model/EmberElement.js'
+import { EventEmitter } from 'eventemitter3'
+
+import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult.js'
+import { berEncode } from '../../encodings/ber/index.js'
 import {
 	Command,
-	GetDirectoryImpl,
-	SubscribeImpl,
-	UnsubscribeImpl,
-	Unsubscribe,
-	GetDirectory,
 	CommandType,
 	FieldFlags,
-	Subscribe,
+	GetDirectory,
+	GetDirectoryImpl,
 	Invoke,
+	Subscribe,
+	SubscribeImpl,
+	Unsubscribe,
+	UnsubscribeImpl,
 } from '../../model/Command.js'
-import { Parameter } from '../../model/Parameter.js'
 import { Connection, ConnectionDisposition, ConnectionOperation } from '../../model/Connection.js'
-import { EmberNode } from '../../model/EmberNode.js'
-import { EventEmitter } from 'eventemitter3'
-import { S101Client } from '../Socket/index.js'
-import { getPath, assertQualifiedEmberNode, insertCommand, updateProps, isEmptyNode } from '../Lib/util.js'
-import { berEncode } from '../../encodings/ber/index.js'
-import { NumberedTreeNodeImpl } from '../../model/Tree.js'
+import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberFunction } from '../../model/EmberFunction.js'
-import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult.js'
+import { EmberNode } from '../../model/EmberNode.js'
+import { InvocationResult } from '../../model/InvocationResult.js'
+import { Matrix } from '../../model/Matrix.js'
+import { Parameter } from '../../model/Parameter.js'
 import { StreamEntry } from '../../model/StreamEntry.js'
-import { StreamManager } from './StreamManager.js'
+import { NumberedTreeNodeImpl } from '../../model/Tree.js'
+import {
+	Collection,
+	EmberTypedValue,
+	EmberValue,
+	NumberedTreeNode,
+	QualifiedElement,
+	Root,
+	RootElement,
+	RootType,
+	TreeElement,
+} from '../../types/types.js'
+import { assertQualifiedEmberNode, getPath, insertCommand, isEmptyNode, updateProps } from '../Lib/util.js'
+import { S101Client } from '../Socket/index.js'
 import { ConnectionStatus } from './ConnectionStatus.js'
+import { StreamManager } from './StreamManager.js'
 
 export { ConnectionStatus }
 
@@ -402,7 +403,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		let curEmberNode
 		while ((curEmberNode = emberNodes.shift())) {
 			if (curEmberNode.children) {
-				emberNodes.push(...Object.values<NumberedTreeNode<EmberElement>>(curEmberNode.children).filter(canBeExpanded))
+				emberNodes.push(
+					...Object.values<NumberedTreeNode<EmberElement>>(curEmberNode.children).filter(canBeExpanded)
+				)
 			} else {
 				const req = await this.getDirectory(curEmberNode)
 				if (!req.response) continue
@@ -657,7 +660,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						} else {
 							const number = Number(rootElement.path)
 							// Insert node into root
-							this.tree[number] = new NumberedTreeNodeImpl(number, rootElement.contents, rootElement.children)
+							this.tree[number] = new NumberedTreeNodeImpl(
+								number,
+								rootElement.contents,
+								rootElement.children
+							)
 							changes.push({ path: undefined, node: this.tree[number] })
 							continue
 						}
@@ -758,8 +765,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			if (matrix.connections) {
 				// matrix already has connections
 				// The Connections interface has no implicit string index signature, which Object.values needs
-				// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-				for (const connection of Object.values<Connection>(update.connections as { [target: number]: Connection })) {
+				for (const connection of Object.values<Connection>(
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+					update.connections as { [target: number]: Connection }
+				)) {
 					if (
 						!connection.disposition ||
 						!(

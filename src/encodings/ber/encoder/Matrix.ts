@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import * as Ber from '../../../Ber/index.js'
-import { Matrix, MatrixType, MatrixAddressingMode } from '../../../model/Matrix.js'
 import { ElementType } from '../../../model/EmberElement.js'
-import { encodeLabel } from './Label.js'
+import { Matrix, MatrixAddressingMode, MatrixType } from '../../../model/Matrix.js'
 import { RelativeOID } from '../../../types/types.js'
-import { TargetBERID, SourceBERID } from '../constants.js'
+import { SourceBERID, TargetBERID } from '../constants.js'
+import { encodeLabel } from './Label.js'
 
 export const encodeMatrix = (matrix: Matrix, writer: Ber.Writer): void => {
 	writer.startSequence(Ber.BERDataTypes.SET)
