@@ -1,8 +1,24 @@
-name: Publish prerelease
+name: Publish Release
+
+# Publishes to npm with trusted publishing (OIDC), so no npm token is stored in the repository. The package's trusted
+# publisher on npmjs.com must name this repository and this workflow file (publish.yaml).
+#
+# - Pushing a version tag (vX.Y.Z) publishes package.json's version: as `latest` if it's newer than the published
+#   version, otherwise as `hotfix`.
+# - Running the workflow manually publishes a prerelease: `nightly` from master, `experimental` from any other branch.
 
 on:
-  # Allows you to run this workflow manually from the Actions tab
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -13,16 +29,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [14.x, 16.x, 18.x, 20.x]
+        node-version: [22.x, 24.x, 26.x]
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Git checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
       - name: Prepare Environment
         run: |
+          npm install -g corepack # not bundled with Node.js 25 and later
+          corepack enable
           yarn install
         env:
           CI: true
@@ -32,57 +53,123 @@ jobs:
         env:
           CI: true
 
-  prerelease:
-    name: Prerelease
+  prepare:
+    name: Prepare package
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
-    needs:
-      - test
+    outputs:
+      tag: ${{ steps.do-publish.outputs.tag }}
+      prerelease: ${{ steps.do-publish.outputs.prerelease }}
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Git checkout
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Use Node.js 18.x
-        uses: actions/setup-node@v3
+          persist-credentials: false
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@v6
         with:
-          node-version: 18.x
-      - name: Check release is desired
+          node-version: 24.x
+      - name: Enable corepack
+        run: |
+          npm install -g corepack # not bundled with Node.js 25 and later
+          corepack enable
+      - name: Determine publish info
         id: do-publish
         run: |
-          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
-            echo "No Token"
-          elif [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
-            echo "Publish nightly"
-            echo "publish=nightly" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+              echo "Publishing nightly"
+              echo "tag=nightly" >> $GITHUB_OUTPUT
+            else
+              echo "Publishing experimental"
+              echo "tag=experimental" >> $GITHUB_OUTPUT
+            fi
+
+            HASH=$(git rev-parse --short HEAD)
+            TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+            PRERELEASE_TAG=nightly-$(echo "${{ github.ref_name }}" | sed -r 's/[^a-z0-9]+/-/gi')
+            echo "prerelease=${PRERELEASE_TAG}-${TIMESTAMP}-${HASH}" >> $GITHUB_OUTPUT
           else
-            echo "Publish experimental"
-            echo "publish=experimental" >> $GITHUB_OUTPUT
+            PUBLISHED_VERSION=$(yarn npm info --json . | jq -c '.version' -r)
+            THIS_VERSION=$(node -p "require('./package.json').version")
+            # Simple bash helper to compare version numbers
+            verlte() {
+              [  "$1" = "`echo -e "$1\n$2" | sort -V | head -n1`" ]
+            }
+            verlt() {
+              [ "$1" = "$2" ] && return 1 || verlte $1 $2
+            }
+            if verlt $PUBLISHED_VERSION $THIS_VERSION
+            then
+              echo "Publishing latest"
+              echo "tag=latest" >> $GITHUB_OUTPUT
+            else
+              echo "Publishing hotfix"
+              echo "tag=hotfix" >> $GITHUB_OUTPUT
+            fi
           fi
-      - name: Prepare Environment
-        if: ${{ steps.do-publish.outputs.publish }}
+      - name: Prepare build
         run: |
           yarn install
-        env:
-          CI: true
-      - name: Bump version and build
-        if: ${{ steps.do-publish.outputs.publish }}
-        run: |
-          PRERELEASE_TAG=nightly-$(echo "${{ github.ref_name }}" | sed -r 's/[^a-z0-9]+/-/gi')
-          yarn release --prerelease $PRERELEASE_TAG
+
+          # Bump to a prerelease version if needed
+          if [ "${{ steps.do-publish.outputs.prerelease }}" != "" ]; then
+            OLD_VERSION=$(node -p "require('./package.json').version")
+            yarn version ${OLD_VERSION}-${{ steps.do-publish.outputs.prerelease }}
+          fi
+
           yarn build
         env:
           CI: true
-      - name: Publish to NPM
-        if: ${{ steps.do-publish.outputs.publish }}
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-dist
+          path: |
+            dist
+            package.json
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: Publish to npm
+    needs:
+      - prepare
+      - test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # scoped to this job only, as it gives write access to npm
+
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          registry-url: 'https://registry.npmjs.org'
+      - name: Update npm
+        # trusted publishing needs npm 11.5.1 or later
+        run: npm install -g npm@^11.5.1
+      - name: Download release artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: publish-dist
+      - name: Publish to npm
+        # No yarn install here: the build comes from the prepare job, and this job holds the npm publish token.
         run: |
-          yarn config set npmAuthToken $NPM_AUTH_TOKEN
+          # npm runs the "prepare" script on publish, which needs husky from the dev dependencies
+          jq 'del(.scripts.prepare)' package.json > tmp.$$.json && mv tmp.$$.json package.json
+
+          npm publish --access=public --provenance --tag ${{ needs.prepare.outputs.tag }}
 
           NEW_VERSION=$(node -p "require('./package.json').version")
-          yarn npm publish --access=public --tag "${{ steps.do-publish.outputs.publish }}"
-
           echo "**Published:** $NEW_VERSION" >> $GITHUB_STEP_SUMMARY
         env:
-          NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           CI: true
