@@ -1,6 +1,6 @@
-import { Reader } from 'gdnet-asn1'
 import Long from 'long'
 
+import { Reader } from '../ASN1/ber/reader.js'
 import { ASN1Error, UnimplementedEmberTypeError } from '../Errors.js'
 import { ParameterType } from '../model/Parameter.js'
 import { EmberTypedValue } from '../types/types.js'
@@ -40,7 +40,7 @@ class ExtendedReader extends Reader {
 			case BERDataTypes.BOOLEAN:
 				return { type: ParameterType.Boolean, value: this.readBoolean() }
 			case BERDataTypes.OCTETSTRING:
-				return { type: ParameterType.Octets, value: this.readString(UNIVERSAL(4), true) }
+				return { type: ParameterType.Octets, value: this.readStringAsBuffer(UNIVERSAL(4)) }
 			case BERDataTypes.RELATIVE_OID:
 				return { type: ParameterType.String, value: this.readOID(BERDataTypes.RELATIVE_OID) }
 			case BERDataTypes.NULL: // Note: No readNull in BER library but writer writes 2 bytes
@@ -59,8 +59,8 @@ class ExtendedReader extends Reader {
 			return null
 		}
 
-		const buf = this.readString(b, true)
-		if (buf.length === 0) {
+		const buf = this.readStringAsBuffer(b)
+		if (!buf || buf.length === 0) {
 			return 0
 		}
 

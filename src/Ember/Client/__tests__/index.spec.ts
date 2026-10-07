@@ -485,7 +485,7 @@ describe('client', () => {
 					value = reader.readValue().value
 				} else {
 					const inner = reader.peek()
-					if (inner !== null) reader.readString(inner, true)
+					if (inner !== null) reader.readStringAsBuffer(inner)
 				}
 			}
 			return { path, fields, valueTag, value, hasChildren: contentsEnd < parameterEnd }
@@ -589,7 +589,7 @@ describe('client', () => {
 				if (tag === null) break
 				fields.push(tag)
 				const inner = reader.peek()
-				if (inner !== null) reader.readString(inner, true)
+				if (inner !== null) reader.readStringAsBuffer(inner)
 			}
 			const matrix = (berDecode(data).value as Collection<RootElement>)[0] as QualifiedElement<Matrix>
 			return { path, fields, connections: matrix.contents.connections }
@@ -769,7 +769,7 @@ describe('client', () => {
 				if (tag === null) break
 				fields.push(tag)
 				const inner = reader.peek()
-				if (inner !== null) reader.readString(inner, true)
+				if (inner !== null) reader.readStringAsBuffer(inner)
 			}
 			const element = (berDecode(data).value as Collection<RootElement>)[0]
 			const commands = Object.values<NumberedTreeNode<EmberElement>>(element.children ?? {}).map(

@@ -1,6 +1,6 @@
-import { Writer, WriterOptions } from 'gdnet-asn1'
 import Long from 'long'
 
+import { Writer, WriterOptions } from '../ASN1/ber/writer.js'
 import { isParameter, Parameter, ParameterType } from '../model/Parameter.js'
 import { EmberTypedValue, EmberValue } from '../types/types.js'
 import { BERDataTypes } from './BERDataTypes.js'
@@ -161,12 +161,7 @@ class ExtendedWriter extends Writer {
 					if (!Buffer.isBuffer(value.value)) {
 						value.value = Buffer.from(`${value.value}`)
 					}
-					if (value.value.length) {
-						this.writeByte(BERDataTypes.OCTETSTRING)
-						this.writeLength(0)
-					} else {
-						this.writeBuffer(value.value, BERDataTypes.OCTETSTRING)
-					}
+					this.writeBuffer(value.value, BERDataTypes.OCTETSTRING)
 					break
 				case ParameterType.Null:
 					this.writeNull()
