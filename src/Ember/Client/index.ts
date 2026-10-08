@@ -93,7 +93,6 @@ export interface EmberClientOptions {
 	timeout?: number
 	enableResends?: boolean
 	resendTimeout?: number
-	reconnectAttempts?: number // Set to negative value for infinite reconnect attempts
 	getDirectoryOnParams?: boolean
 }
 
@@ -113,7 +112,6 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _resends = false
 	private _timer: NodeJS.Timeout
 	private _getDirectoryOnParams = true
-	private _reconnectAttempts = 60
 
 	constructor(host: string, port = 9000, options?: EmberClientOptions) {
 		super()
@@ -124,7 +122,6 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._resendTimeout = options?.resendTimeout ?? 1000
 		this._resends = options?.enableResends ?? false
 		this._getDirectoryOnParams = options?.getDirectoryOnParams ?? true
-		this._reconnectAttempts = options?.reconnectAttempts ?? 60
 		this._streamManager = new StreamManager()
 
 		// Forward stream events from StreamManager
@@ -144,7 +141,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		}
 		this._timer = setInterval(() => this._resendTimer(), findGcd(this._timeout, this._resendTimeout))
 
-		this._client = new S101Client(this.host, this.port, true, this._reconnectAttempts)
+		this._client = new S101Client(this.host, this.port, true)
 		this._client.on('emberTree', (tree: DecodeResult<Root>) => {
 			// Regular ember tree
 			this._handleIncoming(tree)

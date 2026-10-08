@@ -11,7 +11,6 @@ const debug = Debug('emberplus-connection:S101Client')
 debug.log = console.log.bind(console)
 
 const DEFAULT_PORT = 9000
-const RECONNECT_ATTEMPTS = 60
 const AUTO_RECONNECT_DELAY = 5000
 
 export default class S101Client extends S101Socket {
@@ -22,8 +21,6 @@ export default class S101Client extends S101Socket {
 	private _autoReconnect = true
 	private _autoReconnectDelay: number = AUTO_RECONNECT_DELAY
 	private _connectionAttemptTimer: NodeJS.Timeout | undefined = undefined
-	private _reconnectAttempt = 0
-	private _reconnectAttempts: number = RECONNECT_ATTEMPTS
 	private _shouldBeConnected: boolean
 	private _lastConnectionAttempt = 0
 
@@ -32,17 +29,14 @@ export default class S101Client extends S101Socket {
 	 * @param {string} address
 	 * @param {number} port=9000
 	 * @param {boolean} autoConnect
-	 * @param {number} reconnectAttempts Default 60, set to < 0 for infinity
 	 */
-	constructor(address: string, port: number = DEFAULT_PORT, autoConnect?: boolean, reconnectAttempts?: number) {
+	constructor(address: string, port: number = DEFAULT_PORT, autoConnect?: boolean) {
 		super()
 		this.address = address
 		this.port = port
 
 		this.autoConnect = !!autoConnect
 		this._shouldBeConnected = this.autoConnect
-
-		this._reconnectAttempts = reconnectAttempts ?? RECONNECT_ATTEMPTS
 
 		if (this.autoConnect) this.connect().catch(() => null) // errors are already emitted
 	}
@@ -162,36 +156,20 @@ export default class S101Client extends S101Socket {
 		this.socket?.destroy()
 	}
 
+	/**
+	 * Retry for as long as the client is meant to be connected: disconnect()
+	 * stops the retries. (A cap on attempts would leave a client that gave up
+	 * disconnected for good, with nothing to tell the caller.)
+	 */
 	private _autoReconnectionAttempt(): void {
-		if (this._autoReconnect) {
-			if (this._reconnectAttempts > 0) {
-				// no reconnection if no valid reconnectionAttemps is set
-				if (this._reconnectAttempt >= this._reconnectAttempts) {
-					// if current attempt is not less than max attempts
-					// reset reconnection behaviour
-					this._clearConnectionAttemptTimer()
-					this.status = ConnectionStatus.Disconnected
-					return
-				}
-				// new attempt if not already connected
-				if (this.status !== ConnectionStatus.Connected) {
-					this._reconnectAttempt++
-					this.connect().catch(() => null)
-				}
-			} else if (this._reconnectAttempts < 0) {
-				// Treat negative values as infinite attempts
-				if (this.status !== ConnectionStatus.Connected) {
-					this._reconnectAttempt++
-					this.connect().catch(() => null)
-				}
-			}
+		if (this._autoReconnect && this.status !== ConnectionStatus.Connected) {
+			this.connect().catch(() => null)
 		}
 	}
 
 	private _clearConnectionAttemptTimer() {
 		// @todo create event telling reconnection ended with result: true/false
 		// only if reconnection interval is true
-		this._reconnectAttempt = 0
 		if (this._connectionAttemptTimer) clearInterval(this._connectionAttemptTimer)
 		delete this._connectionAttemptTimer
 	}
