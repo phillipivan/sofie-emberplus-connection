@@ -1,12 +1,12 @@
-# Ember+ Connection (Sofie-specific Fork)
+# Ember+ Connection
 
-A TypeScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plus) control protocol for _Node_, used by the [**Sofie** TV Automation System](https://github.com/Sofie-Automation/Sofie-TV-automation/).
+A TypeScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plus) control protocol for _Node_, forked from the library developed for the [**Sofie** TV Automation System](https://github.com/Sofie-Automation/Sofie-TV-automation/).
 
-It has been tested with _Lawo Ruby_, _Lawo R3lay_, and _Lawo MxGUI_.
+It has been tested with _Stagetec XACI_, _Stagetec Nexus Compact_, and _DHD XD3_.
 
 The current version is very losely based on the original library and Mr Gilles Dufour's rewrites. It is however rewritten almost completely from scratch and bears little to no resemblance to earlier libraries.
 
-Relative to the official Sofie branch this fork has some additional configuration options for the client, and updated depencies.
+Relative to the official Sofie branch this fork has additional configuration options for the client, updated depencies, and many bug fixes. It it maintained for use by the module for the Companion project. Other users are welcome, but should not expect the formal, process driven approach of the sofie library. _No consideration_ is given regarding the suitability of changes in this fork for any projects other than the one mentioned.
 
 ## Changes in this fork
 
@@ -26,16 +26,6 @@ const options: EmberClientOptions = {
 
 const client = new EmberClient('10.9.8.7', 9000, options)
 ```
-
-### Repository-specific Info for Developers
-
-- [Developer Info](DEVELOPER.md)
-- [Contribution Guidelines](CONTRIBUTING.md)
-
-### General Sofie System Info
-
-- [Documentation](https://Sofie-Automation.github.io/sofie-core/)
-- [Releases](https://Sofie-Automation.github.io/sofie-core/releases)
 
 ---
 
@@ -266,5 +256,3 @@ s.init(tree) // initiate the provider with the tree
 ```
 
 ---
-
-_The NRK logo is a registered trademark of Norsk rikskringkasting AS. The license does not grant any right to use, in any way, any trademarks, service marks or logos of Norsk rikskringkasting AS._
