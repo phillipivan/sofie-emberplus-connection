@@ -14,12 +14,15 @@ const KEEPALIVE_RESPONSE = new S101Codec().keepAliveResponse()
 class FakeNetSocket extends EventEmitter {
 	/** Connection attempts started, across all sockets. */
 	static attempts = 0
+	/** When each of those attempts started, in (fake) Date.now() time. */
+	static attemptTimes: number[] = []
 
 	connecting = false
 	destroyed = false
 
 	connect(): this {
 		FakeNetSocket.attempts++
+		FakeNetSocket.attemptTimes.push(Date.now())
 		this.connecting = true
 		this.destroyed = false
 		return this
@@ -70,6 +73,28 @@ function currentSocket(client: S101Client): FakeNetSocket {
 	return socket
 }
 
+/**
+ * Advances fake time 1 s at a time. (One large jump doesn't give the fake socket
+ * the chance to answer each keepalive in time, so the client would drop it.)
+ */
+async function advanceInSteps(duration: number): Promise<void> {
+	for (let elapsed = 0; elapsed < duration; elapsed += 1000) await jest.advanceTimersByTimeAsync(1000)
+}
+
+/** Refuses every connection attempt for `duration` ms, checking each second. */
+async function refuseFor(client: S101Client, duration: number): Promise<void> {
+	for (let elapsed = 0; elapsed < duration; elapsed += 1000) {
+		const socket = currentSocket(client)
+		if (socket.connecting) socket.refuse()
+		await jest.advanceTimersByTimeAsync(1000)
+	}
+}
+
+/** The time between each pair of consecutive attempts. */
+function gaps(times: number[]): number[] {
+	return times.slice(1).map((time, i) => time - times[i])
+}
+
 describe('S101Client connection attempts', () => {
 	beforeEach(() => {
 		jest.useFakeTimers()
@@ -102,25 +127,26 @@ describe('S101Client connection attempts', () => {
 		await client.disconnect()
 	})
 
-	it('does not let a refused attempt time out a retry that falls due with it', async () => {
+	it('does not let a refused attempt time out a retry on the same socket', async () => {
 		const client = new S101Client('127.0.0.1', 9000)
 		client.on('error', () => null)
-		void client.connect()
+		// A timeout longer than the 5 s before the first retry, so the refused
+		// attempt's timeout would still be running when the retry starts.
+		void client.connect(8)
+		const socket = currentSocket(client)
+		socket.refuse()
 
-		// The first attempt gets no answer and times out; the retry starts a new socket...
+		// The retry at 5 s reuses the refused socket...
 		await jest.advanceTimersByTimeAsync(5000)
-		// ...which is refused straight away.
-		currentSocket(client).refuse()
+		expect(currentSocket(client)).toBe(socket)
+		expect(socket.connecting).toBe(true)
 
-		// With the default 5 s timeout, the refused attempt's timeout falls due
-		// together with the next retry. Fake timers run the retry first; the timeout
-		// belongs to an attempt that has already ended and must leave it alone.
-		// (Real timers don't always order them like this.)
-		await jest.advanceTimersByTimeAsync(5000)
-		const attempt = currentSocket(client)
-		expect(attempt.destroyed).toBe(false)
+		// ...and the refused attempt's timeout at 8 s belongs to an attempt that
+		// has already ended: it must leave the retry alone.
+		await jest.advanceTimersByTimeAsync(3000)
+		expect(socket.destroyed).toBe(false)
 
-		attempt.succeed()
+		socket.succeed()
 		expect(client.status).toBe(ConnectionStatus.Connected)
 
 		client.removeAllListeners()
@@ -147,6 +173,7 @@ describe('S101Client reconnecting', () => {
 	beforeEach(() => {
 		jest.useFakeTimers()
 		FakeNetSocket.attempts = 0
+		FakeNetSocket.attemptTimes = []
 	})
 	afterEach(() => {
 		jest.useRealTimers()
@@ -158,18 +185,72 @@ describe('S101Client reconnecting', () => {
 		void client.connect()
 
 		// The provider refuses every attempt for 10 minutes...
-		for (let elapsed = 0; elapsed < 600000; elapsed += 1000) {
-			const socket = currentSocket(client)
-			if (socket.connecting) socket.refuse()
+		await refuseFor(client, 600000)
+		// ...then comes back: the client must still be trying, at least once a minute.
+		const before = FakeNetSocket.attempts
+		for (let waited = 0; FakeNetSocket.attempts === before && waited < 60000; waited += 1000) {
 			await jest.advanceTimersByTimeAsync(1000)
 		}
-		// ...then comes back: the client must still be trying.
-		const before = FakeNetSocket.attempts
-		await jest.advanceTimersByTimeAsync(5000)
 		expect(FakeNetSocket.attempts).toBeGreaterThan(before)
 
 		currentSocket(client).succeed()
 		expect(client.status).toBe(ConnectionStatus.Connected)
+
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+
+	it('backs off from 5 s to a minute between attempts', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		void client.connect()
+
+		// Attempts at 0, 5, 15, 30, 50 s, ..., 330 s, then once a minute
+		await refuseFor(client, 520000)
+		expect(gaps(FakeNetSocket.attemptTimes)).toEqual([
+			5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000, 55000, 60000, 60000, 60000,
+		])
+
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+
+	it('starts over from 5 s when a connection drops', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		void client.connect()
+
+		// Attempts at 0, 5, 15, 30 and 50 s are refused; the one at 75 s connects.
+		await refuseFor(client, 75000)
+		const connection = currentSocket(client)
+		connection.succeed()
+		expect(client.status).toBe(ConnectionStatus.Connected)
+		await advanceInSteps(30000)
+		expect(client.status).toBe(ConnectionStatus.Connected)
+
+		// The connection drops: the client tries again at once, then backs off from 5 s.
+		const droppedAt = Date.now()
+		const before = FakeNetSocket.attemptTimes.length
+		connection.emit('close', false)
+		await refuseFor(client, 35000)
+		expect(FakeNetSocket.attemptTimes.slice(before).map((t) => t - droppedAt)).toEqual([0, 5000, 15000, 30000])
+
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+
+	it('starts over from 5 s when connect() is called after a disconnect', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		void client.connect()
+		await refuseFor(client, 35000) // attempts at 0, 5, 15 and 30 s
+
+		await client.disconnect()
+		const restartedAt = Date.now()
+		const before = FakeNetSocket.attemptTimes.length
+		void client.connect()
+		await refuseFor(client, 20000)
+		expect(FakeNetSocket.attemptTimes.slice(before).map((t) => t - restartedAt)).toEqual([0, 5000, 15000])
 
 		client.removeAllListeners()
 		await client.disconnect()
@@ -180,6 +261,7 @@ describe('S101Client disconnect', () => {
 	beforeEach(() => {
 		jest.useFakeTimers()
 		FakeNetSocket.attempts = 0
+		FakeNetSocket.attemptTimes = []
 	})
 	afterEach(() => {
 		jest.useRealTimers()
@@ -246,6 +328,7 @@ describe('EmberClient discard', () => {
 	beforeEach(() => {
 		jest.useFakeTimers()
 		FakeNetSocket.attempts = 0
+		FakeNetSocket.attemptTimes = []
 	})
 	afterEach(() => {
 		jest.useRealTimers()

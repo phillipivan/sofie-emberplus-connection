@@ -11,7 +11,12 @@ const debug = Debug('emberplus-connection:S101Client')
 debug.log = console.log.bind(console)
 
 const DEFAULT_PORT = 9000
-const AUTO_RECONNECT_DELAY = 5000
+const DEFAULT_CONNECT_TIMEOUT = 5 // seconds
+// Retries back off linearly: the first comes 5 s after an attempt, and each one
+// after that waits 5 s longer than the one before, up to a minute.
+const RECONNECT_DELAY_MIN = 5000
+const RECONNECT_DELAY_STEP = 5000
+const RECONNECT_DELAY_MAX = 60000
 
 export default class S101Client extends S101Socket {
 	address: string
@@ -19,7 +24,7 @@ export default class S101Client extends S101Socket {
 	autoConnect = false
 
 	private _autoReconnect = true
-	private _autoReconnectDelay: number = AUTO_RECONNECT_DELAY
+	private _reconnectDelay = RECONNECT_DELAY_MIN
 	private _connectionAttemptTimer: NodeJS.Timeout | undefined = undefined
 	private _shouldBeConnected: boolean
 	private _lastConnectionAttempt = 0
@@ -41,14 +46,28 @@ export default class S101Client extends S101Socket {
 		if (this.autoConnect) this.connect().catch(() => null) // errors are already emitted
 	}
 
-	async connect(timeout = 5): Promise<Error | void> {
+	async connect(timeout = DEFAULT_CONNECT_TIMEOUT): Promise<Error | void> {
+		return this._connect(timeout, false)
+	}
+
+	/**
+	 * @param retryDue A scheduled retry: attempt now, without the check that the last
+	 * attempt was at least RECONNECT_DELAY_MIN ago. (The retry timer is the schedule;
+	 * the check, against the wall clock, could otherwise skip a retry that fires a few
+	 * ms early by it.)
+	 */
+	private async _connect(timeout: number, retryDue: boolean): Promise<Error | void> {
 		return new Promise((resolve) => {
 			if (this.status !== ConnectionStatus.Disconnected) {
 				// TODO - perhaps we should reconnect when addresses/ports have changed
 				resolve()
 				return
 			}
-			if (!this._lastConnectionAttempt || Date.now() - this._lastConnectionAttempt >= this._autoReconnectDelay) {
+			if (
+				retryDue ||
+				!this._lastConnectionAttempt ||
+				Date.now() - this._lastConnectionAttempt >= RECONNECT_DELAY_MIN
+			) {
 				// !_lastReconnectionAttempt means first attempt, OR > _reconnectionDelay since last attempt
 				// recreates client if new attempt
 				if (this.socket && this.socket.connecting) {
@@ -129,10 +148,7 @@ export default class S101Client extends S101Socket {
 
 			// sets timer to retry when needed
 			if (!this._connectionAttemptTimer) {
-				this._connectionAttemptTimer = setInterval(
-					() => this._autoReconnectionAttempt(),
-					this._autoReconnectDelay
-				)
+				this._connectionAttemptTimer = setTimeout(() => this._autoReconnectionAttempt(), this._reconnectDelay)
 			}
 		})
 	}
@@ -159,19 +175,25 @@ export default class S101Client extends S101Socket {
 	/**
 	 * Retry for as long as the client is meant to be connected: disconnect()
 	 * stops the retries. (A cap on attempts would leave a client that gave up
-	 * disconnected for good, with nothing to tell the caller.)
+	 * disconnected for good, with nothing to tell the caller.) Each retry waits
+	 * RECONNECT_DELAY_STEP longer than the one before, up to RECONNECT_DELAY_MAX.
 	 */
 	private _autoReconnectionAttempt(): void {
+		delete this._connectionAttemptTimer
+		this._reconnectDelay = Math.min(this._reconnectDelay + RECONNECT_DELAY_STEP, RECONNECT_DELAY_MAX)
 		if (this._autoReconnect && this.status !== ConnectionStatus.Connected) {
-			this.connect().catch(() => null)
+			// also schedules the next retry
+			this._connect(DEFAULT_CONNECT_TIMEOUT, true).catch(() => null)
 		}
 	}
 
+	/** Stops the retries; the next ones (after a connection or disconnect()) start over from RECONNECT_DELAY_MIN. */
 	private _clearConnectionAttemptTimer() {
 		// @todo create event telling reconnection ended with result: true/false
 		// only if reconnection interval is true
-		if (this._connectionAttemptTimer) clearInterval(this._connectionAttemptTimer)
+		if (this._connectionAttemptTimer) clearTimeout(this._connectionAttemptTimer)
 		delete this._connectionAttemptTimer
+		this._reconnectDelay = RECONNECT_DELAY_MIN
 	}
 
 	private _onConnect() {

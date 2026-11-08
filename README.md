@@ -26,6 +26,8 @@ const options: EmberClientOptions = {
 const client = new EmberClient('10.9.8.7', 9000, options)
 ```
 
+Reconnects back off from 5 seconds to a minute between attempts, see [Connection and Reconnecting](#connection-and-reconnecting).
+
 ---
 
 ## Example Usage
@@ -119,7 +121,7 @@ client.on('streamUpdate', (internalNodePath, value) => {
 
 ### Connection and Reconnecting
 
-`connect()` resolves once connected. Normal connection failures resolve with an `Error`: the provider refuses the connection, or doesn't answer within 5 seconds. Either way the client retries indefinitely at roughly five-second intervals until it connects, and reconnects the same way whenever the connection drops, for as long as it is meant to be connected. `disconnect()` and `discard()` stop the retries, also while an attempt is in progress.
+`connect()` resolves once connected. Normal connection failures resolve with an `Error`: the provider refuses the connection, or doesn't answer within 5 seconds. Either way the client keeps retrying until it connects, and whenever the connection drops it tries again at once and then the same way, for as long as it is meant to be connected. Retries back off: the first comes 5 seconds after the first attempt, and each one after that waits 5 seconds longer than the one before, up to a minute (attempts at 0, 5, 15, 30, 50 s and so on, once a minute from about 5½ minutes on). Each connection starts the backoff over. `disconnect()` and `discard()` stop the retries, also while an attempt is in progress.
 
 Requests in flight when the connection drops are rejected, and requests made before a reconnect aren't repeated: ask for what you need again once connected.
 
