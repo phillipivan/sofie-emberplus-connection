@@ -651,6 +651,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					// element is qualified
 					const path: Array<string> = rootElement.path.split('.')
 					let tree = this.tree[Number(path.shift())]
+					const topLevel = !path.length
 					let inserted = false
 
 					if (!tree) {
@@ -691,19 +692,21 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 					if (inserted) continue
 					changes.push(...this._updateTree(rootElement, tree))
+					// a top-level element, as in a reply to a GetDirectory on the root: also a change at the root,
+					// as when it was inserted, which is what resolves that request
+					if (topLevel) changes.push({ path: undefined, node: tree })
 				} else {
-					if (rootElement.children) {
-						if (this.tree[rootElement.number]) {
-							changes.push(...this._updateTree(rootElement, this.tree[rootElement.number]))
-						} else {
-							this.tree[rootElement.number] = rootElement
-							changes.push({ path: undefined, node: rootElement })
-						}
-					} else if (isEmptyNode(rootElement)) {
+					const cached = this.tree[rootElement.number] as NumberedTreeNode<EmberElement> | undefined
+					if (!rootElement.children && isEmptyNode(rootElement)) {
 						// empty node on the root of the tree must mean we have done a getDir on that specific node
 						changes.push({ path: rootElement.number + '', node: rootElement, emptyNode: true })
+					} else if (cached && cached.contents.type === rootElement.contents.type) {
+						// Merge into the cached element. A reply to a GetDirectory on the root (the usual source)
+						// lists the top-level elements without their children: replacing the cached element would
+						// drop everything loaded below it.
+						changes.push(...this._updateTree(rootElement, cached))
+						changes.push({ path: undefined, node: cached })
 					} else {
-						// this must have been something on the root of the tree (like GetDirectory)
 						this.tree[rootElement.number] = rootElement
 						changes.push({ path: undefined, node: rootElement })
 					}

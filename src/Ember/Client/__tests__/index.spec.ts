@@ -1311,4 +1311,38 @@ describe('client', () => {
 			})
 		})
 	})
+
+	describe('GetDirectory on the root of a loaded tree', () => {
+		// A device, 1, with a parameter, 1.1, already loaded
+		function seedDevice(client: EmberClient) {
+			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
+				1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0)),
+			})
+			if (!device.children?.[1]) throw new Error('Expected seeded parameter')
+			device.children[1].parent = device
+			client.tree[1] = device
+			return { device, parameter: device.children[1] }
+		}
+
+		// A reply to a GetDirectory on the root lists the top-level elements without their children: numbered, or
+		// qualified as a test device sends them
+		test.each<[string, () => DecodeResult<Root>]>([
+			['numbered', () => ({ value: { 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')) } })],
+			['qualified', () => createQualifiedNodeResponse('1', new EmberNodeImpl('device'), undefined)],
+		])('resolves, and keeps what is loaded below, when the reply is %s', async (_, reply) => {
+			await runWithConnection(async (client, socket) => {
+				const { device, parameter } = seedDevice(client)
+
+				const request = await client.getDirectory(client.tree)
+				let response: unknown = 'pending'
+				request.response?.then((r) => (response = r)).catch(() => null)
+				socket.mockData(reply())
+				await new Promise(setImmediate)
+
+				expect(response).toBe(device)
+				expect(client.tree[1]).toBe(device)
+				expect(device.children?.[1]).toBe(parameter)
+			})
+		})
+	})
 })
