@@ -324,16 +324,17 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	private _subscribe(path: string, client: S101Socket) {
-		this._subscriptions[path] = [...(this._subscriptions[path] || []), client]
+		const clients = this._subscriptions[path] || []
+		// A consumer may ask for the same path more than once (a GetDirectory again, or a Subscribe after one);
+		// listing it again would send it every change once per request.
+		if (clients.includes(client)) return
+		this._subscriptions[path] = [...clients, client]
 	}
 	private _unsubscribe(path: string, client: S101Socket) {
 		if (!this._subscriptions[path]) return
 
-		this._subscriptions[path].forEach((c, i) => {
-			if (c === client) {
-				this._subscriptions[path].splice(i, 1)
-			}
-		})
+		// (Removing entries with splice while looping over them skipped the entry after each one removed.)
+		this._subscriptions[path] = this._subscriptions[path].filter((c) => c !== client)
 	}
 	private _clearSubscription(client: S101Socket) {
 		for (const path of Object.keys(this._subscriptions)) {
