@@ -1,11 +1,9 @@
-// Import the package barrel first: S101Socket has a circular dependency on it
-// (for berDecode), so loading it directly first leaves the class undefined.
-import '../../..'
 import { EventEmitter } from 'events'
-import S101Client from '../S101Client'
-import { EmberClient } from '../../Client'
-import { ConnectionStatus } from '../../Client/ConnectionStatus'
-import S101Codec from '../../../S101/S101Codec'
+
+import S101Codec from '../../../S101/S101Codec.js'
+import { ConnectionStatus } from '../../Client/ConnectionStatus.js'
+import { EmberClient } from '../../Client/index.js'
+import S101Client from '../S101Client.js'
 
 const KEEPALIVE_REQUEST = new S101Codec().keepAliveRequest()
 const KEEPALIVE_RESPONSE = new S101Codec().keepAliveResponse()
