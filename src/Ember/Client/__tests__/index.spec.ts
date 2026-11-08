@@ -1345,4 +1345,104 @@ describe('client', () => {
 			})
 		})
 	})
+
+	describe('subscriptions after a reconnect', () => {
+		// The connection drops, and the client connects again on its own
+		async function reconnect(socket: S101ClientMock) {
+			socket.mockClose()
+			await socket.connect()
+			await new Promise(setImmediate)
+		}
+
+		// What each write asked the provider for: the path ('' for the root) and the command
+		function sentCommands(): Array<[string, CommandType]> {
+			return onSocketWrite.mock.calls.map(([data]: [Buffer]) => {
+				// a command on the root decodes keyed by its number, not 0
+				const element = Object.values<RootElement>(berDecode(data).value as Collection<RootElement>)[0]
+				if (element.contents.type === ElementType.Command) return ['', element.contents.number]
+				const command = Object.values<NumberedTreeNode<EmberElement>>(element.children ?? {})[0].contents
+				if (command.type !== ElementType.Command) throw new Error('Expected a command request')
+				return [(element as QualifiedElement<EmberElement>).path, command.number]
+			})
+		}
+
+		const deviceReply = (value: number) =>
+			createQualifiedNodeResponse('1', new EmberNodeImpl('device'), {
+				1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, value)),
+			})
+
+		// Loads the root and looks up the parameter 1.1, as a consumer does
+		async function lookUpParameter(client: EmberClient, socket: S101ClientMock, cb?: () => void) {
+			const root = await client.getDirectory(client.tree)
+			socket.mockData({ value: { 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')) } })
+			await root.response
+			const lookup = client.getElementByPath('1.1', cb)
+			await new Promise(setImmediate)
+			socket.mockData(deviceReply(0))
+			const parameter = await lookup
+			if (!parameter) throw new Error('Expected the parameter')
+			return parameter as NumberedTreeNode<EmberElement>
+		}
+
+		it('asks again for each directory it had asked for, the root first', async () => {
+			await runWithConnection(async (client, socket) => {
+				await lookUpParameter(client, socket)
+				onSocketWrite.mockClear()
+
+				await reconnect(socket)
+
+				expect(sentCommands()).toEqual([
+					['', CommandType.GetDirectory],
+					['1', CommandType.GetDirectory],
+					['1.1', CommandType.GetDirectory],
+				])
+			})
+		})
+
+		it('passes what the provider reports again to the callbacks, in the loaded tree', async () => {
+			await runWithConnection(async (client, socket) => {
+				const cb = jest.fn()
+				const parameter = await lookUpParameter(client, socket, cb)
+				cb.mockClear()
+
+				// The provider answers the requests sent again, with a value that changed while disconnected
+				await reconnect(socket)
+				socket.mockData({ value: { 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')) } })
+				socket.mockData(deviceReply(7))
+				await new Promise(setImmediate)
+
+				expect(cb).toHaveBeenCalledWith(parameter)
+				expect(client.tree[1].children?.[1]).toBe(parameter)
+				expect((parameter.contents as Parameter).value).toBe(7)
+			})
+		})
+
+		it('asks again for what it had subscribed to', async () => {
+			await runWithConnection(async (client, socket) => {
+				const parameter = await lookUpParameter(client, socket)
+				await client.subscribe(parameter)
+				onSocketWrite.mockClear()
+
+				await reconnect(socket)
+
+				expect(sentCommands()).toContainEqual(['1.1', CommandType.Subscribe])
+			})
+		})
+
+		it('does not ask again for what it has unsubscribed from', async () => {
+			await runWithConnection(async (client, socket) => {
+				const parameter = await lookUpParameter(client, socket)
+				await client.subscribe(parameter)
+				await client.unsubscribe(parameter)
+				onSocketWrite.mockClear()
+
+				await reconnect(socket)
+
+				expect(sentCommands()).toEqual([
+					['', CommandType.GetDirectory],
+					['1', CommandType.GetDirectory],
+				])
+			})
+		})
+	})
 })

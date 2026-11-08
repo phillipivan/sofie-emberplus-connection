@@ -125,25 +125,24 @@ client.on('streamUpdate', (internalNodePath, value) => {
 
 `connect()` doesn't start another attempt while one is under way, or within 5 seconds of the last one: it settles with that attempt, or with the next retry if that attempt has already failed. So it can be called right after the constructor, which starts the first attempt, and a loop that calls `connect()` until it succeeds goes at the pace of the retries. If `disconnect()` or `discard()` comes first, `connect()` resolves with an `Error`.
 
-Requests in flight when the connection drops are rejected, and requests made before a reconnect aren't repeated: ask for what you need again once connected.
+A provider forgets what a consumer subscribed to when the connection drops. After a reconnect the client asks again for all of it: each `getDirectory()` (including those `getElementByPath()` and `expand()` send) and `subscribe()` that reached the provider, unless unsubscribed since, the root first. The tree loaded so far and the callbacks registered are kept, and the replies update them as usual, so values that changed while disconnected come through. There's no need to look anything up again after a reconnect.
+
+Requests in flight when the connection drops are rejected, and others, such as `setValue()` or `invoke()`, aren't repeated.
 
 ```javascript
 const client = new EmberClient(HOST, PORT)
-client.on('connected', async () => {
-	// Also fires after every reconnect
-	try {
-		await (
-			await client.getDirectory(client.tree)
-		).response
-	} catch (e) {
-		// e.g. the connection dropped again; the next 'connected' asks again
-		console.log('Could not get the tree:', e)
-	}
-})
 client.on('disconnected', () => {
 	console.log('Connection lost, reconnecting')
 })
+client.on('connected', () => {
+	// Also fires after every reconnect, once the subscriptions have been asked for again
+	console.log('Connected')
+})
 await client.connect()
+await client.getElementByPath('1.2.3', (node) => {
+	// Called with each change the provider reports, also after a reconnect
+	console.log('Changed:', node)
+})
 ```
 
 ### Setting New Value

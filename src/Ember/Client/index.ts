@@ -106,6 +106,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _lastInvocation = 0
 	private _client: S101Client
 	private _subscriptions: Array<Subscription> = []
+	/**
+	 * The GetDirectory and Subscribe requests that reached the provider and haven't been unsubscribed, by path
+	 * ('' for the root), with the element type a request to that path is sent as. A provider keeps what a consumer
+	 * subscribed to only for that connection, so after a reconnect they're sent again: see _restoreSubscriptions.
+	 */
+	private _sentGetDirectories = new Map<string, { type?: ElementType; dirFieldMask?: FieldFlags }>()
+	private _sentSubscribes = new Map<string, { type?: ElementType }>()
 
 	private _timeout = 3000
 	private _resendTimeout = 1000
@@ -153,7 +160,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		})
 
 		this._client.on('error', (e) => this.emit('error', e))
-		this._client.on('connected', () => this.emit('connected'))
+		this._client.on('connected', () => {
+			this._restoreSubscriptions()
+			this.emit('connected')
+		})
 		this._client.on('disconnected', () => {
 			this._requests.forEach((req) => {
 				req.reject(new Error('Socket was disconnected'))
@@ -227,7 +237,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					cb,
 				})
 
-			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
+			const request = await this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
+			if (request.sentOk) this._sentGetDirectories.set('', { dirFieldMask })
+			return request
 		}
 
 		if (cb)
@@ -236,7 +248,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				cb,
 			})
 
-		return this._sendCommand<RootElement>(node, command, ExpectResponse.HasChildren)
+		const request = await this._sendCommand<RootElement>(node, command, ExpectResponse.HasChildren)
+		if (request.sentOk) this._sentGetDirectories.set(getPath(node), { type: node.contents.type, dirFieldMask })
+		return request
 	}
 	async subscribe(
 		node: RootElement | Array<RootElement>,
@@ -255,7 +269,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					cb,
 				})
 
-			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
+			const request = await this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
+			if (request.sentOk) this._sentSubscribes.set('', {})
+			return request
 		}
 
 		// Check if this is a Parameter with streamIdentifier
@@ -272,7 +288,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				cb,
 			})
 
-		return this._sendCommand<void>(node, command, ExpectResponse.None)
+		const request = await this._sendCommand<void>(node, command, ExpectResponse.None)
+		if (request.sentOk) this._sentSubscribes.set(getPath(node), { type: node.contents.type })
+		return request
 	}
 	async unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>): RequestPromise<Root | void> {
 		if (!node) {
@@ -284,6 +302,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (Array.isArray(node)) {
 			// root subscriptions are tracked with undefined path
 			this._subscriptions = this._subscriptions.filter((subscription) => subscription.path !== undefined)
+			this._sentGetDirectories.delete('')
+			this._sentSubscribes.delete('')
 			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
 		}
 
@@ -291,6 +311,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		// Remove all matching subscriptions for the path in one pass
 		this._subscriptions = this._subscriptions.filter((subscription) => subscription.path !== path)
+		// Unsubscribe ends both a Subscribe and the reports a GetDirectory started
+		this._sentGetDirectories.delete(path)
+		this._sentSubscribes.delete(path)
 
 		// Deregister from StreamManager if this was a Parameter with streamIdentifier
 		if (!Array.isArray(node) && node.contents.type === ElementType.Parameter) {
@@ -459,7 +482,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (tree?.contents.type === ElementType.Parameter && this._getDirectoryOnParams) {
 			// do an additional getDirectory because Providers do not _have_ to send updates without that (should vs shall).
 			// Don't wait for the reply, as some providers never answer one. A reply updates the tree and calls cb.
-			await this._sendCommand(tree, new GetDirectoryImpl(), ExpectResponse.None)
+			const request = await this._sendCommand(tree, new GetDirectoryImpl(), ExpectResponse.None)
+			if (request.sentOk) this._sentGetDirectories.set(getPath(tree), { type: tree.contents.type })
 		}
 
 		return tree
@@ -514,6 +538,39 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		} as Matrix)
 
 		return this._sendRequest<TreeElement<Matrix>>(request, ExpectResponse.Any)
+	}
+
+	/**
+	 * After a reconnect, asks the provider again for everything this client had subscribed to: each GetDirectory
+	 * and Subscribe in _sentGetDirectories and _sentSubscribes, the root first and parents before their children,
+	 * without waiting for replies (some providers never answer a GetDirectory). The replies update the loaded tree
+	 * and call the subscriptions' callbacks as usual, so values that changed while disconnected come through, and
+	 * nobody has to look anything up again. Nothing has been sent yet on the first connection.
+	 */
+	private _restoreSubscriptions(): void {
+		const depth = (path: string) => (path ? path.split('.').length : 0)
+		const byDepth = ([a]: [string, unknown], [b]: [string, unknown]) => depth(a) - depth(b)
+		const resend = (path: string, type: ElementType | undefined, command: Command) => {
+			const request = type
+				? insertCommand(
+						new QualifiedElementImpl(path, { type } as EmberElement) as Exclude<
+							RootElement,
+							NumberedTreeNode<EmberElement>
+						>,
+						command
+					)
+				: new NumberedTreeNodeImpl(0, command) // the root
+			this._sendRequest(request, ExpectResponse.None).catch((e) =>
+				this.emit('warn', e instanceof Error ? e : new Error(String(e)))
+			)
+		}
+
+		for (const [path, { type, dirFieldMask }] of [...this._sentGetDirectories].sort(byDepth)) {
+			resend(path, type, new GetDirectoryImpl(dirFieldMask))
+		}
+		for (const [path, { type }] of [...this._sentSubscribes].sort(byDepth)) {
+			resend(path, type, new SubscribeImpl())
+		}
 	}
 
 	private async _sendCommand<T>(node: RootElement, command: Command, expectResponse: ExpectResponse) {
