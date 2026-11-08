@@ -437,18 +437,27 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		cb?: (EmberNode: TreeElement<EmberElement>) => void,
 		delimiter = '.'
 	): Promise<TreeElement<EmberElement> | undefined> {
-		const getNodeInCollection = (elements: Collection<NumberedTreeNode<EmberElement>>, identifier: string) =>
-			Object.values<NumberedTreeNode<EmberElement>>(elements || {}).find(
-				(r) =>
-					r.number === Number(identifier) ||
-					(r.contents as EmberNode).identifier === identifier ||
-					(r.contents as EmberNode).description === identifier
-			)
-		const getNextChild = (node: TreeElement<EmberElement>, identifier: string) =>
-			node.children && getNodeInCollection(node.children, identifier)
-
 		const numberedPath: Array<number> = []
 		const pathArr = path.split(delimiter)
+
+		// A path of numbers only, like 1.2.3, is a numbered path: each segment is an element's number, and nothing
+		// else. In any other path each segment is an identifier, or else a description, or else a number. (Taking the
+		// first child that matched any of the three let a number match an earlier sibling labelled with it.)
+		const isNumber = (segment: string) => /^\d+$/.test(segment)
+		const numbered = pathArr.every(isNumber)
+		const getNodeInCollection = (elements: Collection<NumberedTreeNode<EmberElement>>, segment: string) => {
+			const nodes = Object.values<NumberedTreeNode<EmberElement>>(elements || {})
+			const byNumber = () => (isNumber(segment) ? nodes.find((r) => r.number === Number(segment)) : undefined)
+			if (numbered) return byNumber()
+			return (
+				nodes.find((r) => (r.contents as EmberNode).identifier === segment) ??
+				nodes.find((r) => (r.contents as EmberNode).description === segment) ??
+				byNumber()
+			)
+		}
+		const getNextChild = (node: TreeElement<EmberElement>, segment: string) =>
+			node.children && getNodeInCollection(node.children, segment)
+
 		const firstIdentifier = pathArr.shift()
 		if (!firstIdentifier) throw new Error('Expected at least one segment in the path')
 

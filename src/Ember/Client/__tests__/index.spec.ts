@@ -750,6 +750,74 @@ describe('client', () => {
 		})
 	})
 
+	describe('getElementByPath path forms', () => {
+		// A device, 1 "device", with loaded parameters, as [number, identifier, description]
+		function seedDevice(client: EmberClient, parameters: Array<[number, string, string]>) {
+			const children: Collection<NumberedTreeNode<EmberElement>> = {}
+			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device', 'Device'), children)
+			for (const [number, identifier, description] of parameters) {
+				const parameter = new NumberedTreeNodeImpl(
+					number,
+					new ParameterImpl(ParameterType.Integer, identifier, description, 0)
+				)
+				parameter.parent = device
+				children[number] = parameter
+			}
+			client.tree[1] = device
+			return children
+		}
+
+		// Devices often label strips or channels with their own numbering, offset from the elements' numbers
+		test.each<[string, Array<[number, string, string]>]>([
+			[
+				'description',
+				[
+					[1, 'strip-a', '2'],
+					[2, 'strip-b', '3'],
+				],
+			],
+			[
+				'identifier',
+				[
+					[1, '2', 'Strip A'],
+					[2, '3', 'Strip B'],
+				],
+			],
+		])(
+			'resolves a numbered path by number, not by an earlier sibling with that number as its %s',
+			async (_, parameters) => {
+				await runWithConnection(async (client) => {
+					const elements = seedDevice(client, parameters)
+
+					await expect(client.getElementByPath('1.2')).resolves.toBe(elements[2])
+				})
+			}
+		)
+
+		it('prefers an identifier to an earlier description in a textual path', async () => {
+			await runWithConnection(async (client) => {
+				const elements = seedDevice(client, [
+					[1, 'trim', 'level'],
+					[2, 'level', 'Level'],
+				])
+
+				await expect(client.getElementByPath('device.level')).resolves.toBe(elements[2])
+			})
+		})
+
+		it('resolves descriptions, and numbers in a path that mixes them with text', async () => {
+			await runWithConnection(async (client) => {
+				const elements = seedDevice(client, [
+					[1, 'trim', 'Trim'],
+					[2, 'gain', 'Gain'],
+				])
+
+				await expect(client.getElementByPath('Device.Gain')).resolves.toBe(elements[2])
+				await expect(client.getElementByPath('device.2')).resolves.toBe(elements[2])
+			})
+		})
+	})
+
 	describe('command requests', () => {
 		// Reads a command request as sent: the element's BER type, its path, which fields follow the path and the
 		// commands

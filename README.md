@@ -72,6 +72,8 @@ await client.expand(client.tree)
 console.log(client.tree)
 ```
 
+A path of numbers only, like `0.0.2`, is matched by the elements' numbers alone. In any other path each part is matched to an identifier, or else a description, or else a number, so `path.to.2` mixes them. Both forms resolve to the same element, and callbacks registered through either are called for its changes.
+
 Subsribe to changes
 
 ```javascript
