@@ -123,6 +123,8 @@ client.on('streamUpdate', (internalNodePath, value) => {
 
 `connect()` resolves once connected. Normal connection failures resolve with an `Error`: the provider refuses the connection, or doesn't answer within 5 seconds. Either way the client keeps retrying until it connects, and whenever the connection drops it tries again at once and then the same way, for as long as it is meant to be connected. Retries back off: the first comes 5 seconds after the first attempt, and each one after that waits 5 seconds longer than the one before, up to a minute (attempts at 0, 5, 15, 30, 50 s and so on, once a minute from about 5½ minutes on). Each connection starts the backoff over. `disconnect()` and `discard()` stop the retries, also while an attempt is in progress.
 
+`connect()` doesn't start another attempt while one is under way, or within 5 seconds of the last one: it settles with that attempt, or with the next retry if that attempt has already failed. So it can be called right after the constructor, which starts the first attempt, and a loop that calls `connect()` until it succeeds goes at the pace of the retries. If `disconnect()` or `discard()` comes first, `connect()` resolves with an `Error`.
+
 Requests in flight when the connection drops are rejected, and requests made before a reconnect aren't repeated: ask for what you need again once connected.
 
 ```javascript

@@ -90,6 +90,13 @@ async function refuseFor(client: S101Client, duration: number): Promise<void> {
 	}
 }
 
+/** Follows a connect() promise: `result` is 'pending' until it settles, then what it resolved with. */
+function track(promise: Promise<Error | void>): { result: Error | void | 'pending' } {
+	const state: { result: Error | void | 'pending' } = { result: 'pending' }
+	void promise.then((result) => (state.result = result))
+	return state
+}
+
 /** The time between each pair of consecutive attempts. */
 function gaps(times: number[]): number[] {
 	return times.slice(1).map((time, i) => time - times[i])
@@ -166,6 +173,135 @@ describe('S101Client connection attempts', () => {
 
 		client.removeAllListeners()
 		await client.disconnect()
+	})
+})
+
+describe('S101Client connect() when it does not start an attempt', () => {
+	beforeEach(() => {
+		jest.useFakeTimers()
+		FakeNetSocket.attempts = 0
+		FakeNetSocket.attemptTimes = []
+	})
+	afterEach(() => {
+		jest.useRealTimers()
+	})
+
+	it('settles with the attempt under way', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		const first = track(client.connect())
+		const second = track(client.connect())
+		expect(FakeNetSocket.attempts).toBe(1)
+
+		currentSocket(client).succeed()
+		await jest.advanceTimersByTimeAsync(0)
+		expect(first.result).toBeUndefined()
+		expect(second.result).toBeUndefined()
+
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+
+	it('settles with the next retry when called straight after a refusal', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		const first = track(client.connect())
+		currentSocket(client).refuse()
+		await jest.advanceTimersByTimeAsync(0)
+		expect(first.result).toBeInstanceOf(Error)
+
+		// Calling again at once doesn't dial, so a retry loop can't hammer the provider...
+		const second = track(client.connect())
+		await jest.advanceTimersByTimeAsync(4000)
+		expect(FakeNetSocket.attempts).toBe(1)
+		expect(second.result).toBe('pending')
+
+		// ...it settles with the retry at 5 s.
+		await jest.advanceTimersByTimeAsync(1000)
+		expect(FakeNetSocket.attempts).toBe(2)
+		currentSocket(client).succeed()
+		await jest.advanceTimersByTimeAsync(0)
+		expect(second.result).toBeUndefined()
+
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+
+	it('settles a replaced attempt with the attempt that replaced it', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		const first = track(client.connect(12))
+
+		// The retry at 5 s replaces the attempt and connects: the first caller is
+		// connected now, not told at 12 s that its attempt timed out.
+		await jest.advanceTimersByTimeAsync(5000)
+		currentSocket(client).succeed()
+		await jest.advanceTimersByTimeAsync(0)
+		expect(first.result).toBeUndefined()
+
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+
+	it("is not settled by a replaced attempt's timeout", async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		// Attempt A, timing out at 12 s, is replaced by the retry at 5 s, which is refused.
+		void client.connect(12)
+		await jest.advanceTimersByTimeAsync(5000)
+		currentSocket(client).refuse()
+
+		// Attempt C at 11 s...
+		await jest.advanceTimersByTimeAsync(6000)
+		const third = track(client.connect(20))
+		expect(FakeNetSocket.attempts).toBe(3)
+
+		// ...is still under way when A's timeout falls due at 12 s, and must stay so...
+		await jest.advanceTimersByTimeAsync(1000)
+		expect(third.result).toBe('pending')
+
+		// ...until it connects at 13 s.
+		await jest.advanceTimersByTimeAsync(1000)
+		currentSocket(client).succeed()
+		await jest.advanceTimersByTimeAsync(0)
+		expect(third.result).toBeUndefined()
+
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+
+	it('is not settled by the close of an attempt disconnect() abandoned', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		const first = track(client.connect())
+
+		// disconnect() abandons the attempt; its socket closes a moment later...
+		void client.disconnect()
+		const second = track(client.connect()) // within 5 s: waits for the next attempt
+		await jest.advanceTimersByTimeAsync(0)
+		expect(first.result).toBeInstanceOf(Error)
+		// ...which isn't the attempt the second call waits for.
+		expect(second.result).toBe('pending')
+
+		await jest.advanceTimersByTimeAsync(5000)
+		currentSocket(client).succeed()
+		await jest.advanceTimersByTimeAsync(0)
+		expect(second.result).toBeUndefined()
+
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+
+	it('settles with an Error when disconnect() comes first', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		void client.connect()
+		currentSocket(client).refuse()
+		const waiting = track(client.connect()) // for the retry at 5 s
+
+		await client.disconnect()
+		await jest.advanceTimersByTimeAsync(0)
+		expect(waiting.result).toBeInstanceOf(Error)
 	})
 })
 
@@ -345,5 +481,40 @@ describe('EmberClient discard', () => {
 
 		await jest.advanceTimersByTimeAsync(60000)
 		expect(FakeNetSocket.attempts).toBe(1)
+	})
+})
+
+describe('EmberClient connect', () => {
+	beforeEach(() => {
+		jest.useFakeTimers()
+	})
+	afterEach(() => {
+		jest.useRealTimers()
+	})
+
+	// The constructor already starts an attempt, so connect() right after it
+	// must settle with that attempt instead of waiting forever.
+	it('resolves once the attempt the constructor started connects', async () => {
+		const client = new EmberClient('127.0.0.1', 9000)
+		client.on('error', () => null)
+		const connecting = track(client.connect())
+
+		currentSocket((client as unknown as { _client: S101Client })._client).succeed()
+		await jest.advanceTimersByTimeAsync(0)
+		expect(connecting.result).toBeUndefined()
+
+		client.discard()
+	})
+
+	it('resolves with an Error when the attempt the constructor started is refused', async () => {
+		const client = new EmberClient('127.0.0.1', 9000)
+		client.on('error', () => null)
+		const connecting = track(client.connect())
+
+		currentSocket((client as unknown as { _client: S101Client })._client).refuse()
+		await jest.advanceTimersByTimeAsync(0)
+		expect(connecting.result).toBeInstanceOf(Error)
+
+		client.discard()
 	})
 })

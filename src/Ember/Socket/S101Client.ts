@@ -28,6 +28,8 @@ export default class S101Client extends S101Socket {
 	private _connectionAttemptTimer: NodeJS.Timeout | undefined = undefined
 	private _shouldBeConnected: boolean
 	private _lastConnectionAttempt = 0
+	/** The connect() calls still waiting for an attempt to connect or fail, see _settleConnectWaiters */
+	private _connectWaiters: Array<(result?: Error) => void> = []
 
 	/**
 	 *
@@ -46,6 +48,12 @@ export default class S101Client extends S101Socket {
 		if (this.autoConnect) this.connect().catch(() => null) // errors are already emitted
 	}
 
+	/**
+	 * Resolves once connected, or with an Error when the attempt fails or disconnect()
+	 * comes first. An attempt is only started if the last one started at least
+	 * RECONNECT_DELAY_MIN ago; otherwise this settles with the attempt under way, or
+	 * with the next retry if that one has failed already.
+	 */
 	async connect(timeout = DEFAULT_CONNECT_TIMEOUT): Promise<Error | void> {
 		return this._connect(timeout, false)
 	}
@@ -63,6 +71,7 @@ export default class S101Client extends S101Socket {
 				resolve()
 				return
 			}
+			this._connectWaiters.push(resolve)
 			if (
 				retryDue ||
 				!this._lastConnectionAttempt ||
@@ -112,16 +121,22 @@ export default class S101Client extends S101Socket {
 				// (a retry replaces a socket that is still connecting) would otherwise
 				// destroy the current socket when it fires, even a live connection, and
 				// remove its listeners, so the client would go on reporting "connected".
+				// Likewise only the current attempt settles the connect() calls waiting:
+				// those of a replaced attempt now wait for the one that replaced it, and
+				// once disconnect() has abandoned an attempt (and settled the calls
+				// waiting then), a connect() since then waits for the next attempt.
 				const socket = this.socket
 				const onConnect = () => {
 					clearTimeout(timer)
 					socket.off('close', onClose)
-					resolve()
+					this._settleConnectWaiters()
 				}
 				const onClose = () => {
 					clearTimeout(timer)
 					socket.off('connect', onConnect)
-					resolve(new Error(`Could not connect to ${this.address}:${this.port}`))
+					if (this.socket === socket) {
+						this._settleConnectWaiters(new Error(`Could not connect to ${this.address}:${this.port}`))
+					}
 				}
 				const connectTimeoutListener = () => {
 					socket.off('connect', onConnect)
@@ -130,11 +145,12 @@ export default class S101Client extends S101Socket {
 						socket.destroy()
 						socket.removeAllListeners()
 						delete this.socket
+						this._settleConnectWaiters(
+							new Error(
+								`Could not connect to ${this.address}:${this.port} after a timeout of ${timeout} seconds`
+							)
+						)
 					}
-					const reason = new Error(
-						`Could not connect to ${this.address}:${this.port} after a timeout of ${timeout} seconds`
-					)
-					resolve(reason)
 					if (this._shouldBeConnected && !this._connectionAttemptTimer) this.connect().catch(() => null)
 				}
 
@@ -159,6 +175,8 @@ export default class S101Client extends S101Socket {
 		// has been disconnected or discarded.
 		this._shouldBeConnected = false
 		this._clearConnectionAttemptTimer()
+		// no attempt will come now for the connect() calls still waiting
+		this._settleConnectWaiters(new Error(`Disconnected before connecting to ${this.address}:${this.port}`))
 		if (this.socket?.connecting) {
 			const pending = this.socket
 			delete this.socket
@@ -185,6 +203,18 @@ export default class S101Client extends S101Socket {
 			// also schedules the next retry
 			this._connect(DEFAULT_CONNECT_TIMEOUT, true).catch(() => null)
 		}
+	}
+
+	/**
+	 * Settles every connect() call still waiting: with nothing once connected, or
+	 * with the Error that ended the attempt. Each call waits here, whether it
+	 * started an attempt or not, so a call that couldn't start one (see connect())
+	 * settles with the attempt under way or the next retry.
+	 */
+	private _settleConnectWaiters(result?: Error): void {
+		const waiters = this._connectWaiters
+		this._connectWaiters = []
+		for (const resolve of waiters) resolve(result)
 	}
 
 	/** Stops the retries; the next ones (after a connection or disconnect()) start over from RECONNECT_DELAY_MIN. */
