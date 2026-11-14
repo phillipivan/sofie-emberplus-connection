@@ -32,7 +32,8 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 	}
 
 	public registerParameter(parameter: Parameter, path: string): void {
-		if (!parameter.streamIdentifier) {
+		// 0 is a valid stream identifier: only negative ones aren't
+		if (parameter.streamIdentifier === undefined) {
 			debug('Warning: Attempted to register parameter without streamIdentifier')
 			return
 		}
@@ -71,7 +72,7 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 
 	public unregisterParameter(path: string): void {
 		const streamInfo = this.registeredStreams.get(path)
-		if (streamInfo?.streamIdentifier) {
+		if (streamInfo) {
 			// Clean up both maps
 			this.registeredStreams.delete(path)
 			const paths = this.streamsByIdentifier.get(streamInfo.streamIdentifier)
