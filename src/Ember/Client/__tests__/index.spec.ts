@@ -1264,6 +1264,94 @@ describe('client', () => {
 				expect(reads).toBeLessThan(10)
 			})
 		})
+
+		// What a report's sources are depends on its disposition. Tally: "the absolute set of sources currently
+		// connected". Modified: "sources contains new current state". Pending: "sources contains future state".
+		// Locked: "sources contains current state".
+		describe('dispositions', () => {
+			// A router, 1, with a matrix, 1.1, whose connections are loaded or not
+			function seedMatrix(client: EmberClient, connections?: { [target: number]: Connection }) {
+				const router = new NumberedTreeNodeImpl(1, new EmberNodeImpl('router'), {
+					1: new NumberedTreeNodeImpl(1, new MatrixImpl('matrix', undefined, undefined, connections)),
+				})
+				if (!router.children?.[1]) throw new Error('Expected seeded matrix')
+				router.children[1].parent = router
+				client.tree[1] = router
+				return router.children[1].contents as Matrix
+			}
+			// A provider's report on the matrix: the connections of some targets
+			const report = (...connections: Connection[]) =>
+				createQualifiedNodeResponse(
+					'1.1',
+					new MatrixImpl(
+						'',
+						undefined,
+						undefined,
+						Object.fromEntries(connections.map((connection) => [connection.target, connection]))
+					),
+					undefined
+				)
+			const { Tally, Modified, Pending, Locked } = ConnectionDisposition
+
+			it('keeps the sources of a connection while a change to it is pending, and marks it', async () => {
+				await runWithConnection(async (client, socket) => {
+					const matrix = seedMatrix(client, { 2: { target: 2, sources: [2] } })
+
+					socket.mockData(report({ target: 2, sources: [3], disposition: Pending }))
+					expect(matrix.connections?.[2]).toEqual({ target: 2, sources: [2], disposition: Pending })
+
+					socket.mockData(report({ target: 2, sources: [3], disposition: Modified }))
+					expect(matrix.connections?.[2]).toEqual({ target: 2, sources: [3], disposition: Modified })
+				})
+			})
+
+			it('takes the current sources from a report that the target is locked', async () => {
+				await runWithConnection(async (client, socket) => {
+					const matrix = seedMatrix(client, { 2: { target: 2, sources: [2] } })
+
+					// the target's connection had changed without this consumer hearing of it
+					socket.mockData(report({ target: 2, sources: [4], disposition: Locked }))
+					expect(matrix.connections?.[2]).toEqual({ target: 2, sources: [4], disposition: Locked })
+
+					// a later report without a disposition is a tally
+					socket.mockData(report({ target: 2, sources: [4] }))
+					expect(matrix.connections?.[2].disposition).toBeUndefined()
+				})
+			})
+
+			it('does not take a pending connection for the current one when none is loaded', async () => {
+				await runWithConnection(async (client, socket) => {
+					const matrix = seedMatrix(client)
+
+					socket.mockData(report({ target: 2, sources: [1], disposition: Pending }))
+					expect(matrix.connections?.[2]).toBeUndefined()
+
+					socket.mockData(report({ target: 2, sources: [], disposition: Locked }))
+					expect(matrix.connections?.[2]).toEqual({ target: 2, sources: [], disposition: Locked })
+				})
+			})
+
+			it('stores a first report by target, without its pending connections', async () => {
+				await runWithConnection(async (client, socket) => {
+					const matrix = seedMatrix(client)
+
+					socket.mockData(
+						report(
+							{ target: 0, sources: [1], disposition: Tally },
+							{ target: 1, sources: [2], disposition: Modified },
+							{ target: 2, sources: [3], disposition: Pending },
+							{ target: 3 }
+						)
+					)
+
+					expect(matrix.connections).toEqual({
+						0: { target: 0, sources: [1], disposition: Tally },
+						1: { target: 1, sources: [2], disposition: Modified },
+						3: { target: 3 },
+					})
+				})
+			})
+		})
 	})
 
 	describe('StreamManager Integration', () => {

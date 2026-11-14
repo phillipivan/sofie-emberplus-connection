@@ -928,37 +928,35 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		// update connections
 		if (update.connections) {
-			if (matrix.connections) {
-				// matrix already has connections
-				// The Connections interface has no implicit string index signature, which Object.values needs
-				for (const connection of Object.values<Connection>(
-					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-					update.connections as { [target: number]: Connection }
-				)) {
-					if (
-						!connection.disposition ||
-						!(
-							connection.disposition === ConnectionDisposition.Locked ||
-							connection.disposition === ConnectionDisposition.Pending
-						)
-					) {
-						// update is either generic, tally or modification
-						// (connections are kept by their target: no need to go through them all to find it)
-						const cached = matrix.connections[connection.target] as Connection | undefined
-						if (cached) {
-							cached.sources = connection.sources
-						} else {
-							// connection to target does not exist yet
-							matrix.connections[connection.target] = {
-								target: connection.target,
-								sources: connection.sources,
-							}
-						}
+			const connections = (matrix.connections ??= {})
+			// The Connections interface has no implicit string index signature, which Object.values needs
+			for (const connection of Object.values<Connection>(
+				// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+				update.connections as { [target: number]: Connection }
+			)) {
+				// (connections are kept by their target: no need to go through them all to find it)
+				const cached = connections[connection.target] as Connection | undefined
+
+				if (connection.disposition === ConnectionDisposition.Pending) {
+					// The change is queued: "sources contains future state". The target's connection stays as it
+					// is, marked as pending, until the provider reports the change as made. Without a connection
+					// for the target there is nothing to mark, and its sources aren't known.
+					if (cached) cached.disposition = connection.disposition
+					continue
+				}
+
+				// Tally, modified or locked: the sources are the target's current ones. The disposition is kept
+				// as the provider's last word on the target.
+				if (cached) {
+					cached.sources = connection.sources
+					cached.disposition = connection.disposition
+				} else {
+					connections[connection.target] = {
+						target: connection.target,
+						sources: connection.sources,
+						disposition: connection.disposition,
 					}
 				}
-			} else {
-				// connections have not been set yet
-				matrix.connections = update.connections
 			}
 		}
 	}

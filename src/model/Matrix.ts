@@ -47,7 +47,10 @@ interface Matrix extends EmberBaseElement {
 	targets?: Array<number>
 	/** Source objects, the row of the matric. */
 	sources?: Array<number>
-	/** Describes the targets active connections. */
+	/**
+	 * Describes the targets active connections. In a consumer's tree: each target's current sources, with the
+	 * disposition the provider last reported for the target (pending while a change to it is queued).
+	 */
 	connections?: Connections
 	/** Name. */
 	identifier: string

@@ -1,3 +1,4 @@
+import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation } from './Connection.js'
 import { ElementType, EmberElement } from './EmberElement.js'
 import { EmberFunction, EmberFunctionImpl } from './EmberFunction.js'
 import { EmberNode, EmberNodeImpl } from './EmberNode.js'
@@ -28,6 +29,10 @@ export {
 	MatrixType,
 	MatrixAddressingMode,
 	Connections,
+	Connection,
+	ConnectionDisposition,
+	ConnectionOperation,
+	ConnectionImpl,
 	MatrixImpl,
 	Parameter,
 	ParameterType,

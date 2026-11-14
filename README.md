@@ -199,6 +199,22 @@ try {
 
 `matrixDisconnect()` removes sources from a target, and `matrixSetConnection()` replaces a target's sources with the ones given. The response resolves, with the matrix, once the provider reports the connection of the target asked for. Reports on the matrix's other targets, which may arrive in between, are applied to the tree but don't settle it. It rejects if the provider reports the target as locked. If the provider reports the connection as pending, it has queued the request: the response resolves, and the tree changes when the provider reports the connection as made.
 
+Once a matrix's connections are loaded, with a `getDirectory()` on the matrix, `matrix.contents.connections[target]` holds the target's current sources and the disposition the provider last reported for it. So after a request has resolved, `disposition` tells whether the change is made or only queued:
+
+```javascript
+const { Model } = require('@phillipivan/emberplus-connection')
+
+await (
+	await client.getDirectory(matrix)
+).response
+await (
+	await client.matrixConnect(matrix, 2, [3])
+).response
+if (matrix.contents.connections[2].disposition === Model.ConnectionDisposition.Pending) {
+	console.log('Queued: target 2 still has', matrix.contents.connections[2].sources)
+}
+```
+
 ### Basic Server
 
 ```javascript
