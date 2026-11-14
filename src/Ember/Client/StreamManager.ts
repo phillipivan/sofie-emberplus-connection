@@ -3,6 +3,7 @@ import { EventEmitter } from 'eventemitter3'
 
 import { StreamEntry } from '../../model/index.js'
 import { Parameter, ParameterType } from '../../model/Parameter.js'
+import { StreamFormat } from '../../model/StreamDescription.js'
 import { EmberValue } from '../../types/index.js'
 import { Collection } from '../../types/types.js'
 
@@ -17,7 +18,31 @@ interface StreamInfo {
 	parameter: Parameter
 	path: string
 	streamIdentifier: number
-	offset: number
+}
+
+/**
+ * How a value of each stream format is read from a stream entry's octets: its size in bytes, and the read itself.
+ * 64-bit integers come out as numbers, like every other Ember+ integer here, so they are exact up to 2^53.
+ */
+const STREAM_FORMATS: Record<StreamFormat, { size: number; read: (octets: Buffer, offset: number) => number }> = {
+	[StreamFormat.UInt8]: { size: 1, read: (octets, offset) => octets.readUInt8(offset) },
+	[StreamFormat.UInt16BE]: { size: 2, read: (octets, offset) => octets.readUInt16BE(offset) },
+	[StreamFormat.UInt16LE]: { size: 2, read: (octets, offset) => octets.readUInt16LE(offset) },
+	[StreamFormat.UInt32BE]: { size: 4, read: (octets, offset) => octets.readUInt32BE(offset) },
+	[StreamFormat.UInt32LE]: { size: 4, read: (octets, offset) => octets.readUInt32LE(offset) },
+	[StreamFormat.UInt64BE]: { size: 8, read: (octets, offset) => Number(octets.readBigUInt64BE(offset)) },
+	[StreamFormat.UInt64LE]: { size: 8, read: (octets, offset) => Number(octets.readBigUInt64LE(offset)) },
+	[StreamFormat.Int8]: { size: 1, read: (octets, offset) => octets.readInt8(offset) },
+	[StreamFormat.Int16BE]: { size: 2, read: (octets, offset) => octets.readInt16BE(offset) },
+	[StreamFormat.Int16LE]: { size: 2, read: (octets, offset) => octets.readInt16LE(offset) },
+	[StreamFormat.Int32BE]: { size: 4, read: (octets, offset) => octets.readInt32BE(offset) },
+	[StreamFormat.Int32LE]: { size: 4, read: (octets, offset) => octets.readInt32LE(offset) },
+	[StreamFormat.Int64BE]: { size: 8, read: (octets, offset) => Number(octets.readBigInt64BE(offset)) },
+	[StreamFormat.Int64LE]: { size: 8, read: (octets, offset) => Number(octets.readBigInt64LE(offset)) },
+	[StreamFormat.Float32BE]: { size: 4, read: (octets, offset) => octets.readFloatBE(offset) },
+	[StreamFormat.Float32LE]: { size: 4, read: (octets, offset) => octets.readFloatLE(offset) },
+	[StreamFormat.Float64BE]: { size: 8, read: (octets, offset) => octets.readDoubleBE(offset) },
+	[StreamFormat.Float64LE]: { size: 8, read: (octets, offset) => octets.readDoubleLE(offset) },
 }
 
 export class StreamManager extends EventEmitter<StreamManagerEvents> {
@@ -50,7 +75,6 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 			parameter,
 			path,
 			streamIdentifier: parameter.streamIdentifier,
-			offset: parameter.streamDescriptor?.offset || 0,
 		}
 
 		// Store both mappings
@@ -120,12 +144,25 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 					streamEntry.value.type === ParameterType.Octets &&
 					Buffer.isBuffer(streamEntry.value.value)
 				) {
-					const buffer = streamEntry.value.value
-					if (buffer.length >= streamInfo.offset + 4) {
-						const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.length)
-						const decodedValue = view.getFloat32(streamInfo.offset, true)
-						this.updateStreamValue(path, decodedValue)
+					const octets = streamEntry.value.value
+					// The parameter's stream descriptor says where its value is in the octets, and in which format.
+					// Several parameters can share a stream, each with its own descriptor.
+					const descriptor = streamInfo.parameter.streamDescriptor
+					if (!descriptor) {
+						// nothing says what the octets hold, so they are the value
+						this.updateStreamValue(path, octets)
+						return
 					}
+					const { size, read } = STREAM_FORMATS[descriptor.format]
+					if (descriptor.offset < 0 || descriptor.offset + size > octets.length) {
+						debug('Stream value outside the octets received:', {
+							path,
+							descriptor,
+							length: octets.length,
+						})
+						return
+					}
+					this.updateStreamValue(path, read(octets, descriptor.offset))
 				} // Note: other types aren't handled. A stream parameter's "type must not be a string or Boolean".
 			})
 		})
