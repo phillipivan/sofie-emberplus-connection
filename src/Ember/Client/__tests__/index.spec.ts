@@ -1453,6 +1453,74 @@ describe('client', () => {
 				expect(stream2?.parameter.value).toBeCloseTo(-23.860210418701172)
 			})
 		})
+
+		describe('callbacks', () => {
+			// A device, 1, with a meter, 1.1, that reports its level in stream 7
+			function seedMeter(client: EmberClient) {
+				const meter = new ParameterImpl(ParameterType.Integer, 'meter', undefined, 0)
+				meter.streamIdentifier = 7
+				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
+					1: new NumberedTreeNodeImpl(1, meter),
+				})
+				if (!device.children?.[1]) throw new Error('Expected seeded meter')
+				device.children[1].parent = device
+				client.tree[1] = device
+				return device.children[1] as NumberedTreeNode<Parameter>
+			}
+			const level = (value: number) =>
+				createStreamEntryResponse([{ identifier: 7, value: { type: ParameterType.Integer, value } }])
+
+			it('calls the callback given to subscribe() with the parameter, for each stream value', async () => {
+				await runWithConnection(async (client, socket) => {
+					const node = seedMeter(client)
+					const values: unknown[] = []
+					const cb = jest.fn((update: TreeElement<EmberElement>) =>
+						values.push((update.contents as Parameter).value)
+					)
+					const events: unknown[] = []
+					client.on('streamUpdate', (path, value) => events.push([path, value]))
+
+					await client.subscribe(node, cb)
+					socket.mockStreamData(level(-18))
+					socket.mockStreamData(level(-12))
+
+					expect(cb).toHaveBeenCalledTimes(2)
+					expect(cb).toHaveBeenLastCalledWith(node)
+					expect(values).toEqual([-18, -12])
+					expect(events).toEqual([
+						['1.1', -18],
+						['1.1', -12],
+					])
+				})
+			})
+
+			it('calls a callback registered for the path by getElementByPath too', async () => {
+				await runWithConnection(async (client, socket) => {
+					const node = seedMeter(client)
+					const cb = jest.fn()
+
+					await client.getElementByPath('1.1', cb)
+					await client.subscribe(node)
+					socket.mockStreamData(level(-18))
+
+					expect(cb).toHaveBeenCalledTimes(1)
+					expect(cb).toHaveBeenCalledWith(node)
+				})
+			})
+
+			it('stops calling it once unsubscribed', async () => {
+				await runWithConnection(async (client, socket) => {
+					const node = seedMeter(client)
+					const cb = jest.fn()
+
+					await client.subscribe(node, cb)
+					await client.unsubscribe(node)
+					socket.mockStreamData(level(-18))
+
+					expect(cb).not.toHaveBeenCalled()
+				})
+			})
+		})
 	})
 
 	describe('Matrix requests', () => {

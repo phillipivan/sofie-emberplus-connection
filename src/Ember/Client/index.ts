@@ -110,6 +110,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _lastInvocation = 0
 	private _client: S101Client
 	private _subscriptions: Array<Subscription> = []
+	/** The parameters subscribed to for their stream values, by path: what a path's callbacks are called with */
+	private _streamNodes = new Map<string, RootElement>()
 	/**
 	 * The GetDirectory and Subscribe requests that reached the provider and haven't been unsubscribed, by path
 	 * ('' for the root), with the element type a request to that path is sent as. A provider keeps what a consumer
@@ -135,9 +137,16 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._getDirectoryOnParams = options?.getDirectoryOnParams ?? true
 		this._streamManager = new StreamManager()
 
-		// Forward stream events from StreamManager
+		// Forward stream events from StreamManager, and call the path's callbacks as for any other change. The
+		// StreamManager has put the value in the parameter by now.
 		this._streamManager.on('streamUpdate', (path, value) => {
 			this.emit('streamUpdate', path, value)
+
+			const node = this._streamNodes.get(path)
+			if (!node) return
+			for (const subscription of this._subscriptions.filter((s) => s.path === path)) {
+				subscription.cb(node)
+			}
 		})
 
 		// resend timer runs at greatest common divisor of timeouts and resends
@@ -282,7 +291,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (node.contents.type === ElementType.Parameter) {
 			const parameter = node.contents
 			if (parameter.streamIdentifier !== undefined) {
-				this._streamManager.registerParameter(parameter, getPath(node))
+				const path = getPath(node)
+				this._streamManager.registerParameter(parameter, path)
+				// like the StreamManager, keep the first one registered for a path: its value is the one updated
+				if (!this._streamNodes.has(path)) this._streamNodes.set(path, node)
 			}
 		}
 
@@ -324,6 +336,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			const parameter = node.contents
 			if (parameter.streamIdentifier !== undefined) {
 				this._streamManager.unregisterParameter(path)
+				this._streamNodes.delete(path)
 			}
 		}
 

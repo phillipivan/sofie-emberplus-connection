@@ -88,9 +88,9 @@ client
 	})
 	.then(() => client.getElementByPath('scoreMaster/router/labels/group 1'))
 	.then((node) => {
-		// For streams, use subscribe
+		// For streams, use subscribe: the callback is called with the parameter each time a stream value arrives
 		return client.subscribe(node, (update) => {
-			console.log(udpate)
+			console.log(update.contents.value)
 		})
 	})
 	.then(() => client.getElementByPath('0.2'))

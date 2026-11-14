@@ -94,6 +94,10 @@ export default class S101Client
 	public mockData(tree: DecodeResult<Root>): void {
 		this.emit('emberTree', tree)
 	}
+	/** A stream collection arrives */
+	public mockStreamData(tree: DecodeResult<Root>): void {
+		this.emit('emberStreamTree', tree)
+	}
 
 	public destroy(): void {
 		this.destroyed = true
