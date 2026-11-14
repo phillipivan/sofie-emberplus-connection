@@ -127,7 +127,7 @@ client.on('streamUpdate', (internalNodePath, value) => {
 
 `connect()` doesn't start another attempt while one is under way, or within 5 seconds of the last one: it settles with that attempt, or with the next retry if that attempt has already failed. So it can be called right after the constructor, which starts the first attempt, and a loop that calls `connect()` until it succeeds goes at the pace of the retries. If `disconnect()` or `discard()` comes first, `connect()` resolves with an `Error`.
 
-A provider forgets what a consumer subscribed to when the connection drops. After a reconnect the client asks again for all of it: each `getDirectory()` (including those `getElementByPath()` and `expand()` send) and `subscribe()` that reached the provider, unless unsubscribed since, the root first. The tree loaded so far and the callbacks registered are kept, and the replies update them as usual, so values that changed while disconnected come through. There's no need to look anything up again after a reconnect.
+A provider forgets what a consumer subscribed to when the connection drops. After a reconnect the client asks again for all of it: each `getDirectory()` (including those `getElementByPath()` and `expand()` send) and `subscribe()` that reached the provider, unless unsubscribed since, the root first. (Unsubscribing from a node also covers the parameters directly below it, as it does for the provider.) The tree loaded so far and the callbacks registered are kept, and the replies update them as usual, so values that changed while disconnected come through. There's no need to look anything up again after a reconnect.
 
 Requests in flight when the connection drops are rejected, and others, such as `setValue()` or `invoke()`, aren't repeated.
 

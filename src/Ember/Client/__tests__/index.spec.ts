@@ -1520,6 +1520,23 @@ describe('client', () => {
 					expect(cb).not.toHaveBeenCalled()
 				})
 			})
+
+			// An Unsubscribe on a node ends the subscriptions of its parameters too
+			it('stops the stream values of a parameter once its node is unsubscribed', async () => {
+				await runWithConnection(async (client, socket) => {
+					const node = seedMeter(client)
+					const cb = jest.fn()
+					const events = jest.fn()
+					client.on('streamUpdate', events)
+
+					await client.subscribe(node, cb)
+					await client.unsubscribe(client.tree[1])
+					socket.mockStreamData(level(-18))
+
+					expect(cb).not.toHaveBeenCalled()
+					expect(events).not.toHaveBeenCalled()
+				})
+			})
 		})
 	})
 
@@ -1678,6 +1695,62 @@ describe('client', () => {
 				expect(sentCommands()).toEqual([
 					['', CommandType.GetDirectory],
 					['1', CommandType.GetDirectory],
+				])
+			})
+		})
+
+		// Ember+ specification, Unsubscribe: "When applied to a node, it indicates that the consumer is no longer
+		// interested in receiving value updates from the parameters that are located below this node. In that case, all
+		// parameter subscriptions for that consumer must be removed."
+		it('does not ask again for the parameters of a node it has unsubscribed from', async () => {
+			await runWithConnection(async (client, socket) => {
+				const parameter = await lookUpParameter(client, socket)
+				await client.subscribe(parameter)
+				await client.unsubscribe(client.tree[1])
+				onSocketWrite.mockClear()
+
+				await reconnect(socket)
+
+				expect(sentCommands()).toEqual([['', CommandType.GetDirectory]])
+			})
+		})
+
+		it('does not ask again for the top-level parameters when it has unsubscribed from the root', async () => {
+			await runWithConnection(async (client, socket) => {
+				const parameter = new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'level'))
+				client.tree[1] = parameter
+				await client.subscribe(parameter)
+				const unsubscribe = await client.unsubscribe(client.tree as unknown as Array<RootElement>)
+				unsubscribe.response?.catch(() => null) // no reply here, so the request is cancelled on disconnect
+				onSocketWrite.mockClear()
+
+				await reconnect(socket)
+
+				expect(sentCommands()).toEqual([])
+			})
+		})
+
+		// Only the node's own parameters: what was asked for further down has its own nodes to unsubscribe from
+		it('still asks again for what is below the nodes of a node it has unsubscribed from', async () => {
+			await runWithConnection(async (client, socket) => {
+				// a device, 1, with a channel, 1.1, holding a parameter, 1.1.1
+				const gain = new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain'))
+				const channel = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'), { 1: gain })
+				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: channel })
+				gain.parent = channel
+				channel.parent = device
+				client.tree[1] = device
+				const directory = await client.getDirectory(channel)
+				directory.response?.catch(() => null) // no reply here, so the request is cancelled on disconnect
+				await client.subscribe(gain)
+
+				await client.unsubscribe(device)
+				onSocketWrite.mockClear()
+				await reconnect(socket)
+
+				expect(sentCommands()).toEqual([
+					['1.1', CommandType.GetDirectory],
+					['1.1.1', CommandType.Subscribe],
 				])
 			})
 		})

@@ -320,6 +320,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			this._subscriptions = this._subscriptions.filter((subscription) => subscription.path !== undefined)
 			this._sentGetDirectories.delete('')
 			this._sentSubscribes.delete('')
+			this._forgetParametersBelow('')
 			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
 		}
 
@@ -330,6 +331,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		// Unsubscribe ends both a Subscribe and the reports a GetDirectory started
 		this._sentGetDirectories.delete(path)
 		this._sentSubscribes.delete(path)
+		if (node.contents.type === ElementType.Node) this._forgetParametersBelow(path)
 
 		// Deregister from StreamManager if this was a Parameter with streamIdentifier
 		if (!Array.isArray(node) && node.contents.type === ElementType.Parameter) {
@@ -577,6 +579,29 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		} as Matrix)
 
 		return this._sendRequest<TreeElement<Matrix>>(request, ExpectResponse.Any, target)
+	}
+
+	/**
+	 * An Unsubscribe on a node, or on the root, also ends the subscriptions of the parameters directly below it:
+	 * "all parameter subscriptions for that consumer must be removed". So what was sent for those parameters is
+	 * forgotten too, not to be sent again after a reconnect, and their streams are unregistered, as their values
+	 * stop arriving. (Not what is further down: that was asked for through nodes of its own.)
+	 */
+	private _forgetParametersBelow(path: string): void {
+		const isBelow = (other: string) =>
+			other !== '' && (other.includes('.') ? other.slice(0, other.lastIndexOf('.')) : '') === path
+
+		for (const [other, { type }] of this._sentGetDirectories) {
+			if (type === ElementType.Parameter && isBelow(other)) this._sentGetDirectories.delete(other)
+		}
+		for (const [other, { type }] of this._sentSubscribes) {
+			if (type === ElementType.Parameter && isBelow(other)) this._sentSubscribes.delete(other)
+		}
+		for (const other of this._streamManager.getAllRegisteredPaths()) {
+			if (!isBelow(other)) continue
+			this._streamManager.unregisterParameter(other)
+			this._streamNodes.delete(other)
+		}
 	}
 
 	/**
