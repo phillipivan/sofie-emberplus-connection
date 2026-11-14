@@ -19,7 +19,7 @@ import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberFunction } from '../../model/EmberFunction.js'
 import { EmberNode } from '../../model/EmberNode.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
-import { Matrix } from '../../model/Matrix.js'
+import { Connections, Matrix } from '../../model/Matrix.js'
 import { Parameter, ParameterImpl } from '../../model/Parameter.js'
 import { StreamEntry } from '../../model/StreamEntry.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
@@ -64,6 +64,8 @@ export interface Request {
 	resolve: (res: any) => void
 	reject: (err: Error) => void
 	cb?: (EmberNode: TreeElement<EmberElement>) => void
+	/** For a request to change a matrix connection: the target, whose connection the reply has to report */
+	connectionTarget?: number
 	message: Buffer
 	firstSent: number
 	lastSent: number
@@ -78,6 +80,8 @@ export interface Change {
 	path: string | undefined
 	node: RootElement
 	emptyNode?: boolean
+	/** For a change to a matrix: the connections the provider reported, as it reported them */
+	connections?: Connections
 }
 
 export type EmberClientEvents = {
@@ -369,6 +373,14 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			awaitResponse ? ExpectResponse.Any : ExpectResponse.None
 		)
 	}
+	/**
+	 * Asks the provider to connect sources to a target, in addition to the sources already connected to it.
+	 *
+	 * The response resolves, with the matrix, once the provider reports the connection of that target; reports on the
+	 * matrix's other targets don't settle it. It rejects if the provider reports the target as locked. A report with
+	 * the disposition "pending" resolves it too: the provider has queued the request, and the tree changes when it
+	 * reports the connection as made.
+	 */
 	async matrixConnect(
 		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
@@ -376,6 +388,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	): RequestPromise<TreeElement<Matrix>> {
 		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Connect)
 	}
+	/** Asks the provider to disconnect sources from a target. The response settles as matrixConnect's does. */
 	async matrixDisconnect(
 		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
@@ -383,6 +396,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	): RequestPromise<TreeElement<Matrix>> {
 		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Disconnect)
 	}
+	/**
+	 * Asks the provider to connect exactly the given sources to a target, replacing those connected to it. The
+	 * response settles as matrixConnect's does.
+	 */
 	async matrixSetConnection(
 		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		target: number,
@@ -546,7 +563,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			connections: { [target]: connection },
 		} as Matrix)
 
-		return this._sendRequest<TreeElement<Matrix>>(request, ExpectResponse.Any)
+		return this._sendRequest<TreeElement<Matrix>>(request, ExpectResponse.Any, target)
 	}
 
 	/**
@@ -591,7 +608,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		return this._sendRequest<T>(commandEmberNode, expectResponse)
 	}
 
-	private async _sendRequest<T>(node: RootElement, expectResponse: ExpectResponse): RequestPromise<T> {
+	/** @param connectionTarget for a request to change a matrix connection, see Request.connectionTarget */
+	private async _sendRequest<T>(
+		node: RootElement,
+		expectResponse: ExpectResponse,
+		connectionTarget?: number
+	): RequestPromise<T> {
 		const reqId = Math.random().toString(24).substr(-4)
 		const requestPromise: RequestPromiseArguments<T> = {
 			reqId,
@@ -608,6 +630,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					nodeResponse: expectResponse,
 					resolve,
 					reject,
+					connectionTarget,
 					message,
 					firstSent: Date.now(),
 					lastSent: Date.now(),
@@ -659,6 +682,18 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				(s) => (!('path' in s.node) && !change.path) || ('path' in s.node && s.node.path === change.path)
 			)
 			for (const req of reqs) {
+				if (req.connectionTarget !== undefined) {
+					// A request to change a connection is answered by a report on its target. The provider may
+					// report the matrix's other targets in the meantime: those aren't the reply.
+					const reported = findConnection(change.connections, req.connectionTarget)
+					if (!reported) continue
+					if (reported.disposition === ConnectionDisposition.Locked) {
+						req.reject(new Error(`Matrix ${change.path}: target ${req.connectionTarget} is locked`))
+						this._requests.delete(req.reqId)
+						continue
+					}
+				}
+
 				// Don't complete the response, if the call was expecting the children to be loaded
 				if (req.nodeResponse === ExpectResponse.HasChildren && !change.node.children) {
 					if (
@@ -723,7 +758,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					if (!tree) {
 						if (path.length) {
 							// Assuming this means that no get directory was done on the root of the tree.
-							changes.push({ path: rootElement.path, node: rootElement })
+							changes.push({
+								path: rootElement.path,
+								node: rootElement,
+								connections: reportedConnections(rootElement),
+							})
 							continue
 						} else {
 							const number = Number(rootElement.path)
@@ -787,7 +826,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const changes: Array<Change> = []
 
 		if (update.contents.type === tree.contents.type) {
-			changes.push({ path: getPath(tree), node: tree, emptyNode: isEmptyNode(update) })
+			changes.push({
+				path: getPath(tree),
+				node: tree,
+				emptyNode: isEmptyNode(update),
+				connections: reportedConnections(update),
+			})
 			// changes.push({ path: getPath(tree), node: tree })
 			switch (tree.contents.type) {
 				case ElementType.Node:
@@ -906,4 +950,18 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			})
 		}
 	}
+}
+
+/** The connections in an update to a matrix */
+function reportedConnections(update: TreeElement<EmberElement>): Connections | undefined {
+	return update.contents.type === ElementType.Matrix ? update.contents.connections : undefined
+}
+
+function findConnection(connections: Connections | undefined, target: number): Connection | undefined {
+	if (!connections) return undefined
+	// The Connections interface has no implicit string index signature, which Object.values needs
+	return Object.values<Connection>(
+		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+		connections as { [target: number]: Connection }
+	).find((connection) => connection.target === target)
 }

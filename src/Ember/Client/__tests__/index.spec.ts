@@ -3,7 +3,7 @@ import * as Ber from '../../../Ber/index.js'
 import { DecodeResult } from '../../../encodings/ber/decoder/DecodeResult.js'
 import { berDecode } from '../../../encodings/ber/index.js'
 import { CommandType } from '../../../model/Command.js'
-import { Connection, ConnectionOperation } from '../../../model/Connection.js'
+import { Connection, ConnectionDisposition, ConnectionOperation } from '../../../model/Connection.js'
 import {
 	ElementType,
 	EmberElement,
@@ -677,6 +677,107 @@ describe('client', () => {
 				expect(node.contents.connections?.[2]).toEqual({ target: 2, sources: [3] })
 				expect(node.contents.identifier).toBe('matrix')
 				expect(node.contents.targets).toEqual([1, 2, 3])
+			})
+		})
+
+		// A provider's report on the matrix 1.1, without contents: the connection of one target
+		const report = (target: number, sources: number[], disposition?: ConnectionDisposition) =>
+			createQualifiedNodeResponse(
+				'1.1',
+				new MatrixImpl('', undefined, undefined, { [target]: { target, sources, disposition } }),
+				undefined
+			)
+
+		// Follows a request's response: 'pending' until it settles
+		function track(response: Promise<unknown> | undefined) {
+			const state: { settled: 'pending' | 'resolved' | Error } = { settled: 'pending' }
+			response?.then(
+				() => (state.settled = 'resolved'),
+				(e) => (state.settled = e)
+			)
+			return state
+		}
+
+		// The matrix's other targets may change, and be reported, while the request is under way
+		it('waits for the report on the requested target', async () => {
+			await runWithConnection(async (client, socket) => {
+				const node = seedMatrix(client)
+
+				const response = track((await client.matrixConnect(node, 2, [3])).response)
+				socket.mockData(report(1, [4], ConnectionDisposition.Modified))
+				await new Promise(setImmediate)
+				expect(response.settled).toBe('pending')
+				expect(node.contents.connections?.[1].sources).toEqual([4])
+
+				socket.mockData(report(2, [3], ConnectionDisposition.Modified))
+				await new Promise(setImmediate)
+				expect(response.settled).toBe('resolved')
+			})
+		})
+
+		// Locked: "the connect operation could not be executed because the target is locked. The sources property
+		// [...] must contain the absolute set of sources currently connected."
+		it('rejects when the provider reports the target as locked', async () => {
+			await runWithConnection(async (client, socket) => {
+				const node = seedMatrix(client)
+
+				const request = await client.matrixConnect(node, 2, [3])
+				socket.mockData(report(2, [2], ConnectionDisposition.Locked))
+
+				await expect(request.response).rejects.toThrow('Matrix 1.1: target 2 is locked')
+				expect(node.contents.connections?.[2].sources).toEqual([2])
+			})
+		})
+
+		// Pending: "the connect operation was queued, but is not yet current". The provider has taken the request;
+		// the tree changes when it reports the connection as made.
+		it('resolves when the provider reports the connection as pending', async () => {
+			await runWithConnection(async (client, socket) => {
+				const node = seedMatrix(client)
+
+				const request = await client.matrixConnect(node, 2, [3])
+				socket.mockData(report(2, [3], ConnectionDisposition.Pending))
+
+				await expect(request.response).resolves.toBe(node)
+				expect(node.contents.connections?.[2].sources).toEqual([2])
+			})
+		})
+
+		it('resolves on a report of the matrix inside its parent', async () => {
+			await runWithConnection(async (client, socket) => {
+				const node = seedMatrix(client)
+
+				const response = track((await client.matrixConnect(node, 2, [3])).response)
+				const inParent = (target: number) =>
+					createQualifiedNodeResponse('1', new EmberNodeImpl(), {
+						1: new NumberedTreeNodeImpl(
+							1,
+							new MatrixImpl('', undefined, undefined, { [target]: { target, sources: [3] } })
+						),
+					})
+				socket.mockData(inParent(1))
+				await new Promise(setImmediate)
+				expect(response.settled).toBe('pending')
+
+				socket.mockData(inParent(2))
+				await new Promise(setImmediate)
+				expect(response.settled).toBe('resolved')
+			})
+		})
+
+		// A consumer may address a matrix by its path without loading the tree down to it
+		it('settles for a matrix that is not in the loaded tree', async () => {
+			await runWithConnection(async (client, socket) => {
+				const matrix = new QualifiedElementImpl('1.1', new MatrixImpl('matrix'))
+
+				const response = track((await client.matrixConnect(matrix, 2, [3])).response)
+				socket.mockData(report(1, [4]))
+				await new Promise(setImmediate)
+				expect(response.settled).toBe('pending')
+
+				socket.mockData(report(2, [2], ConnectionDisposition.Locked))
+				await new Promise(setImmediate)
+				expect(response.settled).toEqual(new Error('Matrix 1.1: target 2 is locked'))
 			})
 		})
 	})

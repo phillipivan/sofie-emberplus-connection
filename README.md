@@ -178,6 +178,27 @@ const req = await client.invoke(fn, 1, 2, 3)
 console.log('result', await req.response)
 ```
 
+### Changing Matrix Connections
+
+```javascript
+const client = new EmberClient(HOST, PORT)
+await client.connect()
+await (
+	await client.getDirectory(client.tree)
+).response
+const matrix = await client.getElementByPath('path.to.matrix')
+// connect source 3 to target 2, in addition to the sources already connected to it
+const req = await client.matrixConnect(matrix, 2, [3])
+try {
+	await req.response
+} catch (e) {
+	// e.g. "Matrix 1.2.1: target 2 is locked", or the provider didn't answer in time
+	console.log('Could not connect:', e)
+}
+```
+
+`matrixDisconnect()` removes sources from a target, and `matrixSetConnection()` replaces a target's sources with the ones given. The response resolves, with the matrix, once the provider reports the connection of the target asked for. Reports on the matrix's other targets, which may arrive in between, are applied to the tree but don't settle it. It rejects if the provider reports the target as locked. If the provider reports the connection as pending, it has queued the request: the response resolves, and the tree changes when the provider reports the connection as made.
+
 ### Basic Server
 
 ```javascript
