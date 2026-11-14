@@ -209,31 +209,27 @@ function decodeMatrixContents(reader: Ber.Reader, options: DecodeOptions = defau
 	)
 }
 
-function decodeTargets(reader: Ber.Reader, _options: DecodeOptions = defaultDecode): DecodeResult<Array<number>> {
-	const targets: Array<number> = []
-	const errors: Array<Error> = []
-	reader.readSequence(Ber.BERDataTypes.SEQUENCE)
-	const endOffset = reader.offset + reader.length
-	while (reader.offset < endOffset) {
-		if (reader.peek() === 0) {
-			reader.readSequence() // end of contents, indefinite length
-			continue
-		}
-		reader.readSequence(Ber.CONTEXT(0))
-		reader.readSequence(TargetBERID)
-		reader.readSequence(Ber.CONTEXT(0))
-		const target = reader.readInt()
-		if (target === null) {
-			errors.push(new Error('decode targets: missing target number'))
-		} else {
-			targets.push(target)
-		}
-	}
-	return makeResult(targets, errors)
+function decodeTargets(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Array<number>> {
+	return decodeSignals(reader, TargetBERID, 'targets', options)
 }
 
-function decodeSources(reader: Ber.Reader, _options: DecodeOptions = defaultDecode): DecodeResult<Array<number>> {
-	const sources: Array<number> = []
+function decodeSources(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Array<number>> {
+	return decodeSignals(reader, SourceBERID, 'sources', options)
+}
+
+/**
+ * Decodes a collection of targets or sources to the signals' numbers.
+ *
+ * Signal ::= SEQUENCE { number [0] Integer32, contents [1] SignalContents OPTIONAL }. The contents (identifier,
+ * isOnline and labelsLocation, since Glow 2.50) have no place in the model, so they are read past.
+ */
+function decodeSignals(
+	reader: Ber.Reader,
+	signalBERID: number,
+	name: string,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<Array<number>> {
+	const signals: Array<number> = []
 	const errors: Array<Error> = []
 	reader.readSequence(Ber.BERDataTypes.SEQUENCE)
 	const endOffset = reader.offset + reader.length
@@ -243,16 +239,33 @@ function decodeSources(reader: Ber.Reader, _options: DecodeOptions = defaultDeco
 			continue
 		}
 		reader.readSequence(Ber.CONTEXT(0))
-		reader.readSequence(SourceBERID)
-		reader.readSequence(Ber.CONTEXT(0))
-		const source = reader.readInt()
-		if (source === null) {
-			errors.push(new Error('decode sources: missing source number'))
+		reader.readSequence(signalBERID)
+		let number: number | null = null
+		const signalEnd = reader.offset + reader.length
+		while (reader.offset < signalEnd) {
+			const tag = reader.readSequence()
+			switch (tag) {
+				case Ber.CONTEXT(0):
+					number = reader.readInt()
+					break
+				case Ber.CONTEXT(1):
+					skipNext(reader) // the signal's contents
+					break
+				case 0:
+					break // indefinite length
+				default:
+					unknownContext(errors, `decode ${name}`, tag, options)
+					skipNext(reader)
+					break
+			}
+		}
+		if (number === null) {
+			errors.push(new Error(`decode ${name}: missing signal number`))
 		} else {
-			sources.push(source)
+			signals.push(number)
 		}
 	}
-	return makeResult(sources, errors)
+	return makeResult(signals, errors)
 }
 
 function decodeConnections(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Connections> {

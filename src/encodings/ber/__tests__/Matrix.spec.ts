@@ -271,4 +271,85 @@ describe('encodings/ber/Matrix', () => {
 			expect(decodeMatrixAt(sources, '0.5.2').sources).toEqual([170, 171, 172, 173])
 		})
 	})
+
+	// Glow 2.50: Signal ::= SEQUENCE { number [0] Integer32, contents [1] SignalContents OPTIONAL }, where
+	// SignalContents ::= SET { identifier [0] EmberString OPTIONAL, isOnline [1] BOOLEAN OPTIONAL,
+	// labelsLocation [2] RELATIVE-OID OPTIONAL }. The model holds the signals' numbers.
+	describe('targets and sources with signal contents', () => {
+		// A QualifiedMatrix 1.1 with two targets and two sources, each first one with contents, and a connection
+		function matrixWithSignalContents(): Buffer {
+			const w = new Ber.Writer()
+			const signal = (tag: number, number: number, contents?: { identifier: string; labelsLocation: string }) => {
+				w.startSequence(Ber.CONTEXT(0))
+				w.startSequence(tag)
+				w.startSequence(Ber.CONTEXT(0))
+				w.writeInt(number)
+				w.endSequence()
+				if (contents) {
+					w.startSequence(Ber.CONTEXT(1))
+					w.startSequence(Ber.BERDataTypes.SET)
+					w.startSequence(Ber.CONTEXT(0))
+					w.writeString(contents.identifier, Ber.BERDataTypes.STRING)
+					w.endSequence()
+					w.startSequence(Ber.CONTEXT(1))
+					w.writeBoolean(true)
+					w.endSequence()
+					w.startSequence(Ber.CONTEXT(2))
+					w.writeRelativeOID(contents.labelsLocation, Ber.BERDataTypes.RELATIVE_OID)
+					w.endSequence()
+					w.endSequence()
+					w.endSequence()
+				}
+				w.endSequence()
+				w.endSequence()
+			}
+
+			w.startSequence(Ber.APPLICATION(17)) // QualifiedMatrix
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeRelativeOID('1.1', Ber.BERDataTypes.RELATIVE_OID)
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(3)) // targets
+			w.startSequence(Ber.BERDataTypes.SEQUENCE)
+			signal(Ber.APPLICATION(14), 10, { identifier: 'target-10', labelsLocation: '1.9.10' })
+			signal(Ber.APPLICATION(14), 20)
+			w.endSequence()
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(4)) // sources
+			w.startSequence(Ber.BERDataTypes.SEQUENCE)
+			signal(Ber.APPLICATION(15), 1, { identifier: 'source-1', labelsLocation: '1.8.1' })
+			signal(Ber.APPLICATION(15), 2)
+			w.endSequence()
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(5)) // connections
+			w.startSequence(Ber.BERDataTypes.SEQUENCE)
+			w.startSequence(Ber.CONTEXT(0))
+			w.startSequence(Ber.APPLICATION(16))
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeInt(10)
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(1))
+			w.writeRelativeOID('2', Ber.BERDataTypes.RELATIVE_OID)
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			return w.buffer
+		}
+
+		test.each([
+			['definite', (buffer: Buffer) => buffer],
+			['indefinite', toIndefiniteLength],
+		])('are decoded to their numbers, with %s lengths', (_, encode) => {
+			const decoded = decodeMatrix(new Ber.Reader(encode(matrixWithSignalContents())), true)
+
+			expect(decoded.errors ?? []).toEqual([])
+			expect(decoded.value.contents).toMatchObject({
+				targets: [10, 20],
+				sources: [1, 2],
+				connections: { 10: { target: 10, sources: [2] } },
+			})
+		})
+	})
 })
