@@ -113,7 +113,8 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 				const streamInfo = this.registeredStreams.get(path)
 				if (!streamInfo || !streamEntry.value) return
 
-				if (streamEntry.value.type === ParameterType.Integer) {
+				if (streamEntry.value.type === ParameterType.Integer || streamEntry.value.type === ParameterType.Real) {
+					// a numeric value is the parameter's value as it is
 					this.updateStreamValue(path, streamEntry.value.value)
 				} else if (
 					streamEntry.value.type === ParameterType.Octets &&
@@ -125,7 +126,7 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 						const decodedValue = view.getFloat32(streamInfo.offset, true)
 						this.updateStreamValue(path, decodedValue)
 					}
-				} // Note: we've never seen any other type of stream value, so not implementing for now.
+				} // Note: other types aren't handled. A stream parameter's "type must not be a string or Boolean".
 			})
 		})
 	}
