@@ -943,16 +943,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						)
 					) {
 						// update is either generic, tally or modification
-						let exists = false
-						for (const i in matrix.connections) {
-							if (matrix.connections[i].target === connection.target) {
-								// found connection to update
-								exists = true
-								matrix.connections[i].sources = connection.sources
-							}
-						}
-
-						if (!exists) {
+						// (connections are kept by their target: no need to go through them all to find it)
+						const cached = matrix.connections[connection.target] as Connection | undefined
+						if (cached) {
+							cached.sources = connection.sources
+						} else {
 							// connection to target does not exist yet
 							matrix.connections[connection.target] = {
 								target: connection.target,

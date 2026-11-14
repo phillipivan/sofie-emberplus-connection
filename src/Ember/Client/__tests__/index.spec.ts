@@ -1230,6 +1230,40 @@ describe('client', () => {
 				])
 			})
 		})
+
+		// Connections are kept by their target. Going through all of them for each reported connection made a full
+		// report on a matrix that already had its connections take targets x targets steps: seconds, for a big one.
+		it("finds a reported target's connection without going through all of them", async () => {
+			await runWithConnection(async (client, socket) => {
+				const connections: { [target: number]: Connection } = {}
+				for (let target = 0; target < 2000; target++) connections[target] = { target, sources: [0] }
+				let reads = 0
+				const counted = new Proxy(connections, {
+					get: (object, key, receiver) => {
+						reads++
+						return Reflect.get(object, key, receiver) as unknown
+					},
+				})
+				const router = new NumberedTreeNodeImpl(1, new EmberNodeImpl('router'), {
+					1: new NumberedTreeNodeImpl(1, new MatrixImpl('matrix', undefined, undefined, counted)),
+				})
+				if (!router.children?.[1]) throw new Error('Expected seeded matrix')
+				router.children[1].parent = router
+				client.tree[1] = router
+
+				socket.mockData(
+					createQualifiedNodeResponse(
+						'1.1',
+						new MatrixImpl('', undefined, undefined, { 1500: { target: 1500, sources: [7] } }),
+						undefined
+					)
+				)
+				await new Promise(setImmediate)
+
+				expect(connections[1500].sources).toEqual([7])
+				expect(reads).toBeLessThan(10)
+			})
+		})
 	})
 
 	describe('StreamManager Integration', () => {
