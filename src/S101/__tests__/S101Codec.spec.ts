@@ -2,7 +2,8 @@ import { SmartBuffer } from 'smart-buffer'
 
 import { berEncode } from '../../encodings/ber/index.js'
 import { GetDirectoryImpl } from '../../model/Command.js'
-import { NumberedTreeNodeImpl } from '../../model/index.js'
+import { NumberedTreeNodeImpl, ParameterImpl, ParameterType, QualifiedElementImpl } from '../../model/index.js'
+import { StreamEntryImpl } from '../../model/StreamEntry.js'
 import { RootType } from '../../types/types.js'
 import S101Codec from '../S101Codec.js'
 
@@ -137,4 +138,53 @@ describe('S101Codec frame parsing', () => {
 			expect(events).toEqual(['keepaliveReq', 'emberPacket'])
 		}
 	)
+})
+
+// A message is a stream collection or an element tree by the tag that follows the root's length field. That field
+// is 1 byte for a short or an indefinite length, and 2 to 4 bytes for a long definite one.
+describe('S101Codec messages in several frames', () => {
+	// An element tree of about `size` bytes: a parameter with a string value that long
+	const tree = (size: number) =>
+		berEncode(
+			[
+				new QualifiedElementImpl(
+					'1.1',
+					new ParameterImpl(ParameterType.String, 'p', undefined, 'x'.repeat(size))
+				),
+			],
+			RootType.Elements
+		)
+	const streamEntries = (count: number) =>
+		Array.from({ length: count }, (_, i) => new StreamEntryImpl(i + 1, { type: ParameterType.Integer, value: i }))
+	// The same collection as a provider that uses indefinite lengths for the root and the collection sends it
+	const indefiniteLengthStreams = (count: number) => {
+		const definite = berEncode(streamEntries(count), RootType.Streams)
+		const entries = definite.subarray(8) // after the root's and the collection's tag and 3 length bytes each
+		return Buffer.concat([Buffer.from('60806680', 'hex'), entries, Buffer.from('00000000', 'hex')])
+	}
+
+	test.each<[string, Buffer, RegExp, string]>([
+		['an element tree', tree(3000), /^6082....6b/, 'emberPacket'],
+		['an element tree whose length starts with 0x66', tree(0x6600), /^608266..6b/, 'emberPacket'],
+		[
+			'a stream collection with a definite length',
+			berEncode(streamEntries(200), RootType.Streams),
+			/^6082....66/,
+			'emberStreamPacket',
+		],
+		['a stream collection with an indefinite length', indefiniteLengthStreams(200), /^608066/, 'emberStreamPacket'],
+	])('%s is emitted as one', (_, message, header, expected) => {
+		// the root's tag and length, then the tag that tells the two apart: 0x6b a tree, 0x66 a stream collection
+		expect(message.subarray(0, 5).toString('hex')).toMatch(header)
+
+		const receiver = new S101Codec()
+		const events: Array<[string, Buffer]> = []
+		receiver.on('emberPacket', (packet) => events.push(['emberPacket', packet]))
+		receiver.on('emberStreamPacket', (packet) => events.push(['emberStreamPacket', packet]))
+		const frames = new S101Codec().encodeBER(message)
+		for (const frame of frames) receiver.dataIn(frame)
+
+		expect(frames.length).toBeGreaterThan(1)
+		expect(events).toEqual([[expected, message]])
+	})
 })

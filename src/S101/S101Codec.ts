@@ -158,6 +158,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		}
 	}
 
+	/** Whether a complete Ember message is a stream collection: the root's tag, its length, then the collection's tag */
 	private isEmberStreamPacket(buffer: Buffer): boolean {
 		// Fast skip if not minimum stream structure
 		if (buffer.length < 3) return false
@@ -277,8 +278,9 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 				if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
 					debug('multi ember packet end')
 					const completeData = this.multiPacketBuffer.toBuffer()
-					// Check if this is a stream packet, can also be a normal packet
-					if (completeData[0] === 0x60 && completeData[2] === 0x66) {
+					// Check if this is a stream packet, can also be a normal packet. (The tag that tells them apart
+					// follows the root's length field, which is longer than 1 byte for a long definite length.)
+					if (this.isEmberStreamPacket(completeData)) {
 						this.handleEmberStreamPacket(completeData)
 					} else {
 						this.handleEmberPacket(completeData)
