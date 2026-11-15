@@ -482,11 +482,9 @@ describe('BER and Glow compared with libember', () => {
 				expect(encoded.get(12)?.toString('hex')).toBe('0500')
 			})
 		}
-	})
 
-	describe('where the library differs from libember', () => {
-		// glow/impl/GlowInvocationResult.ipp: success() is true when the field is left out
-		it.failing('takes an invocation result without a success field as a success', () => {
+		// glow/impl/GlowInvocationResult.ipp: success() is true when the field is left out (#50)
+		it('takes an invocation result without a success field as a success', () => {
 			const decoded = decodeInvocationResult(
 				new Ber.Reader(contents(Constants.InvocationResultBERID, [0, int(1)]))
 			)
@@ -494,6 +492,18 @@ describe('BER and Glow compared with libember', () => {
 			expect(decoded.value.success).toBe(true)
 		})
 
+		it('reads an invocation result whose success field is false as a failure', () => {
+			const decoded = decodeInvocationResult(
+				new Ber.Reader(
+					contents(Constants.InvocationResultBERID, [0, int(1)], [1, (w) => w.writeBoolean(false)])
+				)
+			)
+
+			expect(decoded.value.success).toBe(false)
+		})
+	})
+
+	describe('where the library differs from libember', () => {
 		// The DTD's Value is an integer, real, string, boolean, octets or null; libember's Value writes an enum's
 		// value as the integer it is (ParameterType has no BER type of its own). The library writes an argument or
 		// result of the type Enum with the tag ENUMERATED, which libember reads as no value it knows, and the library

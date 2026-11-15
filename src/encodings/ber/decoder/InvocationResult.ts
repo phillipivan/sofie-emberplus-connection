@@ -56,5 +56,6 @@ export function decodeInvocationResult(
 		}
 	}
 	id = check(id, 'decode invocation result', 'id', -1, errors, options)
-	return makeResult(new InvocationResultImpl(id, success, result), errors)
+	// A result without the success field is a success, as libember reads it (GlowInvocationResult::success())
+	return makeResult(new InvocationResultImpl(id, success ?? true, result), errors)
 }
