@@ -26,8 +26,10 @@ class UnimplementedEmberTypeError extends Error {
 	constructor(tag: number) {
 		super()
 		this.name = this.constructor.name
-		const identifier = (tag & 0xc0) >> 6
-		const value = (tag & 0x1f).toString()
+		// a tag numbered from 31 up has its first byte in the low byte and its number above it (see makeTag)
+		const first = tag % 0x100
+		const identifier = (first & 0xc0) >> 6
+		const value = (tag > 0xff ? Math.floor(tag / 0x100) : first & 0x1f).toString()
 		let tagStr: string
 		if (identifier == 0) {
 			tagStr = '[UNIVERSAL ' + value + ']'

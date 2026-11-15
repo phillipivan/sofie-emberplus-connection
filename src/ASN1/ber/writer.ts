@@ -48,6 +48,25 @@ export class Writer {
 		this._buf[this._offset++] = b
 	}
 
+	/**
+	 * Writes a tag as the tag functions give it (makeTag): a value up to 0xff is the one-byte tag; above that, the first
+	 * byte is the value's low byte and the number (the value / 0x100) follows in base 128, bit 8 set on all but the last
+	 */
+	writeTag(tag: number): void {
+		if (typeof tag !== 'number') throw new TypeError('tag must be a Number')
+		if (tag <= 0xff) {
+			this.writeByte(tag)
+			return
+		}
+		let number = Math.floor(tag / 0x100)
+		const octets = [number % 0x80]
+		for (number = Math.floor(number / 0x80); number > 0; number = Math.floor(number / 0x80)) {
+			octets.unshift((number % 0x80) | 0x80)
+		}
+		this.writeByte(tag % 0x100)
+		for (const octet of octets) this.writeByte(octet)
+	}
+
 	writeInt(i: number, tag?: number): void {
 		if (typeof i !== 'number') throw new TypeError('argument must be a Number')
 		if (typeof tag !== 'number') tag = Types.Integer
@@ -61,8 +80,8 @@ export class Writer {
 
 		if (sz > 4) throw newInvalidAsn1Error('BER ints cannot be > 0xffffffff')
 
-		this._ensure(2 + sz)
-		this._buf[this._offset++] = tag
+		this.writeTag(tag)
+		this._ensure(1 + sz)
 		this._buf[this._offset++] = sz
 
 		while (sz-- > 0) {
@@ -87,8 +106,8 @@ export class Writer {
 		if (typeof b !== 'boolean') throw new TypeError('argument must be a Boolean')
 		if (typeof tag !== 'number') tag = Types.Boolean
 
-		this._ensure(3)
-		this._buf[this._offset++] = tag
+		this.writeTag(tag)
+		this._ensure(2)
 		this._buf[this._offset++] = 0x01
 		this._buf[this._offset++] = b ? 0xff : 0x00
 	}
@@ -98,7 +117,7 @@ export class Writer {
 		if (typeof tag !== 'number') tag = Types.OctetString
 
 		const len = Buffer.byteLength(s)
-		this.writeByte(tag)
+		this.writeTag(tag)
 		this.writeLength(len)
 		if (len) {
 			this._ensure(len)
@@ -111,7 +130,7 @@ export class Writer {
 		if (typeof tag !== 'number') throw new TypeError('tag must be a number')
 		if (!Buffer.isBuffer(buf)) throw new TypeError('argument must be a buffer')
 
-		this.writeByte(tag)
+		this.writeTag(tag)
 		this.writeLength(buf.length)
 		// An empty buffer is a valid zero-length TLV, but `_ensure(0)` asserts
 		if (buf.length) {
@@ -159,7 +178,7 @@ export class Writer {
 		}
 
 		this._ensure(2 + bytes.length)
-		this.writeByte(tag)
+		this.writeTag(tag)
 		this.writeLength(bytes.length)
 		for (const b of bytes) {
 			this.writeByte(b)
@@ -205,7 +224,7 @@ export class Writer {
 		})
 
 		this._ensure(2 + bytes.length)
-		this.writeByte(tag)
+		this.writeTag(tag)
 		this.writeLength(bytes.length)
 		for (const b of bytes) {
 			this.writeByte(b)
@@ -239,7 +258,7 @@ export class Writer {
 	startSequence(tag?: number): void {
 		if (typeof tag !== 'number') tag = Types.Sequence | Types.Constructor
 
-		this.writeByte(tag)
+		this.writeTag(tag)
 		this._seq.push(this._offset)
 		this._ensure(3)
 		this._offset += 3

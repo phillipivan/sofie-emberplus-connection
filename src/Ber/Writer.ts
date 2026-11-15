@@ -18,7 +18,7 @@ class ExtendedWriter extends Writer {
 			tag = UNIVERSAL(9)
 		}
 
-		this.writeByte(tag)
+		this.writeTag(tag)
 
 		// The special values as libember sends them (Real.hpp): no contents for +0.0, one byte for the others
 		if (Object.is(value, -0)) {
@@ -140,7 +140,7 @@ class ExtendedWriter extends Writer {
 
 		if (Buffer.isBuffer(value) && tag) {
 			if (value.length === 0) {
-				this.writeByte(tag)
+				this.writeTag(tag)
 				this.writeLength(0)
 			} else {
 				this.writeBuffer(value, tag)

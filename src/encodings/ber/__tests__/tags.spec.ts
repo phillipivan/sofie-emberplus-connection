@@ -1,3 +1,4 @@
+import * as Ber from '../../../Ber/index.js'
 import { Reader } from '../../../Ber/Reader.js'
 import { Parameter, ParameterType } from '../../../model/Parameter.js'
 import { QualifiedElement } from '../../../model/Tree.js'
@@ -109,5 +110,48 @@ describe('tags in the multi-byte form', () => {
 
 		expect(reader.readValue()).toEqual({ type: ParameterType.Null, value: null })
 		expect(reader.readValue()).toEqual({ type: ParameterType.Integer, value: 7 })
+	})
+})
+
+// A tag number from 31 up is written in the multi-byte form, and the tag functions give the value the reader gives it
+describe('tag numbers from 31 up', () => {
+	it.each<[string, string, number]>([
+		['CONTEXT(30)', 'be', Ber.CONTEXT(30)],
+		['CONTEXT(31)', 'bf1f', Ber.CONTEXT(31)],
+		['CONTEXT(40)', 'bf28', Ber.CONTEXT(40)],
+		['APPLICATION(31)', '7f1f', Ber.APPLICATION(31)],
+		['CONTEXT(200)', 'bf8148', Ber.CONTEXT(200)],
+		['UNIVERSAL(31)', '1f1f', Ber.UNIVERSAL(31)],
+		['CONTEXT(2^32 - 1)', 'bf8fffffff7f', Ber.CONTEXT(0xffffffff)],
+	])('writes %s as %s, and reads it back as the same tag', (_, encoded, tag) => {
+		const writer = new Ber.Writer()
+		writer.startSequence(tag)
+		writer.writeInt(7)
+		writer.endSequence()
+
+		expect(writer.buffer.subarray(0, encoded.length / 2).toString('hex')).toBe(encoded)
+		const reader = new Ber.Reader(writer.buffer)
+		expect(reader.peek()).toBe(tag)
+		reader.readSequence(tag)
+		expect(reader.readInt()).toBe(7)
+	})
+
+	it('names a value type numbered from 31 up in the error for it', () => {
+		expect(() => new Reader(Buffer.from('1f280100', 'hex')).readValue()).toThrow(
+			'Unimplemented EmBER type [UNIVERSAL 40]'
+		)
+		expect(() => new Reader(Buffer.from('1e0100', 'hex')).readValue()).toThrow(
+			'Unimplemented EmBER type [UNIVERSAL 30]'
+		)
+	})
+
+	it('writes a value with a tag numbered from 31 up', () => {
+		const writer = new Ber.Writer()
+		writer.writeInt(7, Ber.CONTEXT(40) & ~0x20) // a primitive context tag 40
+		writer.writeString('gain', Ber.CONTEXT(41) & ~0x20)
+
+		expect(writer.buffer.toString('hex')).toBe(
+			'9f28' + '0107' + '9f29' + '04' + Buffer.from('gain').toString('hex')
+		)
 	})
 })
