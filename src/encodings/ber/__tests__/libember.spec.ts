@@ -536,17 +536,23 @@ describe('BER and Glow compared with libember', () => {
 			expect(decoded.value.number).toBe(CommandType.Unknown)
 			expect(decoded.errors?.map(String)).toEqual([expect.stringContaining("required property 'number'")])
 		})
+
+		// glow/impl/GlowParameterBase.ipp: access() keeps a value it doesn't know, and isWriteable() is true only for
+		// writeOnly (2) and readWrite (3): read-only in effect. The library decodes such a value as Read, with an error
+		// giving the value (#53).
+		it.each([7, 4, -1])('decodes an access value it does not know (%d) as read-only, with an error', (number) => {
+			const decoded = decodeParameter(
+				new Ber.Reader(contents(Ber.BERDataTypes.SET, [5, int(number)], [13, int(1)]))
+			)
+
+			expect(decoded.value.access).toBe(ParameterAccess.Read)
+			expect(decoded.errors?.map(String)).toEqual([
+				expect.stringContaining(`unexpected parameter access '${number}'`),
+			])
+		})
 	})
 
 	describe('where the library differs from libember', () => {
-		// glow/impl/GlowParameterBase.ipp: access() keeps a value it doesn't know, and isWriteable() is true only for
-		// writeOnly (2) and readWrite (3). The library substitutes readWrite for a value it doesn't know.
-		it.failing('does not take an access value it does not know (7) as writeable', () => {
-			const decoded = decodedParameter(contents(Ber.BERDataTypes.SET, [5, int(7)]))
-
-			expect([ParameterAccess.Write, ParameterAccess.ReadWrite]).not.toContain(decoded.access)
-		})
-
 		// glow/impl/GlowStringIntegerPair.ipp: name() is "" when the field is left out. The library makes up a name.
 		it.failing('names an enumeration map entry without a name ""', () => {
 			const pair = contents(Constants.StringIntegerPairBERID, [1, int(3)])

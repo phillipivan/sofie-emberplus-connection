@@ -168,11 +168,14 @@ function readParameterAccess(value: number | null, options: DecodeOptions): Deco
 		case 3:
 			return makeResult(ParameterAccess.ReadWrite)
 		default:
+			// A value the DTD doesn't define is read-only, as it is with libember: access() keeps the value, which
+			// isWriteable() (true only for write and readWrite) takes as not writeable, and nothing hides it. It was
+			// taken as readWrite. Read is also the DTD's default when the field is left out.
 			return unexpected(
 				[],
 				'read parameter access',
 				`unexpected parameter access '${value}'`,
-				ParameterAccess.ReadWrite,
+				ParameterAccess.Read,
 				options
 			)
 	}
