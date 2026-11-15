@@ -286,6 +286,41 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			expect(events).toEqual([])
 		})
 
+		// glowrx.c also passes a packet whose message type isn't EmBER (0x0E, the only one the spec lists) to
+		// onOtherPackageReceived, without an error (the codec reported it as an error)
+		it.each([
+			['0x0F', 0x0f],
+			['0x00', 0x00],
+		])('passes over a packet with the message type %s without an error', (_, type) => {
+			const { packets, events, error } = received(
+				new S101Codec(),
+				Buffer.concat([
+					libs101Encode([0x00, type, 0x00, 0x01, 0xc0, 0x01, 2, 0x32, 0x02, ...payload()]),
+					libs101Encode([0x00, type, 0x01, 0x01]), // what would be a keep-alive request
+				])
+			)
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([])
+			expect(events).toEqual([])
+		})
+
+		it('reads the packets around one with another message type', () => {
+			const message = payload()
+			const glow = libs101Encode([...header(0xc0), ...message])
+			const { packets, error } = received(
+				new S101Codec(),
+				Buffer.concat([
+					glow,
+					libs101Encode([0x00, 0x0f, 0x00, 0x01, 0xc0, 0x01, 2, 0x32, 0x02, ...message]),
+					glow,
+				])
+			)
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([message, message])
+		})
+
 		it('reads the packets around one with a command it does not handle', () => {
 			const message = payload()
 			const glow = libs101Encode([...header(0xc0), ...message])

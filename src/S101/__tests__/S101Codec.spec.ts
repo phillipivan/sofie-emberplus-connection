@@ -125,20 +125,31 @@ describe('S101Codec frame parsing', () => {
 	})
 
 	// A BOF and EOF fewer than 4 bytes apart were buffered as an incomplete frame, and the same EOF was found
-	// again on every later read, so nothing after it was processed
-	test.each([[[0xfe, 0xff]], [[0xfe, 0x00, 0xff]], [[0xfe, 0x00, 0x00, 0xff]]])(
-		'a short frame %j is dropped and later frames still arrive',
-		(short) => {
-			const codec = new S101Codec()
-			const events = collectEvents(codec)
+	// again on every later read, so nothing after it was processed.
+	// `fe 00 00 ff` is an empty message with a good CRC (0x0000, the CRC of no bytes): not Ember, so it is passed over
+	// without an error, as libember_slim passes it over; the others fail the CRC.
+	test.each<[number[], string]>([
+		[[0xfe, 0xff], 'invalid CRC'],
+		[[0xfe, 0x00, 0xff], 'invalid CRC'],
+		[[0xfe, 0x00, 0x00, 0xff], 'no error'],
+	])('a short frame %j is dropped and later frames still arrive', (short, error) => {
+		const codec = new S101Codec()
+		const events = collectEvents(codec)
 
-			expect(() => codec.dataIn(Buffer.from(short))).toThrow(/dropping frame/)
-			codec.dataIn(codec.keepAliveRequest())
-			codec.dataIn(getDirectoryFrame(codec))
+		const thrown = (() => {
+			try {
+				codec.dataIn(Buffer.from(short))
+				return 'no error'
+			} catch (e) {
+				return String(e)
+			}
+		})()
+		expect(thrown).toContain(error)
+		codec.dataIn(codec.keepAliveRequest())
+		codec.dataIn(getDirectoryFrame(codec))
 
-			expect(events).toEqual(['keepaliveReq', 'emberPacket'])
-		}
-	)
+		expect(events).toEqual(['keepaliveReq', 'emberPacket'])
+	})
 })
 
 // A message is a stream collection or an element tree by the tag that follows the root's length field. That field
