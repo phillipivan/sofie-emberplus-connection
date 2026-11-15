@@ -243,8 +243,10 @@ s.onSetValue = async (node, value) => {
 
 	return true
 }
-s.onMatrixOperation = (matrix, connections) => {
-	// handle matrix operations
+s.onMatrixOperation = async (matrix, connections) => {
+	// handle matrix operations. updateMatrixConnection applies a change by the matrix's type (and, n-to-n, its
+	// maximumConnectsPerTarget and maximumTotalConnects: it returns false when it refuses one) and reports it. The
+	// consumer that asked is always answered, with the target's current state when nothing changed.
 	for (const connection of Object.values(connections)) {
 		s.updateMatrixConnection(matrix, connection)
 	}

@@ -54,7 +54,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		invocation: NumberedTreeNode<Invoke>
 	) => Promise<InvocationResult>
 	onSetValue?: (parameter: NumberedTreeNode<Parameter>, value: EmberValue) => Promise<boolean>
-	onMatrixOperation?: (Matrix: NumberedTreeNode<Matrix>, connection: Connections) => Promise<void>
+	/** Applies a consumer's connection request, normally with updateMatrixConnection; what it resolves to is ignored */
+	onMatrixOperation?: (Matrix: NumberedTreeNode<Matrix>, connection: Connections) => Promise<unknown>
 
 	private _server: S101Server
 	private _clients: Set<S101Socket> = new Set()
@@ -161,8 +162,13 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	 * consumers subscribed to the matrix. In a one-to-N matrix (the default) or a one-to-one matrix a target has at most
 	 * one source, so connecting a source replaces the one it had; of several sources requested, the last is kept. In a
 	 * one-to-one matrix a source also has at most one target, so connecting it disconnects it from any other target.
+	 *
+	 * In an n-to-n matrix a change that adds sources beyond `maximumConnectsPerTarget` or `maximumTotalConnects` is
+	 * refused: the target is left as it was, and its current state is reported instead.
+	 *
+	 * @returns false when the change was refused
 	 */
-	updateMatrixConnection(element: NumberedTreeNode<Matrix>, update: Connection): void {
+	updateMatrixConnection(element: NumberedTreeNode<Matrix>, update: Connection): boolean {
 		const connections = (element.contents.connections ??= {})
 		const matrixType = element.contents.matrixType ?? MatrixType.OneToN
 		const oneSourcePerTarget = matrixType !== MatrixType.NToN
@@ -174,24 +180,31 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		const current = connection.sources ?? []
 		const requested = update.sources ?? []
 
+		let sources: number[]
 		switch (update.operation) {
 			case ConnectionOperation.Connect:
 				if (oneSourcePerTarget) {
-					if (requested.length) connection.sources = requested.slice(-1)
+					sources = requested.length ? requested.slice(-1) : current
 				} else {
-					connection.sources = [...new Set([...current, ...requested])]
+					sources = [...new Set([...current, ...requested])]
 				}
 				break
 			case ConnectionOperation.Disconnect:
-				connection.sources = current.filter((source) => !requested.includes(source))
+				sources = current.filter((source) => !requested.includes(source))
 				break
 			case ConnectionOperation.Absolute:
 			default:
-				connection.sources = oneSourcePerTarget ? requested.slice(-1) : [...new Set(requested)]
+				sources = oneSourcePerTarget ? requested.slice(-1) : [...new Set(requested)]
 				break
 		}
 
 		const changed: Connections = { [connection.target]: connection }
+		if (matrixType === MatrixType.NToN && exceedsConnectLimits(element.contents, current, sources)) {
+			this._reportMatrixConnections(element, changed)
+			return false
+		}
+		connection.sources = sources
+
 		if (matrixType === MatrixType.OneToOne) {
 			const sources = connection.sources ?? []
 			// The Connections interface has no implicit string index signature, which Object.values needs
@@ -204,6 +217,15 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			}
 		}
 
+		this._reportMatrixConnections(element, changed)
+		return true
+	}
+
+	/**
+	 * Sends the given connections of a matrix to the consumers subscribed to it, and to each consumer waiting for the
+	 * answer to a connection request that named one of their targets
+	 */
+	private _reportMatrixConnections(element: NumberedTreeNode<Matrix>, changed: Connections): void {
 		const path = toQualifiedEmberNode(element).path
 		const recipients = new Set(this._subscriptions[path] ?? [])
 		// A consumer waiting for the answer to its connection request gets the report of a target it asked about
@@ -466,4 +488,24 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			client.sendBER(data)
 		}
 	}
+}
+
+/**
+ * Whether changing a target's sources from `current` to `next` adds sources beyond an n-to-n matrix's limits. A change
+ * that adds none is never refused, so a matrix already over its limits can still be brought under them.
+ */
+function exceedsConnectLimits(matrix: Matrix, current: number[], next: number[]): boolean {
+	if (next.length <= current.length) return false
+	const { maximumConnectsPerTarget, maximumTotalConnects } = matrix
+	if (maximumConnectsPerTarget !== undefined && next.length > maximumConnectsPerTarget) return true
+	if (maximumTotalConnects === undefined) return false
+	let total = next.length - current.length
+	for (const connection of Object.values<Connection>(
+		// The Connections interface has no implicit string index signature, which Object.values needs
+		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+		(matrix.connections ?? {}) as { [target: number]: Connection }
+	)) {
+		total += connection.sources?.length ?? 0
+	}
+	return total > maximumTotalConnects
 }

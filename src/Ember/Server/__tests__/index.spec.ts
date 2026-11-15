@@ -269,6 +269,64 @@ describe('EmberServer matrices', () => {
 				expect(consumer.received.map(reportedConnections)).toEqual([{ 0: [], 2: [1] }])
 			})
 		})
+
+		// "For n-to-n matrices, the maximum number of total connections" and "maximum number of sources for any single
+		// target". The matrix starts with 2 connections: target 0 to source 1, target 1 to source 2.
+		describe('n-to-n with connect limits', () => {
+			beforeEach(async () => init(MatrixType.NToN))
+			const limit = (perTarget?: number, total?: number) => {
+				matrix.contents.maximumConnectsPerTarget = perTarget
+				matrix.contents.maximumTotalConnects = total
+			}
+
+			it('connects sources up to the limit per target and refuses more', () => {
+				limit(2)
+
+				expect(connect(0, 2)).toBe(true)
+				expect(connect(0, 3)).toBe(false)
+				expect(absolute(2, 0, 1, 3)).toBe(false)
+				expect(connectionsOf()).toEqual({ 0: [1, 2], 1: [2], 2: [] })
+			})
+
+			it('connects sources up to the total limit and refuses more', () => {
+				limit(undefined, 3)
+
+				expect(connect(2, 0)).toBe(true)
+				expect(connect(2, 3)).toBe(false)
+				expect(absolute(1, 2, 3)).toBe(false)
+				expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [0] })
+			})
+
+			it('refuses a change that would exceed either limit', () => {
+				limit(3, 4)
+
+				expect(connect(0, 0, 2, 3)).toBe(false)
+				expect(connect(2, 0, 1, 3)).toBe(false)
+				expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [] })
+			})
+
+			it('allows a change that adds no sources, even to a matrix over its limits', () => {
+				limit(1, 1)
+
+				expect(absolute(0, 3)).toBe(true)
+				expect(
+					server.updateMatrixConnection(matrix, new ConnectionImpl(1, [2], ConnectionOperation.Disconnect))
+				).toBe(true)
+				expect(connectionsOf()).toEqual({ 0: [3], 1: [], 2: [] })
+			})
+
+			it('reports the unchanged target when it refuses a change', async () => {
+				limit(1)
+				const consumer = await connectConsumer()
+				consumer.request('1.1', new GetDirectoryImpl())
+				await new Promise(setImmediate)
+				consumer.received.length = 0
+
+				connect(0, 2)
+
+				expect(consumer.received.map(reportedConnections)).toEqual([{ 0: [1] }])
+			})
+		})
 	})
 
 	// A consumer's connect request is answered with the target's state, whether or not the consumer is subscribed to
