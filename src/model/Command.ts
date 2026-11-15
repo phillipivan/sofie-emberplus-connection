@@ -9,13 +9,21 @@ export {
 	Unsubscribe,
 	GetDirectory,
 	Invoke,
+	UnknownCommand,
 	SubscribeImpl,
 	UnsubscribeImpl,
 	GetDirectoryImpl,
 	InvokeImpl,
+	UnknownCommandImpl,
 }
 
 enum CommandType {
+	/**
+	 * A command this library doesn't know: a number the DTD doesn't define, or no number at all. It is only decoded,
+	 * never sent, and a provider ignores it. (libember keeps the number it received, or gives None (0) when there is
+	 * none; a provider built on it doesn't act on either.) The decoding errors give the number received.
+	 */
+	Unknown = 0,
 	Subscribe = 30,
 	Unsubscribe = 31,
 	GetDirectory = 32,
@@ -77,6 +85,13 @@ interface Invoke extends Command {
 	invocation?: Invocation
 }
 
+/**
+ *  A command this library doesn't know (see CommandType.Unknown), which a provider ignores.
+ */
+interface UnknownCommand extends Command {
+	number: CommandType.Unknown
+}
+
 export function isInvoke(command: Command | null): command is Invoke {
 	return command !== null && command.number === CommandType.Invoke
 }
@@ -116,6 +131,13 @@ class GetDirectoryImpl extends CommandImpl implements GetDirectory {
 class InvokeImpl extends CommandImpl implements Invoke {
 	public readonly number: CommandType.Invoke = CommandType.Invoke
 	constructor(public invocation?: Invocation) {
+		super()
+	}
+}
+
+class UnknownCommandImpl extends CommandImpl implements UnknownCommand {
+	public readonly number: CommandType.Unknown = CommandType.Unknown
+	constructor() {
 		super()
 	}
 }

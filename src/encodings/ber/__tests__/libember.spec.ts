@@ -519,23 +519,26 @@ describe('BER and Glow compared with libember', () => {
 		])('writes %s value of the type Trigger by its own type', (_, value, encoded) => {
 			expect(written((w) => w.writeValue({ type: ParameterType.Trigger, value })).toString('hex')).toBe(encoded)
 		})
+
+		// glow/impl/GlowCommand.ipp: number() is CommandType::None when the field is left out, and a number it doesn't
+		// know stays that number, which a provider then doesn't act on. The library decodes either as
+		// CommandType.Unknown, which EmberServer ignores (#52), with an error giving the number.
+		it.each([34, 0, -1])('decodes a command it does not know (%d) as Unknown, with an error', (number) => {
+			const decoded = decodeCommand(new Ber.Reader(contents(Constants.CommandBERID, [0, int(number)])))
+
+			expect(decoded.value.number).toBe(CommandType.Unknown)
+			expect(decoded.errors?.map(String)).toEqual([expect.stringContaining(`command type '${number}'`)])
+		})
+
+		it('decodes a command without a number as Unknown, with an error', () => {
+			const decoded = decodeCommand(new Ber.Reader(hex('62 00')))
+
+			expect(decoded.value.number).toBe(CommandType.Unknown)
+			expect(decoded.errors?.map(String)).toEqual([expect.stringContaining("required property 'number'")])
+		})
 	})
 
 	describe('where the library differs from libember', () => {
-		// glow/impl/GlowCommand.ipp: number() is CommandType::None when the field is left out, and a number it doesn't
-		// know stays that number, which a provider then doesn't act on. The library takes either for a Subscribe.
-		it.failing('does not take a command it does not know (34) for a Subscribe', () => {
-			const decoded = decodeCommand(new Ber.Reader(contents(Constants.CommandBERID, [0, int(34)])))
-
-			expect(decoded.value.number).not.toBe(CommandType.Subscribe)
-		})
-
-		it.failing('does not take a command without a number for a Subscribe', () => {
-			const decoded = decodeCommand(new Ber.Reader(hex('62 00')))
-
-			expect(decoded.value.number).not.toBe(CommandType.Subscribe)
-		})
-
 		// glow/impl/GlowParameterBase.ipp: access() keeps a value it doesn't know, and isWriteable() is true only for
 		// writeOnly (2) and readWrite (3). The library substitutes readWrite for a value it doesn't know.
 		it.failing('does not take an access value it does not know (7) as writeable', () => {

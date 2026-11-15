@@ -1,7 +1,15 @@
 import { EventEmitter } from 'eventemitter3'
 
+import * as Ber from '../../../Ber/index.js'
+import {
+	CommandBERID,
+	ElementCollectionBERID,
+	QualifiedNodeBERID,
+	RootBERID,
+	RootElementsBERID,
+} from '../../../encodings/ber/constants.js'
 import { berDecode } from '../../../encodings/ber/index.js'
-import { Command, GetDirectoryImpl, SubscribeImpl, UnsubscribeImpl } from '../../../model/Command.js'
+import { Command, CommandType, GetDirectoryImpl, SubscribeImpl, UnsubscribeImpl } from '../../../model/Command.js'
 import { ConnectionOperation } from '../../../model/Connection.js'
 import {
 	Connection,
@@ -157,6 +165,81 @@ describe('EmberServer subscriptions', () => {
 		await new Promise(setImmediate)
 
 		expect(await consumer.countSent(changeParameter)).toBe(1)
+	})
+
+	// A command whose number the DTD doesn't define, or without a number, decodes as CommandType.Unknown, which the
+	// server ignores, as a libember provider does. It was taken for a Subscribe (#52).
+	describe('commands it does not know', () => {
+		/** A command as a consumer sends it, on the element at `path` ('' for the root), with this number, if any */
+		function commandMessage(path: string, number: number | undefined): Buffer {
+			const writer = new Ber.Writer()
+			const command = () => {
+				writer.startSequence(CommandBERID)
+				if (number !== undefined) {
+					writer.startSequence(Ber.CONTEXT(0))
+					writer.writeInt(number)
+					writer.endSequence()
+				}
+				writer.endSequence()
+			}
+			writer.startSequence(RootBERID)
+			writer.startSequence(RootElementsBERID)
+			writer.startSequence(Ber.CONTEXT(0))
+			if (path) {
+				writer.startSequence(QualifiedNodeBERID)
+				writer.startSequence(Ber.CONTEXT(0))
+				writer.writeRelativeOID(path, Ber.BERDataTypes.RELATIVE_OID)
+				writer.endSequence()
+				writer.startSequence(Ber.CONTEXT(2))
+				writer.startSequence(ElementCollectionBERID)
+				writer.startSequence(Ber.CONTEXT(0))
+				command()
+				writer.endSequence()
+				writer.endSequence()
+				writer.endSequence()
+				writer.endSequence()
+			} else {
+				command()
+			}
+			writer.endSequence()
+			writer.endSequence()
+			writer.endSequence()
+			return writer.buffer
+		}
+		async function receive(consumer: FakeConnection, message: Buffer) {
+			consumer.emit('emberTree', berDecode(message))
+			await new Promise(setImmediate)
+		}
+		const subscriptions = () => (server as unknown as { _subscriptions: Record<string, unknown[]> })._subscriptions
+
+		it.each([
+			['the root', ''],
+			['a node', '1.1'],
+		])('answers a GetDirectory on %s sent this way, and subscribes the consumer', async (_, path) => {
+			const consumer = await connect()
+			await receive(consumer, commandMessage(path, CommandType.GetDirectory))
+
+			expect(consumer.sent).toBe(1)
+			expect(subscriptions()[path]).toEqual([consumer])
+		})
+
+		describe.each([
+			['the root', ''],
+			['a node', '1.1'],
+		])('on %s', (_, path) => {
+			it.each<[string, number | undefined]>([
+				['34', 34],
+				['0', 0],
+				['missing', undefined],
+			])('ignores a command whose number is %s: no reply, no subscription', async (_, number) => {
+				const consumer = await connect()
+				await receive(consumer, commandMessage(path, number))
+
+				expect(consumer.sent).toBe(0)
+				expect(subscriptions()[path] ?? []).toEqual([])
+				expect(await consumer.countSent(changeParameter)).toBe(0)
+			})
+		})
 	})
 
 	// A consumer's setValue is answered with the parameter, whether or not the consumer is subscribed to the

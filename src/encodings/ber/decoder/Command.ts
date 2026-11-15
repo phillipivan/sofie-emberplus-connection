@@ -6,6 +6,7 @@ import {
 	GetDirectoryImpl,
 	InvokeImpl,
 	SubscribeImpl,
+	UnknownCommandImpl,
 	UnsubscribeImpl,
 } from '../../../model/Command.js'
 import { Invocation } from '../../../model/Invocation.js'
@@ -45,7 +46,8 @@ function readDirFieldMask(reader: Ber.Reader): FieldFlags | undefined {
 
 function decodeCommand(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Command> {
 	reader.readSequence(CommandBERID)
-	let type: CommandType | null = null
+	// The number as received: CommandType is a numeric enum, which would take any number
+	let number: number | null = null
 	let dirFieldMask: FieldFlags | undefined = undefined
 	let invocation: Invocation | undefined = undefined
 	const errors: Array<Error> = []
@@ -54,7 +56,7 @@ function decodeCommand(reader: Ber.Reader, options: DecodeOptions = defaultDecod
 		const tag = reader.readSequence()
 		switch (tag) {
 			case Ber.CONTEXT(0):
-				type = reader.readInt()
+				number = reader.readInt()
 				break
 			case Ber.CONTEXT(1):
 				dirFieldMask = readDirFieldMask(reader)
@@ -73,8 +75,9 @@ function decodeCommand(reader: Ber.Reader, options: DecodeOptions = defaultDecod
 				break
 		}
 	}
-	type = check(type, 'decode command', 'type', CommandType.Subscribe, errors, options)
-	switch (type) {
+	// A command without a number, or with one the DTD doesn't define, is one this library doesn't know: Unknown, which a
+	// provider ignores. (It was taken for a Subscribe, which subscribed the consumer to the element.)
+	switch (number) {
 		case CommandType.Subscribe:
 			return makeResult(new SubscribeImpl(), errors)
 		case CommandType.Unsubscribe:
@@ -83,12 +86,15 @@ function decodeCommand(reader: Ber.Reader, options: DecodeOptions = defaultDecod
 			return makeResult(new GetDirectoryImpl(dirFieldMask), errors)
 		case CommandType.Invoke:
 			return makeResult(new InvokeImpl(invocation), errors)
+		case null:
+			check(number, 'decode command', 'number', CommandType.Unknown, errors, options)
+			return makeResult(new UnknownCommandImpl(), errors)
 		default:
 			return unexpected(
 				errors,
 				'decode command',
-				`command type '${type}' is not recognized`,
-				new SubscribeImpl(),
+				`command type '${number}' is not recognized`,
+				new UnknownCommandImpl(),
 				options
 			)
 	}

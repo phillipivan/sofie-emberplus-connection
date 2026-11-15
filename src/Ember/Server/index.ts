@@ -368,6 +368,9 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	private async _handleCommand(path: string, el: NumberedTreeNode<Command>, client: S101Socket) {
+		// A command this library doesn't know is ignored, as a provider built on libember ignores it
+		if (el.contents.number === CommandType.Unknown) return
+
 		const tree = path ? this.getElementByPath(path) : this.tree
 		if (!tree) return
 
