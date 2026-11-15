@@ -37,6 +37,13 @@ export type EmberServerEvents = {
 	clientError: [client: S101Socket, error: Error]
 }
 
+/** A consumer's connection request being handled: the targets it named that no report to it has covered yet */
+interface PendingMatrixReply {
+	path: string
+	client: S101Socket
+	targets: Set<number>
+}
+
 export class EmberServer extends EventEmitter<EmberServerEvents> {
 	address: string | undefined
 	port: number
@@ -52,6 +59,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	private _server: S101Server
 	private _clients: Set<S101Socket> = new Set()
 	private _subscriptions: { [path: string]: Array<S101Socket> } = {}
+	private _pendingMatrixReplies = new Set<PendingMatrixReply>()
 
 	constructor(port: number, address?: string) {
 		super()
@@ -196,17 +204,25 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			}
 		}
 
-		const qualified = toQualifiedEmberNode(element) as QualifiedElement<Matrix>
-		qualified.contents = new MatrixImpl(qualified.contents.identifier, undefined, undefined, changed)
-		const data = berEncode([qualified], RootType.Elements)
-
-		for (const [path, clients] of Object.entries<S101Socket[]>(this._subscriptions)) {
-			if (qualified.path === path) {
-				clients.forEach((client) => {
-					client.sendBER(data)
-				})
-			}
+		const path = toQualifiedEmberNode(element).path
+		const recipients = new Set(this._subscriptions[path] ?? [])
+		// A consumer waiting for the answer to its connection request gets the report of a target it asked about
+		for (const pending of this._pendingMatrixReplies) {
+			if (pending.path !== path) continue
+			let covered = false
+			for (const target of Object.keys(changed)) covered = pending.targets.delete(Number(target)) || covered
+			if (covered) recipients.add(pending.client)
 		}
+
+		const data = this._encodeMatrixConnections(element, changed)
+		recipients.forEach((client) => client.sendBER(data))
+	}
+
+	/** The matrix with only the given connections, encoded as a report for consumers */
+	private _encodeMatrixConnections(element: NumberedTreeNode<Matrix>, connections: Connections): Buffer {
+		const qualified = toQualifiedEmberNode(element) as QualifiedElement<Matrix>
+		qualified.contents = new MatrixImpl(qualified.contents.identifier, undefined, undefined, connections)
+		return berEncode([qualified], RootType.Elements)
 	}
 
 	private _handleIncoming(incoming: DecodeResult<Collection<RootElement>>, client: S101Socket) {
@@ -235,7 +251,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			)
 			return
 		} else if (el.contents.type === ElementType.Matrix && 'connections' in el.contents) {
-			this._handleMatrix(path, el as QualifiedElement<Matrix> | NumberedTreeNode<Matrix>).catch((e) =>
+			this._handleMatrix(path, el as QualifiedElement<Matrix> | NumberedTreeNode<Matrix>, client).catch((e) =>
 				this.emit('error', e)
 			)
 		}
@@ -255,12 +271,42 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		}
 	}
 
-	private async _handleMatrix(path: string, el: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>) {
-		if (this.onMatrixOperation) {
-			const tree = this.getElementByPath(path)
-			if (!tree || tree.contents.type !== ElementType.Matrix || !el.contents.connections) return
+	/**
+	 * Hands a consumer's connection request to onMatrixOperation. The consumer always gets an answer for each target
+	 * it named: the report of the change when the handler makes one with updateMatrixConnection, or otherwise (no
+	 * handler, the change refused, the handler failed) the target's current state.
+	 */
+	private async _handleMatrix(
+		path: string,
+		el: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
+		client: S101Socket
+	) {
+		const tree = this.getElementByPath(path)
+		if (!tree || tree.contents.type !== ElementType.Matrix || !el.contents.connections) return
+		const matrix = tree as NumberedTreeNode<Matrix>
 
-			return this.onMatrixOperation(tree as NumberedTreeNode<Matrix>, el.contents.connections)
+		const requested = Object.values<Connection>(
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+			el.contents.connections as { [target: number]: Connection }
+		).map((connection) => connection.target)
+		const pending: PendingMatrixReply = {
+			path: toQualifiedEmberNode(matrix).path,
+			client,
+			targets: new Set(requested),
+		}
+		this._pendingMatrixReplies.add(pending)
+
+		try {
+			if (this.onMatrixOperation) await this.onMatrixOperation(matrix, el.contents.connections)
+		} finally {
+			this._pendingMatrixReplies.delete(pending)
+			if (pending.targets.size) {
+				const current: Connections = {}
+				for (const target of pending.targets) {
+					current[target] = matrix.contents.connections?.[target] ?? new ConnectionImpl(target, [])
+				}
+				client.sendBER(this._encodeMatrixConnections(matrix, current))
+			}
 		}
 	}
 

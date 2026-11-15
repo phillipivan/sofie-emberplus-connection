@@ -6,6 +6,7 @@ import { ConnectionOperation } from '../../../model/Connection.js'
 import {
 	Connection,
 	ConnectionImpl,
+	Connections,
 	EmberElement,
 	EmberNodeImpl,
 	Matrix,
@@ -268,6 +269,99 @@ describe('EmberServer matrices', () => {
 				expect(consumer.received.map(reportedConnections)).toEqual([{ 0: [], 2: [1] }])
 			})
 		})
+	})
+
+	// A consumer's connect request is answered with the target's state, whether or not the consumer is subscribed to
+	// the matrix, and whether or not anything changed (as a refused setValue is answered with the current value)
+	describe('replies to connection requests', () => {
+		beforeEach(async () => init(MatrixType.NToN))
+
+		/** The consumer asks for source 3 to be connected to target 2, and waits for the server to handle it */
+		async function requestConnect(consumer: FakeConnection) {
+			consumer.received.length = 0
+			consumer.emit('emberTree', {
+				value: {
+					0: new QualifiedElementImpl(
+						'1.1',
+						new MatrixImpl('router', undefined, undefined, {
+							2: new ConnectionImpl(2, [3], ConnectionOperation.Connect),
+						})
+					),
+				},
+			})
+			await new Promise(setImmediate)
+			return consumer.received.map(reportedConnections)
+		}
+		const applyRequest = async (m: NumberedTreeNode<Matrix>, connections: Connections) => {
+			// The Connections interface has no implicit string index signature, which Object.values needs
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+			for (const connection of Object.values<Connection>(connections as { [target: number]: Connection })) {
+				server.updateMatrixConnection(m, connection)
+			}
+		}
+
+		it('answers a consumer that is not subscribed to the matrix', async () => {
+			server.onMatrixOperation = applyRequest
+			const consumer = await connectConsumer()
+
+			expect(await requestConnect(consumer)).toEqual([{ 2: [3] }])
+		})
+
+		it('answers a subscribed consumer once, and the other subscribers too', async () => {
+			server.onMatrixOperation = applyRequest
+			const requester = await connectConsumer()
+			const other = await connectConsumer()
+			requester.request('1.1', new GetDirectoryImpl())
+			other.request('1.1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+			other.received.length = 0
+
+			expect(await requestConnect(requester)).toEqual([{ 2: [3] }])
+			expect(other.received.map(reportedConnections)).toEqual([{ 2: [3] }])
+		})
+
+		it('answers with the current state when there is no handler', async () => {
+			const consumer = await connectConsumer()
+
+			expect(await requestConnect(consumer)).toEqual([{ 2: [] }])
+			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [] })
+		})
+
+		it('answers with the current state when the handler changes nothing', async () => {
+			server.onMatrixOperation = async () => Promise.resolve()
+			const consumer = await connectConsumer()
+
+			expect(await requestConnect(consumer)).toEqual([{ 2: [] }])
+		})
+
+		it('answers with the requested target when the handler changes another one instead', async () => {
+			server.onMatrixOperation = async (m) =>
+				server.updateMatrixConnection(m, new ConnectionImpl(0, [3], ConnectionOperation.Connect))
+			const consumer = await connectConsumer()
+
+			expect(await requestConnect(consumer)).toEqual([{ 2: [] }])
+		})
+
+		it('answers with the current state when the handler fails, and reports the error', async () => {
+			server.onMatrixOperation = async () => Promise.reject(new Error('router offline'))
+			const errors: Error[] = []
+			server.on('error', (e) => errors.push(e))
+			const consumer = await connectConsumer()
+
+			expect(await requestConnect(consumer)).toEqual([{ 2: [] }])
+			expect(errors.map((e) => e.message)).toEqual(['router offline'])
+		})
+
+		it('sends a consumer that has had its answer no later reports of the matrix', async () => {
+			server.onMatrixOperation = applyRequest
+			const consumer = await connectConsumer()
+			await requestConnect(consumer)
+
+			expect(await consumer.countSent(() => connectSources(2, 0))).toBe(0)
+		})
+
+		const connectSources = (target: number, ...sources: number[]) =>
+			server.updateMatrixConnection(matrix, new ConnectionImpl(target, sources, ConnectionOperation.Connect))
 	})
 
 	async function connectConsumer(): Promise<FakeConnection> {
