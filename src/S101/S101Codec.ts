@@ -4,7 +4,6 @@ import Debug from 'debug'
 import { EventEmitter } from 'eventemitter3'
 import { SmartBuffer } from 'smart-buffer'
 
-import { berDecode } from '../encodings/ber/index.js'
 import { S101OversizedFrameError } from '../Errors.js'
 
 const debug = Debug('emberplus-connection:S101Codec')
@@ -290,39 +289,32 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 				if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
 					debug('multi ember packet end')
 					const completeData = this.multiPacketBuffer.toBuffer()
-					// Check if this is a stream packet, can also be a normal packet. (The tag that tells them apart
-					// follows the root's length field, which is longer than 1 byte for a long definite length.)
-					if (this.isEmberStreamPacket(completeData)) {
-						this.handleEmberStreamPacket(completeData)
-					} else {
-						this.handleEmberPacket(completeData)
+					try {
+						// Check if this is a stream packet, can also be a normal packet. (The tag that tells them apart
+						// follows the root's length field, which is longer than 1 byte for a long definite length.)
+						if (this.isEmberStreamPacket(completeData)) {
+							this.handleEmberStreamPacket(completeData)
+						} else {
+							this.handleEmberPacket(completeData)
+						}
+					} finally {
+						this.resetMultiPacketBuffer()
 					}
-					this.resetMultiPacketBuffer()
 				}
 			}
 		}
 	}
+	// The listener decodes the message (S101Socket, which reports a message it can't decode as an error). An error
+	// thrown by a listener is reported by dataIn, after the rest of the read.
 	private handleEmberPacket(data: Buffer): void {
-		try {
-			const decoded = berDecode(data)
-			if (data[0] === 0x60) {
-				// Root tag check
-				if (decoded.value) {
-					this.emit('emberPacket', data)
-				}
-			}
-		} catch (error) {
-			console.error('Error decoding packet:', error)
+		if (data[0] === 0x60) {
+			// Root tag check
+			this.emit('emberPacket', data)
 		}
 	}
 
 	private handleEmberStreamPacket(data: Buffer): void {
-		try {
-			this.emit('emberStreamPacket', data)
-		} catch (error) {
-			console.error('Error decoding stream packet:', error)
-			this.resetMultiPacketBuffer()
-		}
+		this.emit('emberStreamPacket', data)
 	}
 
 	resetMultiPacketBuffer(): void {

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 
-import { berEncode } from '../../../encodings/ber/index.js'
+import { berDecode, berEncode } from '../../../encodings/ber/index.js'
 import { GetDirectoryImpl } from '../../../model/Command.js'
 import { NumberedTreeNodeImpl } from '../../../model/index.js'
 import S101Codec from '../../../S101/S101Codec.js'
@@ -62,6 +62,12 @@ class FakeNetSocket extends EventEmitter {
 		return this
 	}
 }
+
+// The real BER codec, with berDecode wrapped so a test can count its calls or make one fail
+jest.mock('../../../encodings/ber/index.js', () => {
+	const actual = jest.requireActual('../../../encodings/ber/index.js')
+	return { ...actual, berDecode: jest.fn(actual.berDecode) }
+})
 
 jest.mock('net', () => ({
 	__esModule: true,
@@ -553,6 +559,60 @@ describe('S101Client a rejected frame', () => {
 		expect(trees).toHaveLength(1)
 		expect(client.status).toBe(ConnectionStatus.Connected)
 
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+})
+
+describe('S101Client decoding', () => {
+	beforeEach(() => {
+		jest.useFakeTimers()
+	})
+	afterEach(() => {
+		jest.useRealTimers()
+		jest.mocked(berDecode).mockClear()
+	})
+
+	/** A connected client, what it emits, and a way to send it one message (a GetDirectory on the root) */
+	function connected() {
+		const client = new S101Client('127.0.0.1', 9000)
+		const errors: Error[] = []
+		const trees: unknown[] = []
+		client.on('error', (e) => errors.push(e))
+		client.on('emberTree', (tree) => trees.push(tree))
+		void client.connect()
+		const connection = currentSocket(client)
+		connection.succeed()
+		const message = berEncode([new NumberedTreeNodeImpl(0, new GetDirectoryImpl())], RootType.Elements)
+		const receive = () => connection.emit('data', new S101Codec().encodeBER(message)[0])
+		return { client, errors, trees, receive }
+	}
+
+	it('decodes each message once', async () => {
+		const { client, trees, receive } = connected()
+		jest.mocked(berDecode).mockClear()
+
+		receive()
+
+		expect(trees).toHaveLength(1)
+		expect(berDecode).toHaveBeenCalledTimes(1)
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+
+	it('reports a message that fails to decode as an error', async () => {
+		const { client, errors, trees, receive } = connected()
+		const consoleError = jest.spyOn(console, 'error').mockImplementation(() => null)
+		jest.mocked(berDecode).mockImplementationOnce(() => {
+			throw new Error('cannot decode')
+		})
+
+		receive()
+
+		expect(errors.map((e) => e.message)).toEqual(['cannot decode'])
+		expect(trees).toEqual([])
+		expect(consoleError).not.toHaveBeenCalled()
+		consoleError.mockRestore()
 		client.removeAllListeners()
 		await client.disconnect()
 	})
