@@ -1,5 +1,6 @@
 import { SmartBuffer } from 'smart-buffer'
 
+import { withTwoByteTags } from '../../encodings/ber/__tests__/encodingForms.js'
 import { berEncode } from '../../encodings/ber/index.js'
 import { GetDirectoryImpl } from '../../model/Command.js'
 import { NumberedTreeNodeImpl, ParameterImpl, ParameterType, QualifiedElementImpl } from '../../model/index.js'
@@ -249,5 +250,46 @@ describe('S101Codec a rejected frame', () => {
 			expect.stringMatching(/invalid CRC/),
 			expect.stringMatching(/invalid CRC/),
 		])
+	})
+})
+
+// The Ember+ documentation lets an encoder write every tag in two bytes (Implementation recommendations › Encoder): the
+// root's tag is then 7f 00, an element collection's 7f 0b and a stream collection's 7f 06
+describe('S101Codec messages with two-byte tags', () => {
+	const tree = berEncode(
+		[new QualifiedElementImpl('1.1', new ParameterImpl(ParameterType.Integer, 'gain', undefined, 3))],
+		RootType.Elements
+	)
+	const streams = berEncode([new StreamEntryImpl(1, { type: ParameterType.Integer, value: -3 })], RootType.Streams)
+	const largeTree = berEncode(
+		[new QualifiedElementImpl('1.1', new ParameterImpl(ParameterType.String, 'p', undefined, 'x'.repeat(3000)))],
+		RootType.Elements
+	)
+	const largeStreams = berEncode(
+		Array.from({ length: 200 }, (_, i) => new StreamEntryImpl(i + 1, { type: ParameterType.Integer, value: i })),
+		RootType.Streams
+	)
+
+	test.each<[string, Buffer, string]>([
+		['an element tree', withTwoByteTags(tree), 'emberPacket'],
+		['an element tree with four-byte lengths', withTwoByteTags(tree, { longLengths: true }), 'emberPacket'],
+		['a stream collection', withTwoByteTags(streams), 'emberStreamPacket'],
+		[
+			'a stream collection with four-byte lengths',
+			withTwoByteTags(streams, { longLengths: true }),
+			'emberStreamPacket',
+		],
+		['an element tree in several frames', withTwoByteTags(largeTree), 'emberPacket'],
+		['a stream collection in several frames', withTwoByteTags(largeStreams), 'emberStreamPacket'],
+	])('%s is emitted as such', (_, message, expected) => {
+		expect(message.subarray(0, 2).toString('hex')).toBe('7f00')
+
+		const receiver = new S101Codec()
+		const events: Array<[string, Buffer]> = []
+		receiver.on('emberPacket', (packet) => events.push(['emberPacket', packet]))
+		receiver.on('emberStreamPacket', (packet) => events.push(['emberStreamPacket', packet]))
+		for (const frame of new S101Codec().encodeBER(message)) receiver.dataIn(frame)
+
+		expect(events).toEqual([[expected, message]])
 	})
 })

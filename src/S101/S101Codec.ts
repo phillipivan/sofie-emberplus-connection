@@ -4,6 +4,8 @@ import Debug from 'debug'
 import { EventEmitter } from 'eventemitter3'
 import { SmartBuffer } from 'smart-buffer'
 
+import { readTagAt } from '../ASN1/ber/tag.js'
+import { RootBERID, StreamEntriesBERID } from '../encodings/ber/constants.js'
 import { S101OversizedFrameError } from '../Errors.js'
 
 const debug = Debug('emberplus-connection:S101Codec')
@@ -169,28 +171,27 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		if (errors.length > 1) throw new AggregateError(errors, format('dropped %d S101 frames', errors.length))
 	}
 
-	/** Whether a complete Ember message is a stream collection: the root's tag, its length, then the collection's tag */
-	private isEmberStreamPacket(buffer: Buffer): boolean {
-		// Fast skip if not minimum stream structure
-		if (buffer.length < 3) return false
-
-		// Check for stream structure
-		if (buffer[0] === 0x60) {
-			// Check the length byte
-			const lengthByte = buffer[1]
-
-			if (lengthByte < 0x80) {
-				// Simple length, next byte should be 0x66
-				return buffer[2] === 0x66
-			} else {
-				// Complex length encoding
-				const numLengthBytes = lengthByte & 0x7f
-				if (buffer.length >= 2 + numLengthBytes) {
-					return buffer[2 + numLengthBytes] === 0x66
-				}
-			}
+	/**
+	 * A complete Ember message's root tag and the tag of the collection in it, in either tag form (an encoder may write
+	 * every tag in two bytes); null where the message ends first or the tag is malformed
+	 */
+	private rootTags(buffer: Buffer): { root: number | null; collection: number | null } {
+		try {
+			const root = readTagAt(buffer, 0)
+			if (!root || root.size >= buffer.length) return { root: root?.tag ?? null, collection: null }
+			// the root's length: one byte, or 0x80 | n followed by n bytes (0x80 alone is indefinite)
+			const lengthByte = buffer[root.size]
+			const collectionOffset = root.size + 1 + (lengthByte & 0x80 ? lengthByte & 0x7f : 0)
+			return { root: root.tag, collection: readTagAt(buffer, collectionOffset)?.tag ?? null }
+		} catch {
+			return { root: null, collection: null }
 		}
-		return false
+	}
+
+	/** Whether a complete Ember message is a stream collection: the root holds a stream collection, not elements */
+	private isEmberStreamPacket(buffer: Buffer): boolean {
+		const { root, collection } = this.rootTags(buffer)
+		return root === RootBERID && collection === StreamEntriesBERID
 	}
 
 	handleFrame(frame: SmartBuffer): void {
@@ -307,8 +308,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	// The listener decodes the message (S101Socket, which reports a message it can't decode as an error). An error
 	// thrown by a listener is reported by dataIn, after the rest of the read.
 	private handleEmberPacket(data: Buffer): void {
-		if (data[0] === 0x60) {
-			// Root tag check
+		if (this.rootTags(data).root === RootBERID) {
 			this.emit('emberPacket', data)
 		}
 	}
