@@ -67,6 +67,7 @@ class ExtendedReader extends Reader {
 		const preamble = buf.readUInt8(0)
 		let o = 1
 
+		// The special values, as libember reads them (Real.hpp)
 		if (buf.length === 1) {
 			switch (preamble) {
 				case 0x40:
@@ -75,6 +76,8 @@ class ExtendedReader extends Reader {
 					return -Infinity
 				case 0x42:
 					return NaN
+				case 0x43:
+					return -0
 			}
 		}
 
@@ -82,14 +85,15 @@ class ExtendedReader extends Reader {
 		const exponentLength = 1 + (preamble & 3)
 		const significandShift = (preamble >> 2) & 3
 
+		// Before reading the exponent's first byte: any other single byte has none
+		if (buf.length - o < exponentLength) {
+			throw new ASN1Error('Invalid ASN.1; not enough length to contain exponent')
+		}
+
 		let exponent = 0
 
 		if (buf.readUInt8(o) & 0x80) {
 			exponent = -1
-		}
-
-		if (buf.length - o < exponentLength) {
-			throw new ASN1Error('Invalid ASN.1; not enough length to contain exponent')
 		}
 
 		for (let i = 0; i < exponentLength; i++) {

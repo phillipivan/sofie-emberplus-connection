@@ -20,6 +20,13 @@ class ExtendedWriter extends Writer {
 
 		this.writeByte(tag)
 
+		// The special values as libember sends them (Real.hpp): no contents for +0.0, one byte for the others
+		if (Object.is(value, -0)) {
+			// `case 0` below matches −0.0 too
+			this.writeLength(1)
+			this.writeByte(0x43)
+			return
+		}
 		switch (value) {
 			case 0:
 				this.writeLength(0)
