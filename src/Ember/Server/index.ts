@@ -160,7 +160,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			}
 		}
 
-		const recipients = new Set(this._subscriptions[elPath] ?? [])
+		// The subscribers of the parent (or of a node itself), and those that subscribed to the element itself
+		const recipients = new Set([...(this._subscriptions[elPath] ?? []), ...(this._subscriptions[el.path] ?? [])])
 		// A consumer waiting for the answer to its setValue on this element gets the update
 		for (const pending of this._pendingValueReplies) {
 			if (pending.path !== el.path) continue

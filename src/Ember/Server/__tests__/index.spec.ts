@@ -1,7 +1,7 @@
 import { EventEmitter } from 'eventemitter3'
 
 import { berDecode } from '../../../encodings/ber/index.js'
-import { Command, GetDirectoryImpl, UnsubscribeImpl } from '../../../model/Command.js'
+import { Command, GetDirectoryImpl, SubscribeImpl, UnsubscribeImpl } from '../../../model/Command.js'
 import { ConnectionOperation } from '../../../model/Connection.js'
 import {
 	Connection,
@@ -136,6 +136,27 @@ describe('EmberServer subscriptions', () => {
 
 		leaving.emit('disconnected')
 		expect(await staying.countSent(changeParameter)).toBe(1)
+	})
+
+	// A GetDirectory or Subscribe on a parameter subscribes the consumer to the parameter itself
+	it.each([
+		['a GetDirectory', () => new GetDirectoryImpl()],
+		['a Subscribe', () => new SubscribeImpl()],
+	])('sends a change to a consumer that sent %s to the parameter', async (_, command) => {
+		const consumer = await connect()
+		consumer.request('1.1.1', command())
+		await new Promise(setImmediate)
+
+		expect(await consumer.countSent(changeParameter)).toBe(1)
+	})
+
+	it('sends a change once to a consumer subscribed to both the parameter and its parent', async () => {
+		const consumer = await connect()
+		consumer.request('1.1', new GetDirectoryImpl())
+		consumer.request('1.1.1', new GetDirectoryImpl())
+		await new Promise(setImmediate)
+
+		expect(await consumer.countSent(changeParameter)).toBe(1)
 	})
 
 	// A consumer's setValue is answered with the parameter, whether or not the consumer is subscribed to the
