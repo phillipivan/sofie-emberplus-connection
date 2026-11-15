@@ -411,11 +411,9 @@ describe('BER and Glow compared with libember', () => {
 			const decoded = Object.values<RootElement>(berDecode(message).value as Collection<RootElement>)
 			expect(decoded.map((el) => 'path' in el && el.path)).toEqual(['1', '2'])
 		})
-	})
 
-	describe('where the library differs from libember', () => {
-		// The DTD: a value or limit is an Integer64; Integral.hpp codes a `long long` in up to eight bytes. The library
-		// writes and reads integers as 32 bits: it writes 2^31 as -2^31 and 2^32 - 1 as -1, and misreads longer ones.
+		// The DTD: a value or limit is an Integer64; Integral.hpp codes a `long long` in up to eight bytes (#48). Exact
+		// within the integers a number holds (±2^53).
 		for (const value of [
 			2 ** 31,
 			2 ** 32 - 1,
@@ -428,21 +426,31 @@ describe('BER and Glow compared with libember', () => {
 		]) {
 			const tlv = libemberInteger(BigInt(value))
 
-			it.failing(`writes the integer ${value} as libember does, ${tlv.toString('hex')}`, () => {
+			it(`writes the integer ${value} as libember does, ${tlv.toString('hex')}`, () => {
 				expect(written((w) => w.writeInt(value)).toString('hex')).toBe(tlv.toString('hex'))
 			})
 
-			it.failing(`reads the integer ${tlv.toString('hex')} as libember does, ${value}`, () => {
+			it(`reads the integer ${tlv.toString('hex')} as libember does, ${value}`, () => {
 				expect(new Ber.Reader(tlv).readInt()).toBe(Number(libemberReadInteger(tlv)))
 			})
 		}
 
-		it.failing('reads a parameter value of 2^32 - 1, which a 32-bit integer cannot hold', () => {
+		it('writes and reads the 64-bit extremes as libember does', () => {
+			for (const value of [-(2n ** 63n), 2n ** 63n - 1024n]) {
+				const tlv = libemberInteger(value)
+				expect(written((w) => w.writeInt(Number(value))).toString('hex')).toBe(tlv.toString('hex'))
+				expect(new Ber.Reader(tlv).readInt()).toBe(Number(value))
+			}
+		})
+
+		it('reads a parameter value of 2^32 - 1, which a 32-bit integer cannot hold', () => {
 			const decoded = decodedParameter(contents(Ber.BERDataTypes.SET, [2, raw('02 05 00 ff ff ff ff')]))
 
 			expect(decoded.value).toBe(2 ** 32 - 1)
 		})
+	})
 
+	describe('where the library differs from libember', () => {
 		// Glow 2.50 made a parameter's value nullable. libember's glow::Value takes a NULL as having no type
 		// (ParameterType::None), so effectiveType() falls back to the type field; the library gives the parameter the
 		// type Null instead.

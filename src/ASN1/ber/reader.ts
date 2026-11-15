@@ -316,6 +316,14 @@ export class Reader {
 		if (this.length > this._size - o) return null
 		this._offset = o
 
+		if (this.length > 4) {
+			// Five to eight bytes, an Integer64 beyond what the 32-bit arithmetic below holds (ber/traits/Integral.hpp).
+			// Exact within ±2^53; a larger value gives the nearest double.
+			let value = this._buf[this._offset] & 0x80 ? -1n : 0n
+			for (let i = 0; i < this.length; i++) value = (value << 8n) | BigInt(this._buf[this._offset++])
+			return Number(BigInt.asIntN(64, value))
+		}
+
 		const fb = this._buf[this._offset]
 		let value = 0
 

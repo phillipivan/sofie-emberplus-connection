@@ -28,6 +28,25 @@ test('write 1 byte int', () => {
 	expect(ber[2]).toEqual(0x7f) // value wrong (byte 1)
 })
 
+test('write an int beyond 32 bits in up to 8 bytes', () => {
+	const hex = (i: number) => {
+		const writer = new Writer()
+		writer.writeInt(i)
+		return writer.buffer.toString('hex')
+	}
+
+	expect(hex(2 ** 31)).toBe('02050080000000')
+	expect(hex(-(2 ** 31) - 1)).toBe('0205ff7fffffff')
+	expect(hex(-(2 ** 63))).toBe('02088000000000000000')
+	expect(hex(2 ** 32 + 0.5)).toBe('02050100000000') // the fraction dropped
+})
+
+test('refuse an int that is not finite or needs more than 64 bits', () => {
+	for (const i of [NaN, Infinity, -Infinity, 2 ** 63, -(2 ** 64)]) {
+		expect(() => new Writer().writeInt(i)).toThrow(/integer|64-bit/i)
+	}
+})
+
 test('write 2 byte int', () => {
 	const writer = new Writer()
 

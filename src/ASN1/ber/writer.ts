@@ -67,9 +67,20 @@ export class Writer {
 		for (const octet of octets) this.writeByte(octet)
 	}
 
+	/**
+	 * Writes an integer in the fewest bytes of two's complement, as libember does (ber/traits/Integral.hpp): up to eight
+	 * for the DTD's Integer64. A fraction is dropped, as before.
+	 */
 	writeInt(i: number, tag?: number): void {
 		if (typeof i !== 'number') throw new TypeError('argument must be a Number')
 		if (typeof tag !== 'number') tag = Types.Integer
+		if (!Number.isFinite(i)) throw newInvalidAsn1Error('Cannot write ' + i + ' as an integer')
+
+		i = Math.trunc(i)
+		if (i < -0x80000000 || i > 0x7fffffff) {
+			this._writeInt64(BigInt(i), tag)
+			return
+		}
 
 		let sz = 4
 
@@ -77,8 +88,6 @@ export class Writer {
 			sz--
 			i <<= 8
 		}
-
-		if (sz > 4) throw newInvalidAsn1Error('BER ints cannot be > 0xffffffff')
 
 		this.writeTag(tag)
 		this._ensure(1 + sz)
@@ -88,6 +97,23 @@ export class Writer {
 			this._buf[this._offset++] = (i & 0xff000000) >>> 24
 			i <<= 8
 		}
+	}
+
+	/** An integer beyond 32 bits, which the bitwise arithmetic in writeInt can't hold */
+	private _writeInt64(value: bigint, tag: number): void {
+		// Integral.hpp's SignedEncodedLength: one byte, and another for each byte the value (or its complement) needs
+		let rest = value < 0n ? ~value : value
+		let sz = 1
+		while (rest > 0x7fn) {
+			sz++
+			rest >>= 8n
+		}
+		if (sz > 8) throw newInvalidAsn1Error('Integer out of the 64-bit range: ' + value)
+
+		this.writeTag(tag)
+		this._ensure(1 + sz)
+		this._buf[this._offset++] = sz
+		while (sz-- > 0) this._buf[this._offset++] = Number((value >> BigInt(sz * 8)) & 0xffn)
 	}
 
 	writeNull(): void {
