@@ -1,6 +1,8 @@
 import { EventEmitter } from 'eventemitter3'
 
+import { berDecode } from '../../../encodings/ber/index.js'
 import { Command, GetDirectoryImpl, UnsubscribeImpl } from '../../../model/Command.js'
+import { ConnectionOperation } from '../../../model/Connection.js'
 import {
 	Connection,
 	ConnectionImpl,
@@ -14,7 +16,7 @@ import {
 	ParameterType,
 	QualifiedElementImpl,
 } from '../../../model/index.js'
-import { NumberedTreeNode } from '../../../types/types.js'
+import { Collection, NumberedTreeNode, RootElement } from '../../../types/types.js'
 import { S101Server } from '../../Socket/S101Server.js'
 import { EmberServer } from '../index.js'
 import type S101Socket from '../../Socket/S101Socket.js'
@@ -23,9 +25,11 @@ import type S101Socket from '../../Socket/S101Socket.js'
 // through sendBER
 class FakeConnection extends EventEmitter {
 	sent = 0
+	received: Buffer[] = []
 
-	sendBER(): boolean {
+	sendBER(data: Buffer): boolean {
 		this.sent++
+		this.received.push(data)
 		return true
 	}
 
@@ -180,4 +184,104 @@ describe('EmberServer matrices', () => {
 			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [0] })
 		})
 	})
+
+	// What a provider's onMatrixOperation handler does with a consumer's request
+	describe('updateMatrixConnection()', () => {
+		const connect = (target: number, ...sources: number[]) =>
+			server.updateMatrixConnection(matrix, new ConnectionImpl(target, sources, ConnectionOperation.Connect))
+		const absolute = (target: number, ...sources: number[]) =>
+			server.updateMatrixConnection(matrix, new ConnectionImpl(target, sources, ConnectionOperation.Absolute))
+
+		describe('n-to-n', () => {
+			beforeEach(async () => init(MatrixType.NToN))
+
+			it('connects a source that is already connected only once', () => {
+				connect(2, 0)
+				connect(2, 0)
+				connect(2, 3)
+				connect(2, 3)
+				connect(0, 1)
+
+				expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [0, 3] })
+			})
+
+			it('connects a source listed twice in one request only once', () => {
+				connect(2, 3, 3)
+				absolute(1, 0, 0)
+
+				expect(connectionsOf()).toEqual({ 0: [1], 1: [0], 2: [3] })
+			})
+
+			it('connects several sources to one target', () => {
+				connect(0, 2, 3)
+
+				expect(connectionsOf()).toEqual({ 0: [1, 2, 3], 1: [2], 2: [] })
+			})
+		})
+
+		// "each target must not be connected to more than one source": connecting another source replaces it
+		describe.each([
+			['one-to-n', MatrixType.OneToN],
+			['without a type, so one-to-n', undefined],
+		])('%s', (_, matrixType) => {
+			beforeEach(async () => init(matrixType))
+
+			it('replaces the source of a target that had one', () => {
+				connect(0, 3)
+
+				expect(connectionsOf()).toEqual({ 0: [3], 1: [2], 2: [] })
+			})
+
+			it('keeps one source of several requested', () => {
+				connect(2, 0, 3)
+				absolute(1, 0, 3)
+
+				expect(connectionsOf()).toEqual({ 0: [1], 1: [3], 2: [3] })
+			})
+
+			it('leaves a source connected to other targets', () => {
+				connect(2, 1)
+
+				expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [1] })
+			})
+		})
+
+		// "One source may be connected to only one target, and each target must not be connected to more than one
+		// source": connecting a source moves it
+		describe('one-to-one', () => {
+			beforeEach(async () => init(MatrixType.OneToOne))
+
+			it('moves a source off the target that had it', () => {
+				connect(0, 2)
+
+				expect(connectionsOf()).toEqual({ 0: [2], 1: [], 2: [] })
+			})
+
+			it('reports the target the source moved off too', async () => {
+				const consumer = await connectConsumer()
+				consumer.request('1.1', new GetDirectoryImpl())
+				await new Promise(setImmediate)
+				consumer.received.length = 0
+
+				absolute(2, 1)
+
+				expect(consumer.received.map(reportedConnections)).toEqual([{ 0: [], 2: [1] }])
+			})
+		})
+	})
+
+	async function connectConsumer(): Promise<FakeConnection> {
+		const connection = new FakeConnection()
+		const s101Server = (server as unknown as { _server: S101Server })._server
+		s101Server.emit('connection', connection as unknown as S101Socket)
+		await new Promise(setImmediate)
+		return connection
+	}
+
+	/** The sources of each target a matrix report lists */
+	function reportedConnections(data: Buffer) {
+		const [report] = Object.values<RootElement>(berDecode(data).value as Collection<RootElement>)
+		const connections = (report.contents as Matrix).connections as { [target: number]: Connection }
+		return Object.fromEntries(Object.values<Connection>(connections).map((c) => [c.target, c.sources]))
+	}
 })

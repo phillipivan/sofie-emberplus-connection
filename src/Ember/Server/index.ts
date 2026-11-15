@@ -14,6 +14,7 @@ import {
 	InvocationResult,
 	Matrix,
 	MatrixImpl,
+	MatrixType,
 	NumberedTreeNodeImpl,
 	Parameter,
 } from '../../model/index.js'
@@ -147,38 +148,56 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		}
 	}
 
+	/**
+	 * Applies a connection change to a matrix, keeping to its type, and reports every target that changed to the
+	 * consumers subscribed to the matrix. In a one-to-N matrix (the default) or a one-to-one matrix a target has at most
+	 * one source, so connecting a source replaces the one it had; of several sources requested, the last is kept. In a
+	 * one-to-one matrix a source also has at most one target, so connecting it disconnects it from any other target.
+	 */
 	updateMatrixConnection(element: NumberedTreeNode<Matrix>, update: Connection): void {
-		if (!element.contents.connections) element.contents.connections = {}
-		let connection = element.contents.connections[update.target]
+		const connections = (element.contents.connections ??= {})
+		const matrixType = element.contents.matrixType ?? MatrixType.OneToN
+		const oneSourcePerTarget = matrixType !== MatrixType.NToN
+		let connection = connections[update.target] as Connection | undefined
 		if (!connection) {
-			element.contents.connections[update.target] = new ConnectionImpl(update.target, [])
-			connection = element.contents.connections[update.target]
+			connection = new ConnectionImpl(update.target, [])
+			connections[update.target] = connection
 		}
-		if (!connection.sources) connection.sources = []
+		const current = connection.sources ?? []
+		const requested = update.sources ?? []
 
 		switch (update.operation) {
 			case ConnectionOperation.Connect:
-				for (const source of update.sources || []) {
-					if (!connection.sources.find((v) => v === source)) {
-						connection.sources.push(source)
-					}
+				if (oneSourcePerTarget) {
+					if (requested.length) connection.sources = requested.slice(-1)
+				} else {
+					connection.sources = [...new Set([...current, ...requested])]
 				}
 				break
 			case ConnectionOperation.Disconnect:
-				for (const source of update.sources || []) {
-					connection.sources = connection.sources.filter((oldSource) => oldSource !== source)
-				}
+				connection.sources = current.filter((source) => !requested.includes(source))
 				break
 			case ConnectionOperation.Absolute:
 			default:
-				connection.sources = update.sources
+				connection.sources = oneSourcePerTarget ? requested.slice(-1) : [...new Set(requested)]
 				break
 		}
 
+		const changed: Connections = { [connection.target]: connection }
+		if (matrixType === MatrixType.OneToOne) {
+			const sources = connection.sources ?? []
+			// The Connections interface has no implicit string index signature, which Object.values needs
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+			for (const other of Object.values<Connection>(connections as { [target: number]: Connection })) {
+				if (other.target === connection.target) continue
+				if (!other.sources?.some((source) => sources.includes(source))) continue
+				other.sources = other.sources.filter((source) => !sources.includes(source))
+				changed[other.target] = other
+			}
+		}
+
 		const qualified = toQualifiedEmberNode(element) as QualifiedElement<Matrix>
-		qualified.contents = new MatrixImpl(qualified.contents.identifier, undefined, undefined, {
-			[connection.target]: connection,
-		})
+		qualified.contents = new MatrixImpl(qualified.contents.identifier, undefined, undefined, changed)
 		const data = berEncode([qualified], RootType.Elements)
 
 		for (const [path, clients] of Object.entries<S101Socket[]>(this._subscriptions)) {
