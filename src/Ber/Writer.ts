@@ -77,7 +77,9 @@ class ExtendedWriter extends Writer {
 
 		this.writeLength(1 + shortExp.size + shortSig.size)
 
-		const preamble = value < 0 ? 0x80 | 0x40 : 0x80 // in what case will 0x80|0x40 be anything but 0xC0?
+		// As libember (Real.hpp): binary form, 0x40 for a negative value, and the exponent's length (1 to 4 bytes)
+		// less one in the last two bits
+		const preamble = 0x80 | (value < 0 ? 0x40 : 0) | (shortExp.size - 1)
 		this.writeByte(preamble)
 
 		for (let i = 0; i < shortExp.size; i++) {

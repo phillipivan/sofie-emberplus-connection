@@ -77,3 +77,43 @@ describe('BER REAL special values, as libember', () => {
 		expect(() => read(hex)).toThrow(/not enough length to contain exponent/)
 	})
 })
+
+// libember writes the exponent's length in the preamble's last two bits: 0x80 | (exponentLength - 1), with 0x40 for a
+// negative value (Real.hpp), and the exponent as a minimal two's complement integer (Integral.hpp). An exponent
+// outside -128..127, so |v| >= 2^128 or |v| < 2^-128, takes two bytes.
+describe('BER REAL exponent length, as libember', () => {
+	test.each<[number, string]>([
+		[1.5, '0903800003'],
+		[2 ** 127, '0903807f01'],
+		[2 ** 128, '090481008001'],
+		[-(2 ** 128), '0904c1008001'],
+		[1e300, '090a8103e405f90f22001d67'],
+		[Number.MAX_VALUE, '090a8103ff1fffffffffffff'],
+		[2 ** -128, '0903808001'],
+		[2 ** -129, '090481ff7f01'],
+		[1e-300, '090a81fc1b156e1fc2f8f359'],
+		[2.2250738585072014e-308, '090481fc0201'],
+	])('writes %p as %s, and reads it back', (value, hex) => {
+		const w = new Writer()
+		w.writeReal(value, BERDataTypes.REAL)
+
+		expect(w.buffer.toString('hex')).toBe(hex)
+		expect(new Reader(w.buffer).readReal()).toBe(value)
+	})
+})
+
+describe('BER REAL every exponent', () => {
+	// Normal doubles: exponents -1022 to 1023, each with a mantissa of many bits and one of a single bit
+	test('a value with each exponent reads back as written', () => {
+		const wrong: string[] = []
+		for (let exponent = -1022; exponent <= 1023; exponent++) {
+			for (const value of [2 ** exponent, -(2 ** exponent) * 1.7182818284590453]) {
+				const w = new Writer()
+				w.writeReal(value, BERDataTypes.REAL)
+				const read = new Reader(w.buffer).readReal()
+				if (read !== value) wrong.push(`${value} read as ${read}`)
+			}
+		}
+		expect(wrong).toEqual([])
+	})
+})
