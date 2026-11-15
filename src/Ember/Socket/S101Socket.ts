@@ -37,8 +37,9 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 		this.keepaliveResponseWindowTimer = null
 		this.status = this.isConnected() ? ConnectionStatus.Connected : ConnectionStatus.Disconnected
 
-		this.codec.on('keepaliveReq', () => {
-			this.sendKeepaliveResponse()
+		// A request in a non-escaping frame is answered in one, so the peer learns this side reads them
+		this.codec.on('keepaliveReq', (nonEscaping) => {
+			this.sendKeepaliveResponse(nonEscaping)
 		})
 
 		this.codec.on('keepaliveResp', () => {
@@ -206,10 +207,10 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 	/**
 	 *
 	 */
-	private sendKeepaliveResponse(): void {
+	private sendKeepaliveResponse(nonEscaping: boolean): void {
 		if (this.isConnected() && this.socket) {
 			try {
-				this.socket.write(this.codec.keepAliveResponse())
+				this.socket.write(this.codec.keepAliveResponse(nonEscaping))
 			} catch (_e) {
 				this.handleClose()
 			}

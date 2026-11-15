@@ -65,7 +65,8 @@ const CRC_TABLE = [
 export type S101CodecEvents = {
 	emberPacket: [packet: Buffer]
 	emberStreamPacket: [packet: Buffer]
-	keepaliveReq: []
+	/** A keep-alive request, and whether it came in a non-escaping frame, which a reply answers in kind */
+	keepaliveReq: [nonEscaping: boolean]
 	keepaliveResp: []
 }
 
@@ -141,7 +142,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 						format('dropping oversized non-escaping S101 frame: %d bytes declared', frame.oversized)
 					)
 				}
-				handle(() => this.handleMessage(frame.message))
+				handle(() => this.handleMessage(frame.message, true))
 				frameOffset = frame.end
 				continue
 			}
@@ -252,11 +253,11 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		if (!this.validateFrame(buffer)) {
 			throw new Error(format('dropping frame of length %d with invalid CRC', frame.length))
 		}
-		this.handleMessage(buffer.subarray(0, buffer.length - 2))
+		this.handleMessage(buffer.subarray(0, buffer.length - 2), false)
 	}
 
 	/** A message, from a frame of either form: slot, message type, command and what the command carries */
-	private handleMessage(message: Buffer): void {
+	private handleMessage(message: Buffer, nonEscaping: boolean): void {
 		if (message.length < 3) {
 			// Too short for a slot, message type and command, so not Ember+: passed over without an error, as
 			// libember_slim's reader passes it to the application
@@ -279,8 +280,8 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 		const command = frame.readUInt8()
 		if (command === CMD_KEEPALIVE_REQ) {
-			debug('received keepalive request')
-			this.emit('keepaliveReq')
+			debug('received keepalive request%s', nonEscaping ? ' (non-escaping)' : '')
+			this.emit('keepaliveReq', nonEscaping)
 		} else if (command === CMD_KEEPALIVE_RESP) {
 			debug('received keepalive response')
 			this.emit('keepaliveResp')
@@ -442,7 +443,13 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		return this._finalizeBuffer(packet)
 	}
 
-	keepAliveResponse(): Buffer {
+	/**
+	 * A keep-alive response. Non-escaping when it answers a request that came in a non-escaping frame: the spec has a
+	 * consumer learn that way whether the provider reads such frames ("If the provider replies with the same framing,
+	 * the non-escaping format is supported").
+	 */
+	keepAliveResponse(nonEscaping = false): Buffer {
+		if (nonEscaping) return nonEscapingFrame([SLOT, MSG_EMBER, CMD_KEEPALIVE_RESP, VERSION])
 		const packet = new SmartBuffer()
 		packet.writeUInt8(S101_BOF)
 		packet.writeUInt8(SLOT)
@@ -536,4 +543,14 @@ function readNonEscapingFrame(
 	if (length > MAX_FRAME_BUFFER_SIZE) return { oversized: length }
 	if (messageStart + length > buf.length) return null
 	return { message: buf.subarray(messageStart, messageStart + length), end: messageStart + length }
+}
+
+/** A message in a non-escaping frame: 0xF8, four length bytes (as libember_slim writes them), the message */
+function nonEscapingFrame(message: number[]): Buffer {
+	const frame = Buffer.alloc(6 + message.length)
+	frame[0] = S101_INV
+	frame[1] = 4
+	frame.writeUInt32BE(message.length, 2)
+	frame.set(message, 6)
+	return frame
 }

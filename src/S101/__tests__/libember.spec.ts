@@ -427,6 +427,36 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			expect(events).toEqual(['keepaliveReq', 'keepaliveResp'])
 		})
 
+		// The documentation: a consumer "may send a keep-alive request using the non-escaping format. If the provider
+		// replies with the same framing, the non-escaping format is supported." (libember_slim's own non-escaping
+		// keep-alive writers are broken: emberFraming_writeKeepAlive*WithoutEscaping write an escaping frame and then
+		// overwrite part of it with a length. The reference here is the documented form, which emberframing.c reads.)
+		it('says whether a keep-alive request came in a non-escaping frame', () => {
+			const codec = new S101Codec()
+			const forms: boolean[] = []
+			codec.on('keepaliveReq', (nonEscapingRequest) => forms.push(nonEscapingRequest))
+
+			codec.dataIn(
+				Buffer.concat([nonEscaping([0x00, 0x0e, 0x01, 0x01]), libs101Encode([0x00, 0x0e, 0x01, 0x01])])
+			)
+
+			expect(forms).toEqual([true, false])
+		})
+
+		it('writes a non-escaping keep-alive response in the documented form, which a reader takes as one', () => {
+			const response = new S101Codec().keepAliveResponse(true)
+			const { events, error } = received(new S101Codec(), response)
+
+			expect(response).toEqual(nonEscaping([0x00, 0x0e, 0x02, 0x01]))
+			expect(response.toString('hex')).toBe('f8040000000400' + '0e0201')
+			expect(error).toBeUndefined()
+			expect(events).toEqual(['keepaliveResp'])
+		})
+
+		it('writes an escaping keep-alive response unless asked otherwise', () => {
+			expect(new S101Codec().keepAliveResponse()).toEqual(libs101Encode([0x00, 0x0e, 0x02, 0x01]))
+		})
+
 		// An unescaped 0xF8 can't be inside an escaping frame, so one there starts a non-escaping frame
 		it('reads a non-escaping frame that cuts an escaping one short, and drops the escaping one', () => {
 			const message = awkwardPayload()

@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 
 import type { Socket } from 'net'
 
+import S101Codec from '../../../S101/S101Codec.js'
 import { ConnectionStatus } from '../../Client/ConnectionStatus.js'
 import S101Socket from '../S101Socket.js'
 
@@ -25,6 +26,25 @@ class FakeSocket extends EventEmitter {
 		this.emit('close')
 	}
 }
+
+// The documentation's S101 section: a consumer "may send a keep-alive request using the non-escaping format. If the
+// provider replies with the same framing, the non-escaping format is supported."
+describe('S101Socket keep-alive requests', () => {
+	const request = new S101Codec().keepAliveRequest()
+	const nonEscapingRequest = Buffer.from([0xf8, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x0e, 0x01, 0x01])
+
+	test.each([
+		['an escaping frame', request, new S101Codec().keepAliveResponse()],
+		['a non-escaping frame', nonEscapingRequest, new S101Codec().keepAliveResponse(true)],
+	])('answers a request in %s in the same form', (_, received, response) => {
+		const fake = new FakeSocket()
+		new S101Socket(fake as unknown as Socket)
+
+		fake.emit('data', received)
+
+		expect(fake.wrote).toEqual([response])
+	})
+})
 
 describe('S101Socket abusive-peer handling', () => {
 	test('oversized frame disconnects the peer and emits error', () => {
