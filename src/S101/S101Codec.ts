@@ -203,11 +203,12 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 		const slot = frame.readUInt8()
 		const message = frame.readUInt8()
-		if (slot != SLOT || message != MSG_EMBER) {
-			throw new Error(
-				format('dropping frame of length %d (not an ember frame; slot=%d, msg=%d)', frame.length, slot, message)
-			)
+		if (message != MSG_EMBER) {
+			throw new Error(format('dropping frame of length %d (not an ember frame; msg=%d)', frame.length, message))
 		}
+		// Any slot is read. The spec: the slot addresses a sub-device and "should be set to 0x00" (by a sender);
+		// libember_slim's reader doesn't check it. Frames with another slot were dropped as not Ember.
+		if (slot != SLOT) debug('frame for slot %d', slot)
 
 		const command = frame.readUInt8()
 		if (command === CMD_KEEPALIVE_REQ) {

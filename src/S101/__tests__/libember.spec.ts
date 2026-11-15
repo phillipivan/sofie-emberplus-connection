@@ -225,6 +225,26 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			expect(libs101Decode(frame)).toEqual([])
 			expect(packets).toEqual([])
 		})
+
+		// glowrx.c (onPackageReceived) checks the message type, the command and the DTD, but not the slot; libs101
+		// leaves the payload to its user. The documentation: the slot "should be set to 0x00" by a sender (#56).
+		it('reads an EmBER packet whatever its slot', () => {
+			const message = payload()
+			const { packets, error } = received(
+				new S101Codec(),
+				libs101Encode([...header(0xc0, { slot: 1 }), ...message])
+			)
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([message])
+		})
+
+		it('reads a keep-alive whatever its slot', () => {
+			const { events, error } = received(new S101Codec(), libs101Encode([0x07, 0x0e, 0x01, 0x01]))
+
+			expect(error).toBeUndefined()
+			expect(events).toEqual(['keepaliveReq'])
+		})
 	})
 
 	describe('where the codec differs from libember', () => {
@@ -251,19 +271,6 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			const { events } = received(new S101Codec(), nonEscaping([0x00, 0x0e, 0x01, 0x01]))
 
 			expect(events).toEqual(['keepaliveReq'])
-		})
-
-		// glowrx.c (onPackageReceived) checks the message type, the command and the DTD, but not the slot; libs101
-		// leaves the payload to its user. The documentation: the slot "should be set to 0x00" by a sender.
-		it.failing('reads an EmBER packet whatever its slot', () => {
-			const message = payload()
-			const { packets, error } = received(
-				new S101Codec(),
-				libs101Encode([...header(0xc0, { slot: 1 }), ...message])
-			)
-
-			expect(error).toBeUndefined()
-			expect(packets).toEqual([message])
 		})
 
 		// glowrx.c hands a packet whose DTD isn't Glow (1) to onOtherPackageReceived, not to the Glow reader. The codec
