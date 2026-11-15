@@ -336,11 +336,14 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 		if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
 			if ((flags & FLAG_EMPTY_PACKET) === 0) {
+				// A copy for the listener to keep: the payload is a view of the buffer an escaping frame is unescaped
+				// into, which the next escaping frame overwrites, or of the caller's read
+				const packet = Buffer.from(payload)
 				// Check if this is a metering packet
-				if (this.isEmberStreamPacket(payload)) {
-					this.handleEmberStreamPacket(payload)
+				if (this.isEmberStreamPacket(packet)) {
+					this.handleEmberStreamPacket(packet)
 				} else {
-					this.handleEmberPacket(payload)
+					this.handleEmberPacket(packet)
 				}
 			}
 		} else {
@@ -369,6 +372,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 				if ((flags & FLAG_LAST_MULTI_PACKET) === FLAG_LAST_MULTI_PACKET) {
 					debug('multi ember packet end')
+					// The reassembly buffer is dropped once the message is handed on, so no copy is needed
 					const completeData = this.multiPacketBuffer.toBuffer()
 					try {
 						// Check if this is a stream packet, can also be a normal packet. (The tag that tells them apart

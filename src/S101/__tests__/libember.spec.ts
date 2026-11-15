@@ -100,8 +100,7 @@ const awkwardPayload = () =>
 function received(codec: S101Codec, bytes: Buffer) {
 	const packets: Buffer[] = []
 	const events: string[] = []
-	// Copied: the codec hands on a view of a buffer it reuses for the next escaping frame (#59)
-	codec.on('emberPacket', (p) => packets.push(Buffer.from(p)))
+	codec.on('emberPacket', (p) => packets.push(p))
 	codec.on('keepaliveReq', () => events.push('keepaliveReq'))
 	codec.on('keepaliveResp', () => events.push('keepaliveResp'))
 	let error: unknown = undefined

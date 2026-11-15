@@ -218,6 +218,58 @@ describe('S101Codec messages in several frames', () => {
 	})
 })
 
+// The codec unescapes every escaping frame into one buffer, which it reuses: what it hands a listener has to be a copy
+// the listener can keep. It was a view of that buffer, so the next escaping frame overwrote it (#59).
+describe('S101Codec packets a listener keeps', () => {
+	const element = (identifier: string) =>
+		berEncode(
+			[new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.String, identifier, undefined, identifier))],
+			RootType.Elements
+		)
+	const streams = (value: number) =>
+		berEncode([new StreamEntryImpl(1, { type: ParameterType.Integer, value })], RootType.Streams)
+
+	function keep(codec: S101Codec): Buffer[] {
+		const packets: Buffer[] = []
+		codec.on('emberPacket', (p) => packets.push(p))
+		codec.on('emberStreamPacket', (p) => packets.push(p))
+		return packets
+	}
+
+	test('keep their bytes when more frames follow in the same read', () => {
+		const codec = new S101Codec()
+		const packets = keep(codec)
+		const sent = [element('first'), streams(5), element('a second, longer one')]
+
+		codec.dataIn(Buffer.concat(sent.flatMap((m) => codec.encodeBER(m))))
+
+		expect(packets).toEqual(sent)
+	})
+
+	test('keep their bytes when the next read brings another frame', () => {
+		const codec = new S101Codec()
+		const packets = keep(codec)
+		const sent = [element('first'), element('the second')]
+
+		for (const m of sent) codec.dataIn(Buffer.concat(codec.encodeBER(m)))
+
+		expect(packets).toEqual(sent)
+	})
+
+	test('keep their bytes when the caller reuses its read (a non-escaping frame)', () => {
+		const codec = new S101Codec()
+		const packets = keep(codec)
+		const sent = element('first')
+		const message = Buffer.concat([Buffer.from([0x00, 0x0e, 0x00, 0x01, 0xc0, 0x01, 0x02, 0x32, 0x02]), sent])
+		const read = Buffer.concat([Buffer.from([0xf8, 0x04, 0, 0, 0, message.length]), message])
+
+		codec.dataIn(read)
+		read.fill(0)
+
+		expect(packets).toEqual([sent])
+	})
+})
+
 // A frame the codec rejects (here for its CRC) must not take the frames after it in the same read with it
 describe('S101Codec a rejected frame', () => {
 	/** The frame with one byte of its contents changed, so its CRC no longer matches */
