@@ -44,6 +44,13 @@ interface PendingMatrixReply {
 	targets: Set<number>
 }
 
+/** A consumer's setValue being handled; answered once an update() of the parameter has been sent to it */
+interface PendingValueReply {
+	path: string
+	client: S101Socket
+	answered: boolean
+}
+
 export class EmberServer extends EventEmitter<EmberServerEvents> {
 	address: string | undefined
 	port: number
@@ -53,6 +60,10 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		emberFunction: NumberedTreeNode<EmberFunction>,
 		invocation: NumberedTreeNode<Invoke>
 	) => Promise<InvocationResult>
+	/**
+	 * Applies a consumer's setValue, normally with update(). The consumer is always answered: with that update when the
+	 * handler makes one, or otherwise with the parameter's current value. What the handler resolves to is not used.
+	 */
 	onSetValue?: (parameter: NumberedTreeNode<Parameter>, value: EmberValue) => Promise<boolean>
 	/** Applies a consumer's connection request, normally with updateMatrixConnection; what it resolves to is ignored */
 	onMatrixOperation?: (Matrix: NumberedTreeNode<Matrix>, connection: Connections) => Promise<unknown>
@@ -61,6 +72,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	private _clients: Set<S101Socket> = new Set()
 	private _subscriptions: { [path: string]: Array<S101Socket> } = {}
 	private _pendingMatrixReplies = new Set<PendingMatrixReply>()
+	private _pendingValueReplies = new Set<PendingValueReply>()
 
 	constructor(port: number, address?: string) {
 		super()
@@ -148,13 +160,14 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			}
 		}
 
-		for (const [path, clients] of Object.entries<S101Socket[]>(this._subscriptions)) {
-			if (elPath === path) {
-				clients.forEach((client) => {
-					client.sendBER(data)
-				})
-			}
+		const recipients = new Set(this._subscriptions[elPath] ?? [])
+		// A consumer waiting for the answer to its setValue on this element gets the update
+		for (const pending of this._pendingValueReplies) {
+			if (pending.path !== el.path) continue
+			pending.answered = true
+			recipients.add(pending.client)
 		}
+		recipients.forEach((client) => client.sendBER(data))
 	}
 
 	/**
@@ -340,16 +353,16 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		const tree = this.getElementByPath(path)
 		if (!tree || tree.contents.type !== ElementType.Parameter || el.contents.value === undefined) return
 
-		let success = false
-		if (this.onSetValue) {
-			success = await this.onSetValue(tree as NumberedTreeNode<Parameter>, el.contents.value)
-		}
+		const qualified = toQualifiedEmberNode(tree)
+		const pending: PendingValueReply = { path: qualified.path, client, answered: false }
+		this._pendingValueReplies.add(pending)
 
-		if (!success) {
-			const qualified = toQualifiedEmberNode(tree)
-			const encoded = berEncode([qualified], RootType.Elements)
-
-			client.sendBER(encoded)
+		try {
+			if (this.onSetValue) await this.onSetValue(tree as NumberedTreeNode<Parameter>, el.contents.value)
+		} finally {
+			this._pendingValueReplies.delete(pending)
+			// Not answered by an update() from the handler: refused, not applied (yet), failed, or no handler
+			if (!pending.answered) client.sendBER(berEncode([toQualifiedEmberNode(tree)], RootType.Elements))
 		}
 	}
 

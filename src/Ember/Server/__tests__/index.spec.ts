@@ -13,11 +13,12 @@ import {
 	MatrixImpl,
 	MatrixType,
 	NumberedTreeNodeImpl,
+	Parameter,
 	ParameterImpl,
 	ParameterType,
 	QualifiedElementImpl,
 } from '../../../model/index.js'
-import { Collection, NumberedTreeNode, RootElement } from '../../../types/types.js'
+import { Collection, EmberValue, NumberedTreeNode, QualifiedElement, RootElement } from '../../../types/types.js'
 import { S101Server } from '../../Socket/S101Server.js'
 import { EmberServer } from '../index.js'
 import type S101Socket from '../../Socket/S101Socket.js'
@@ -135,6 +136,93 @@ describe('EmberServer subscriptions', () => {
 
 		leaving.emit('disconnected')
 		expect(await staying.countSent(changeParameter)).toBe(1)
+	})
+
+	// A consumer's setValue is answered with the parameter, whether or not the consumer is subscribed to the
+	// parameter's parent, and whether or not the value changed
+	describe('replies to setValue', () => {
+		/** The consumer asks for the parameter 1.1.1 to be set to 6; returns the values of 1.1.1 the server sent it */
+		async function requestValue(consumer: FakeConnection) {
+			consumer.received.length = 0
+			consumer.emit('emberTree', {
+				value: {
+					0: new QualifiedElementImpl(
+						'1.1.1',
+						new ParameterImpl(ParameterType.Integer, undefined, undefined, 6)
+					),
+				},
+			})
+			await new Promise(setImmediate)
+			return consumer.received.map(reportedValue)
+		}
+		const applyValue = async (p: NumberedTreeNode<Parameter>, value: EmberValue) => {
+			server.update(p, { value })
+			return true
+		}
+
+		it('answers a consumer that is not subscribed to the parent', async () => {
+			server.onSetValue = applyValue
+			const consumer = await connect()
+
+			expect(await requestValue(consumer)).toEqual([['1.1.1', 6]])
+		})
+
+		it('answers a subscribed consumer once, and the other subscribers too', async () => {
+			server.onSetValue = applyValue
+			const requester = await connect()
+			const other = await connect()
+			requester.request('1.1', new GetDirectoryImpl())
+			other.request('1.1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+			other.received.length = 0
+
+			expect(await requestValue(requester)).toEqual([['1.1.1', 6]])
+			expect(other.received.map(reportedValue)).toEqual([['1.1.1', 6]])
+		})
+
+		it('answers with the current value when there is no handler', async () => {
+			const consumer = await connect()
+
+			expect(await requestValue(consumer)).toEqual([['1.1.1', 0]])
+		})
+
+		it('answers with the current value when the handler refuses the value', async () => {
+			server.onSetValue = async () => Promise.resolve(false)
+			const consumer = await connect()
+
+			expect(await requestValue(consumer)).toEqual([['1.1.1', 0]])
+		})
+
+		it('answers with the current value when the handler accepts but does not apply it', async () => {
+			server.onSetValue = async () => Promise.resolve(true)
+			const consumer = await connect()
+
+			expect(await requestValue(consumer)).toEqual([['1.1.1', 0]])
+		})
+
+		it('answers with the current value when the handler fails, and reports the error', async () => {
+			server.onSetValue = async () => Promise.reject(new Error('device offline'))
+			const errors: Error[] = []
+			server.on('error', (e) => errors.push(e))
+			const consumer = await connect()
+
+			expect(await requestValue(consumer)).toEqual([['1.1.1', 0]])
+			expect(errors.map((e) => e.message)).toEqual(['device offline'])
+		})
+
+		it('sends a consumer that has had its answer no later changes', async () => {
+			server.onSetValue = applyValue
+			const consumer = await connect()
+			await requestValue(consumer)
+
+			expect(await consumer.countSent(changeParameter)).toBe(0)
+		})
+
+		/** The path and value of the parameter a message reports */
+		function reportedValue(data: Buffer) {
+			const [report] = Object.values<RootElement>(berDecode(data).value as Collection<RootElement>)
+			return [(report as QualifiedElement<Parameter>).path, (report.contents as Parameter).value]
+		}
 	})
 })
 
