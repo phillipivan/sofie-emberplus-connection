@@ -21,6 +21,7 @@ import {
 	QualifiedElement,
 	QualifiedElementImpl,
 	StreamFormat,
+	TemplateImpl,
 	TreeElement,
 } from '../../../model/index.js'
 import { LabelImpl } from '../../../model/Label.js'
@@ -1685,6 +1686,33 @@ describe('client', () => {
 				)
 
 				await expect(request.response).resolves.toBeDefined()
+			})
+		})
+	})
+
+	// Glow DTD: a function's children only ever hold a command (an invocation), and a template has no children at all,
+	// so a provider's reply to a GetDirectory on either doesn't have to include any
+	describe('GetDirectory on a function or a template', () => {
+		it.each<[string, () => EmberElement]>([
+			[
+				'a function',
+				() => new EmberFunctionImpl('add', 'Add', [new FunctionArgumentImpl(ParameterType.Integer, 'a')]),
+			],
+			['a template', () => new TemplateImpl(undefined, 'Channel template')],
+		])('resolves for %s when the reply has no children', async (_, contents) => {
+			await runWithConnection(async (client, socket) => {
+				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
+					1: new NumberedTreeNodeImpl(1, contents()),
+				})
+				if (!device.children?.[1]) throw new Error('Expected seeded element')
+				device.children[1].parent = device
+				socket.mockData({ value: { 1: device } })
+				await new Promise(setImmediate)
+
+				const request = await client.getDirectory(device.children[1])
+				socket.mockData(createQualifiedNodeResponse('1.1', contents(), undefined))
+
+				await expect(request.response).resolves.toBe(device.children[1])
 			})
 		})
 	})

@@ -736,9 +736,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				if (req.nodeResponse === ExpectResponse.HasChildren && !change.node.children) {
 					if (
 						change.node.contents.type === ElementType.Parameter ||
-						change.node.contents.type === ElementType.Matrix
+						change.node.contents.type === ElementType.Matrix ||
+						change.node.contents.type === ElementType.Function ||
+						change.node.contents.type === ElementType.Template
 					) {
-						// leaves: their children only ever hold a command, so don't wait for any
+						// leaves: their children only ever hold a command (a template has none), so don't wait for any
 					} else if (change.emptyNode) {
 						// update comes from an empty node, so we can't continue anyway
 					} else {
