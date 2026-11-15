@@ -1,6 +1,10 @@
 import { EventEmitter } from 'events'
 
+import { berEncode } from '../../../encodings/ber/index.js'
+import { GetDirectoryImpl } from '../../../model/Command.js'
+import { NumberedTreeNodeImpl } from '../../../model/index.js'
 import S101Codec from '../../../S101/S101Codec.js'
+import { RootType } from '../../../types/types.js'
 import { ConnectionStatus } from '../../Client/ConnectionStatus.js'
 import { EmberClient } from '../../Client/index.js'
 import S101Client from '../S101Client.js'
@@ -516,5 +520,40 @@ describe('EmberClient connect', () => {
 		expect(connecting.result).toBeInstanceOf(Error)
 
 		client.discard()
+	})
+})
+
+describe('S101Client a rejected frame', () => {
+	beforeEach(() => {
+		jest.useFakeTimers()
+	})
+	afterEach(() => {
+		jest.useRealTimers()
+	})
+
+	it('emits one error and still delivers the message after it in the same read', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		const errors: Error[] = []
+		const trees: unknown[] = []
+		client.on('error', (e) => errors.push(e))
+		client.on('emberTree', (tree) => trees.push(tree))
+		void client.connect()
+		const connection = currentSocket(client)
+		connection.succeed()
+
+		const codec = new S101Codec()
+		const good = codec.encodeBER(
+			berEncode([new NumberedTreeNodeImpl(0, new GetDirectoryImpl())], RootType.Elements)
+		)[0]
+		const bad = Buffer.from(good)
+		bad[good.length - 4] ^= 0x01 // the last byte before the CRC: the CRC no longer matches (neither byte is BOF, EOF or escape)
+		connection.emit('data', Buffer.concat([bad, good]))
+
+		expect(errors.map((e) => e.message)).toEqual([expect.stringMatching(/invalid CRC/)])
+		expect(trees).toHaveLength(1)
+		expect(client.status).toBe(ConnectionStatus.Connected)
+
+		client.removeAllListeners()
+		await client.disconnect()
 	})
 })

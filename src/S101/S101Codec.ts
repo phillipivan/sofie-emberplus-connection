@@ -95,6 +95,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		}
 
 		let frameOffset = 0
+		const errors: Error[] = []
 		while (frameOffset < buf.length) {
 			let frameStart = buf.indexOf(S101_BOF, frameOffset)
 			if (frameStart === -1) break
@@ -153,9 +154,20 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			this.inbuf.readOffset = 0
 
 			// console.log('Buffer 00-16', this.inbuf.toString('hex').substring(0, 40))
-			this.handleFrame(this.inbuf)
+			try {
+				this.handleFrame(this.inbuf)
+			} catch (e) {
+				// An oversized message is the end of the connection: report it straight away, as before
+				if (e instanceof S101OversizedFrameError) throw e
+				// Any other rejected frame (or a listener that threw) is reported once the rest of the read is handled
+				errors.push(e instanceof Error ? e : new Error(String(e)))
+			}
 			frameOffset = frameEnd + 1
 		}
+
+		// One error per read, as before: the frame's own error, or all of them when several were rejected
+		if (errors.length === 1) throw errors[0]
+		if (errors.length > 1) throw new AggregateError(errors, format('dropped %d S101 frames', errors.length))
 	}
 
 	/** Whether a complete Ember message is a stream collection: the root's tag, its length, then the collection's tag */

@@ -188,3 +188,66 @@ describe('S101Codec messages in several frames', () => {
 		expect(events).toEqual([[expected, message]])
 	})
 })
+
+// A frame the codec rejects (here for its CRC) must not take the frames after it in the same read with it
+describe('S101Codec a rejected frame', () => {
+	/** The frame with one byte of its contents changed, so its CRC no longer matches */
+	function corrupt(frame: Buffer): Buffer {
+		const copy = Buffer.from(frame)
+		const special = (b: number) => b >= 0xfd
+		const i = copy.findIndex((b, index) => index > 4 && !special(b) && !special(b ^ 0x01))
+		copy[i] ^= 0x01
+		return copy
+	}
+
+	function received(codec: S101Codec, reads: Buffer[]) {
+		const events = collectEvents(codec)
+		const errors: unknown[] = []
+		for (const read of reads) {
+			try {
+				codec.dataIn(read)
+			} catch (e) {
+				errors.push(e)
+			}
+		}
+		return { events, errors }
+	}
+
+	test('is reported, and a frame after it in the same read still arrives', () => {
+		const codec = new S101Codec()
+
+		const { events, errors } = received(codec, [
+			Buffer.concat([corrupt(getDirectoryFrame(codec)), getDirectoryFrame(codec)]),
+		])
+
+		expect(events).toEqual(['emberPacket'])
+		expect(errors).toHaveLength(1)
+		expect(String(errors[0])).toMatch(/invalid CRC/)
+	})
+
+	test('does not lose a frame after it that is split across reads', () => {
+		const codec = new S101Codec()
+		const good = getDirectoryFrame(codec)
+
+		const { events } = received(codec, [Buffer.concat([corrupt(good), good.subarray(0, 8)]), good.subarray(8)])
+
+		expect(events).toEqual(['emberPacket'])
+	})
+
+	test('is reported once per frame when several are rejected in one read', () => {
+		const codec = new S101Codec()
+		const bad = corrupt(getDirectoryFrame(codec))
+
+		const { events, errors } = received(codec, [
+			Buffer.concat([bad, codec.keepAliveRequest(), bad, getDirectoryFrame(codec)]),
+		])
+
+		expect(events).toEqual(['keepaliveReq', 'emberPacket'])
+		expect(errors).toHaveLength(1)
+		expect(errors[0]).toBeInstanceOf(AggregateError)
+		expect((errors[0] as AggregateError).errors.map(String)).toEqual([
+			expect.stringMatching(/invalid CRC/),
+			expect.stringMatching(/invalid CRC/),
+		])
+	})
+})
