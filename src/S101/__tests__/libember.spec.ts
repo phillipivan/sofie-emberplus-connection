@@ -136,12 +136,20 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			expect(decoded.subarray(9)).toEqual(message)
 		})
 
-		it('escapes exactly as libs101 does', () => {
+		it('writes a frame exactly as libember_slim does, escaped as libs101 does', () => {
 			const message = awkwardPayload()
 			const [frame] = new S101Codec().encodeBER(message)
-			const minor = libs101Decode(frame)[0][7] // the DTD version is compared on its own, below
 
-			expect(frame).toEqual(libs101Encode([...header(0xc0).slice(0, 7), minor, 0x02, ...message]))
+			expect(frame).toEqual(libs101Encode([...header(0xc0), ...message]))
+		})
+
+		// GlowDtd.hpp: LIBEMBER_GLOWDTD_VERSION_MAJOR 2, LIBEMBER_GLOWDTD_VERSION_MINOR 50; libember_slim's
+		// GLOW_SCHEMA_VERSION is 0x0232 (#54: the codec gave 2.31)
+		it('gives the Glow DTD version as 2.50 in the app bytes, minor first', () => {
+			const [frame] = new S101Codec().encodeBER(payload())
+			const [message] = libs101Decode(frame)
+
+			expect([...message.subarray(6, 9)]).toEqual([0x02, 0x32, 0x02])
 		})
 
 		it('writes a long message in packets libs101 reads, flagged first, middle and last', () => {
@@ -220,15 +228,6 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 	})
 
 	describe('where the codec differs from libember', () => {
-		// GlowDtd.hpp: LIBEMBER_GLOWDTD_VERSION_MAJOR 2, LIBEMBER_GLOWDTD_VERSION_MINOR 50; libember_slim's
-		// GLOW_SCHEMA_VERSION is 0x0232. The codec writes 0x1F (2.31), though it reads and writes 2.50's fields.
-		it.failing('gives the Glow DTD version as 2.50 in the app bytes, minor first', () => {
-			const [frame] = new S101Codec().encodeBER(payload())
-			const [message] = libs101Decode(frame)
-
-			expect([...message.subarray(6, 9)]).toEqual([0x02, 0x32, 0x02])
-		})
-
 		// The documentation's S101 section, variant 2: "All libraries mentioned in this document support both variants".
 		// StreamDecoder.hpp and emberframing.c read a frame that starts with 0xF8, then a byte whose low three bits give
 		// the number of length bytes, the payload's length (most significant byte first) and the payload, unescaped

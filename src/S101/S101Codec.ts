@@ -35,8 +35,10 @@ const FLAG_EMPTY_PACKET = 0x20
 const FLAG_MULTI_PACKET = 0x00
 
 const DTD_GLOW = 0x01
+// Glow DTD 2.50, whose fields the library reads and writes, as libember (GlowDtd.hpp) and libember_slim
+// (GLOW_SCHEMA_VERSION 0x0232) give it. It was 0x1F (2.31).
 const DTD_VERSION_MAJOR = 0x02
-const DTD_VERSION_MINOR = 0x1f
+const DTD_VERSION_MINOR = 0x32
 
 const CRC_TABLE = [
 	0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf, 0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5,

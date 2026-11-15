@@ -20,7 +20,7 @@ function makeEmberFrame(flags: number, payload: Buffer): SmartBuffer {
 	sb.writeUInt8(flags)
 	sb.writeUInt8(0x01) // dtd (glow)
 	sb.writeUInt8(2) // number of app bytes
-	sb.writeUInt8(0x1f) // dtd minor version
+	sb.writeUInt8(0x32) // dtd minor version (Glow 2.50)
 	sb.writeUInt8(0x02) // dtd major version
 	sb.writeBuffer(payload)
 	sb.writeUInt8(0x00) // CRC lo (stripped)
