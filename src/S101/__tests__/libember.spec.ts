@@ -268,6 +268,35 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 
 			expect(packets).toEqual([message, message])
 		})
+
+		// libs101's CommandType.hpp has a fourth command, ProviderState (0x03), which the documentation doesn't list.
+		// glowrx.c passes any packet that isn't an EmBER packet to onOtherPackageReceived, without an error (#56: the
+		// codec reported a command it doesn't know as an error).
+		it.each([
+			['0x03 (ProviderState)', 0x03],
+			['0x7F', 0x7f],
+		])('passes over a packet with the command %s without an error', (_, command) => {
+			const { packets, events, error } = received(
+				new S101Codec(),
+				libs101Encode([0x00, 0x0e, command, 0x01, 0x01])
+			)
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([])
+			expect(events).toEqual([])
+		})
+
+		it('reads the packets around one with a command it does not handle', () => {
+			const message = payload()
+			const glow = libs101Encode([...header(0xc0), ...message])
+			const { packets, error } = received(
+				new S101Codec(),
+				Buffer.concat([glow, libs101Encode([0x00, 0x0e, 0x03, 0x01, 0x01]), glow])
+			)
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([message, message])
+		})
 	})
 
 	describe('where the codec differs from libember', () => {
@@ -294,17 +323,6 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			const { events } = received(new S101Codec(), nonEscaping([0x00, 0x0e, 0x01, 0x01]))
 
 			expect(events).toEqual(['keepaliveReq'])
-		})
-
-		// libs101's CommandType.hpp has a fourth command, ProviderState (0x03), which the documentation doesn't list.
-		// glowrx.c passes any packet that isn't an EmBER packet to onOtherPackageReceived, without an error; the codec
-		// reports a command it doesn't know as an error.
-		it.failing('passes over a packet with the command 0x03 (ProviderState) without an error', () => {
-			const { packets, events, error } = received(new S101Codec(), libs101Encode([0x00, 0x0e, 0x03, 0x01, 0x01]))
-
-			expect(error).toBeUndefined()
-			expect(packets).toEqual([])
-			expect(events).toEqual([])
 		})
 	})
 })

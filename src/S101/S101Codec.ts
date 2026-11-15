@@ -222,7 +222,9 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			const emberFrame = SmartBuffer.fromBuffer(remainingData)
 			this.handleEmberFrame(emberFrame)
 		} else {
-			throw new Error(format('dropping frame of length %d with unknown command %d', frame.length, command))
+			// A command this codec doesn't handle, such as libs101's ProviderState (0x03), which the spec doesn't describe,
+			// is passed over without an error, as libember_slim's reader passes it to the application. (It was an error.)
+			debug('ignoring frame of length %d with unknown command %d', frame.length, command)
 		}
 	}
 
