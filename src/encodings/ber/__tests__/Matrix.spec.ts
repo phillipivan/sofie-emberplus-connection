@@ -149,6 +149,18 @@ describe('encodings/ber/Matrix', () => {
 			matrix.parametersLocation = '1.2.3'
 			roundtripMatrix(matrix, qualified)
 		})
+		// ParametersLocation ::= CHOICE { basePath [0] RELATIVE-OID, inline [1] Integer32 }: a base path of one or
+		// two parts is still a path, not the inline number it happens to look like
+		test.each(['1.2', '5', ''])('parametersLocation base path %j', (basePath) => {
+			const matrix: Matrix = new MatrixImpl('identifier')
+			matrix.parametersLocation = basePath
+			roundtripMatrix(matrix, qualified)
+		})
+		test('parametersLocation inline', () => {
+			const matrix: Matrix = new MatrixImpl('identifier')
+			matrix.parametersLocation = 7
+			roundtripMatrix(matrix, qualified)
+		})
 		test('gainParameterNumber', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
 			matrix.gainParameterNumber = 3

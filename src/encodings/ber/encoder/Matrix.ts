@@ -2,7 +2,6 @@
 import * as Ber from '../../../Ber/index.js'
 import { ElementType } from '../../../model/EmberElement.js'
 import { Matrix, MatrixAddressingMode, MatrixType } from '../../../model/Matrix.js'
-import { RelativeOID } from '../../../types/types.js'
 import { SourceBERID, TargetBERID } from '../constants.js'
 import { encodeLabel } from './Label.js'
 
@@ -30,11 +29,11 @@ export const encodeMatrix = (matrix: Matrix, writer: Ber.Writer): void => {
 
 	if (matrix.parametersLocation != null) {
 		writer.startSequence(Ber.CONTEXT(8))
-		const param = Number(matrix.parametersLocation)
-		if (isNaN(param)) {
-			writer.writeRelativeOID(matrix.parametersLocation as RelativeOID, Ber.BERDataTypes.RELATIVE_OID)
+		// A base path is a string, however few parts it has; only a number is the inline parameters node
+		if (typeof matrix.parametersLocation === 'number') {
+			writer.writeInt(matrix.parametersLocation)
 		} else {
-			writer.writeInt(param)
+			writer.writeRelativeOID(matrix.parametersLocation, Ber.BERDataTypes.RELATIVE_OID)
 		}
 		writer.endSequence()
 	}
