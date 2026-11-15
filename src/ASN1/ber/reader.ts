@@ -166,13 +166,20 @@ export class Reader {
 	 * @return {Number} the sequence's tag.
 	 */
 	readSequence(tag?: number): number | null {
+		// The decoders read a sequence's contents until they reach the end its length gives. Were a sequence allowed
+		// to end past the data, or a read at the end to return nothing, those loops would never end (#46).
 		const seq = this.peek()
-		if (seq === null) return null
+		if (seq === null) throw newInvalidAsn1Error('Expected a sequence at offset ' + this._offset + ': no data left')
 		if (tag !== undefined && tag !== seq)
 			throw newInvalidAsn1Error('Expected 0x' + tag.toString(16) + ': got 0x' + seq.toString(16))
 
 		const o = this.readLength(this._offset + 1) // stored in `length`
-		if (o === null) return null
+		if (o === null) throw newInvalidAsn1Error('Sequence 0x' + seq.toString(16) + ': its length runs past the data')
+		if (this._len > this._size - o) {
+			throw newInvalidAsn1Error(
+				'Sequence 0x' + seq.toString(16) + ' of ' + this._len + ' bytes: only ' + (this._size - o) + ' left'
+			)
+		}
 
 		this._offset = o
 		return seq
