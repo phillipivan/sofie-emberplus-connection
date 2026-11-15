@@ -122,6 +122,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		}
 
 		for (const [key, value] of Object.entries<any>(update)) {
+			// A matrix's connections were merged in above, target by target: the update lists only the targets it changes
+			if (element.contents.type === ElementType.Matrix && key === 'connections') continue
 			element.contents[key as keyof T] = value
 		}
 		const el = toQualifiedEmberNode(element)

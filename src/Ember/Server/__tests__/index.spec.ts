@@ -2,8 +2,13 @@ import { EventEmitter } from 'eventemitter3'
 
 import { Command, GetDirectoryImpl, UnsubscribeImpl } from '../../../model/Command.js'
 import {
+	Connection,
+	ConnectionImpl,
 	EmberElement,
 	EmberNodeImpl,
+	Matrix,
+	MatrixImpl,
+	MatrixType,
 	NumberedTreeNodeImpl,
 	ParameterImpl,
 	ParameterType,
@@ -125,5 +130,54 @@ describe('EmberServer subscriptions', () => {
 
 		leaving.emit('disconnected')
 		expect(await staying.countSent(changeParameter)).toBe(1)
+	})
+})
+
+describe('EmberServer matrices', () => {
+	// A device, 1, with a matrix, 1.1: target 0 connected to source 1, target 1 to source 2, target 2 to nothing
+	let server: EmberServer
+	let matrix: NumberedTreeNode<Matrix>
+
+	async function init(matrixType?: MatrixType) {
+		jest.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		const contents = new MatrixImpl('router', [0, 1, 2], [0, 1, 2, 3], {
+			0: new ConnectionImpl(0, [1]),
+			1: new ConnectionImpl(1, [2]),
+			2: new ConnectionImpl(2, []),
+		})
+		contents.matrixType = matrixType
+		matrix = new NumberedTreeNodeImpl(1, contents)
+		const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: matrix })
+		server = new EmberServer(9000)
+		await server.init({ 1: device })
+	}
+	afterEach(() => {
+		jest.restoreAllMocks()
+	})
+
+	/** Each target's sources, as the server holds them */
+	const connectionsOf = () =>
+		Object.fromEntries(
+			Object.values<Connection>(matrix.contents.connections as { [target: number]: Connection }).map((c) => [
+				c.target,
+				c.sources,
+			])
+		)
+
+	describe('update()', () => {
+		beforeEach(async () => init())
+
+		it('changes the targets it reports and keeps the others', () => {
+			server.update(matrix, { connections: { 0: new ConnectionImpl(0, [3]) } })
+
+			expect(connectionsOf()).toEqual({ 0: [3], 1: [2], 2: [] })
+		})
+
+		it('applies the other properties given with the connections', () => {
+			server.update(matrix, { description: 'Router', connections: { 2: new ConnectionImpl(2, [0]) } })
+
+			expect(matrix.contents.description).toBe('Router')
+			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [0] })
+		})
 	})
 })
