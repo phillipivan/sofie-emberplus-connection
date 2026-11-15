@@ -815,7 +815,14 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						}
 					}
 
-					for (const number of path) {
+					let notLoaded = false
+					for (const [i, number] of path.entries()) {
+						if (!tree.children?.[Number(number)] && i < path.length - 1) {
+							// A node above the element isn't loaded, so there is no place for it in the tree: report it
+							// as it came, as when the device itself isn't loaded
+							notLoaded = true
+							break
+						}
 						if (!tree.children) tree.children = {}
 						if (!tree.children[Number(number)]) {
 							tree.children[Number(number)] = {
@@ -834,6 +841,14 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					}
 
 					if (inserted) continue
+					if (notLoaded) {
+						changes.push({
+							path: rootElement.path,
+							node: rootElement,
+							connections: reportedConnections(rootElement),
+						})
+						continue
+					}
 					changes.push(...this._updateTree(rootElement, tree))
 					// a top-level element, as in a reply to a GetDirectory on the root: also a change at the root,
 					// as when it was inserted, which is what resolves that request

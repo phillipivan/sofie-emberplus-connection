@@ -1722,6 +1722,67 @@ describe('client', () => {
 		})
 	})
 
+	// A provider may report an element whose parent the consumer hasn't loaded, as when it answers a setValue sent
+	// by path. The tree has only the device, 1, without its children.
+	describe('a qualified element below a node that is not loaded', () => {
+		const gain = (value: number) => new ParameterImpl(ParameterType.Integer, 'gain', undefined, value)
+		const report = (value: number) => createQualifiedNodeResponse('1.1.1', gain(value), undefined)
+
+		it('resolves the request for that element', async () => {
+			await runWithConnection(async (client, socket) => {
+				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+
+				const request = await client.setValue(new QualifiedElementImpl('1.1.1', gain(0)), 6)
+				let response: unknown = 'pending'
+				request.response?.then((r) => (response = r)).catch(() => null)
+				socket.mockData(report(6))
+				await new Promise(setImmediate)
+
+				expect(response).toMatchObject({ path: '1.1.1', contents: { value: 6 } })
+			})
+		})
+
+		it('calls the callbacks for that element', async () => {
+			await runWithConnection(async (client, socket) => {
+				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+				const values: unknown[] = []
+				await client.subscribe(new QualifiedElementImpl('1.1.1', gain(0)), (node) =>
+					values.push((node.contents as Parameter).value)
+				)
+
+				socket.mockData(report(6))
+				await new Promise(setImmediate)
+
+				expect(values).toEqual([6])
+			})
+		})
+
+		it('does not put the element in the place of the node that is missing', async () => {
+			await runWithConnection(async (client, socket) => {
+				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+				client.tree[1] = device
+
+				socket.mockData(report(6))
+				await new Promise(setImmediate)
+
+				expect(device.children?.[1]).toBeUndefined()
+			})
+		})
+
+		it('still adds an element whose parent is loaded', async () => {
+			await runWithConnection(async (client, socket) => {
+				const channel = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'), {})
+				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: channel })
+				channel.parent = client.tree[1]
+
+				socket.mockData(report(6))
+				await new Promise(setImmediate)
+
+				expect(channel.children?.[1]).toMatchObject({ number: 1, contents: { value: 6 } })
+			})
+		})
+	})
+
 	describe('subscriptions after a reconnect', () => {
 		// The connection drops, and the client connects again on its own
 		async function reconnect(socket: S101ClientMock) {
