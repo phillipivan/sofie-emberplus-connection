@@ -1,9 +1,9 @@
 import S101ClientMock from '../../../__mocks__/S101Client.js'
 import * as Ber from '../../../Ber/index.js'
 import { DecodeResult } from '../../../encodings/ber/decoder/DecodeResult.js'
-import { berDecode } from '../../../encodings/ber/index.js'
+import { berDecode, berEncode } from '../../../encodings/ber/index.js'
 import { CommandType } from '../../../model/Command.js'
-import { Connection, ConnectionDisposition, ConnectionOperation } from '../../../model/Connection.js'
+import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation } from '../../../model/Connection.js'
 import {
 	ElementType,
 	EmberElement,
@@ -23,10 +23,11 @@ import {
 	StreamFormat,
 	TreeElement,
 } from '../../../model/index.js'
+import { LabelImpl } from '../../../model/Label.js'
 import { Parameter, ParameterAccess } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl } from '../../../model/StreamDescription.js'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
-import { Collection, EmberTypedValue, Root, RootElement } from '../../../types/types.js'
+import { Collection, EmberTypedValue, Root, RootElement, RootType } from '../../../types/types.js'
 import { EmberClient, EmberClientOptions } from '../index.js'
 
 // import { EmberTreeNode, RootElement } from '../../../types/types.js'
@@ -1779,6 +1780,152 @@ describe('client', () => {
 				await new Promise(setImmediate)
 
 				expect(channel.children?.[1]).toMatchObject({ number: 1, contents: { value: 6 } })
+			})
+		})
+	})
+
+	// Ember+ specification, Notifications: a provider reports changes to any property of an element, and a property it
+	// leaves out of an update is unchanged
+	describe('updates to properties other than the value', () => {
+		/** A device, 1, with the element at 1.1, as loaded */
+		function seed<T extends EmberElement>(client: EmberClient, contents: T): NumberedTreeNode<T> {
+			const element = new NumberedTreeNodeImpl(1, contents)
+			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: element })
+			element.parent = device
+			client.tree[1] = device
+			return element
+		}
+
+		it('takes every property a parameter update holds, and keeps the others', async () => {
+			await runWithConnection(async (client, socket) => {
+				const parameter = new ParameterImpl(ParameterType.Integer, 'gain', 'Gain', 5, 10, 0)
+				parameter.format = '%d dB'
+				const { contents } = seed(client, parameter)
+
+				const update = new ParameterImpl(ParameterType.Integer, undefined, 'Gain (L)', undefined, 20, -20)
+				update.enumMap = new Map([['unity', 0]])
+				update.formula = '$*2\n$/2'
+				update.step = 2
+				socket.mockData(createQualifiedNodeResponse('1.1', update, undefined))
+				await new Promise(setImmediate)
+
+				expect(contents).toMatchObject({
+					identifier: 'gain',
+					description: 'Gain (L)',
+					value: 5,
+					maximum: 20,
+					minimum: -20,
+					format: '%d dB',
+					enumMap: new Map([['unity', 0]]),
+					formula: '$*2\n$/2',
+					step: 2,
+				})
+			})
+		})
+
+		// When a provider leaves the type out, the decoder infers one from the value: an enumeration's value is an
+		// integer. So the type in an update can't be told from a guess.
+		it("keeps a parameter's type", async () => {
+			await runWithConnection(async (client, socket) => {
+				const { contents } = seed(client, new ParameterImpl(ParameterType.Enum, 'mode', undefined, 0))
+
+				const decoded = berDecode(
+					berEncode(
+						[
+							new QualifiedElementImpl(
+								'1.1',
+								new ParameterImpl(ParameterType.Integer, undefined, undefined, 2)
+							),
+						],
+						RootType.Elements
+					)
+				)
+				socket.mockData(decoded)
+				await new Promise(setImmediate)
+
+				expect(contents).toMatchObject({ parameterType: ParameterType.Enum, value: 2 })
+			})
+		})
+
+		it('takes the properties of a node update', async () => {
+			await runWithConnection(async (client, socket) => {
+				const { contents } = seed(client, new EmberNodeImpl('input', 'Input', undefined, true))
+
+				socket.mockData(createQualifiedNodeResponse('1.1', new EmberNodeImpl(undefined, 'Input 1'), undefined))
+				await new Promise(setImmediate)
+
+				expect(contents).toMatchObject({ identifier: 'input', description: 'Input 1', isOnline: true })
+			})
+		})
+
+		it('takes the properties of a matrix update, and still merges its connections by target', async () => {
+			await runWithConnection(async (client, socket) => {
+				const matrix = new MatrixImpl('router', [0, 1], [0, 1], {
+					0: new ConnectionImpl(0, [0]),
+					1: new ConnectionImpl(1, [1]),
+				})
+				const { contents } = seed(client, matrix)
+
+				const update = new MatrixImpl(undefined as unknown as string, undefined, undefined, {
+					0: new ConnectionImpl(0, [1]),
+				})
+				update.description = 'Main router'
+				update.labels = [new LabelImpl('1.2.1', 'Primary')]
+				socket.mockData(createQualifiedNodeResponse('1.1', update, undefined))
+				await new Promise(setImmediate)
+
+				expect(contents).toMatchObject({
+					identifier: 'router',
+					description: 'Main router',
+					labels: [{ basePath: '1.2.1', description: 'Primary' }],
+				})
+				expect(contents.connections?.[0]?.sources).toEqual([1])
+				expect(contents.connections?.[1]?.sources).toEqual([1])
+			})
+		})
+
+		it('takes the properties of a function update', async () => {
+			await runWithConnection(async (client, socket) => {
+				const { contents } = seed(
+					client,
+					new EmberFunctionImpl('add', 'Add', [new FunctionArgumentImpl(ParameterType.Integer, 'a')])
+				)
+
+				const args = [
+					new FunctionArgumentImpl(ParameterType.Integer, 'a'),
+					new FunctionArgumentImpl(ParameterType.Integer, 'b'),
+				]
+				socket.mockData(
+					createQualifiedNodeResponse('1.1', new EmberFunctionImpl(undefined, undefined, args), undefined)
+				)
+				await new Promise(setImmediate)
+
+				expect(contents).toMatchObject({ identifier: 'add', description: 'Add', args })
+			})
+		})
+
+		it('routes a stream to a subscribed parameter by its new stream identifier', async () => {
+			await runWithConnection(async (client, socket) => {
+				const parameter = new ParameterImpl(ParameterType.Integer, 'meter', undefined, 0)
+				parameter.streamIdentifier = 5
+				const element = seed(client, parameter)
+				const subscribed = await client.subscribe(element)
+				subscribed.response?.catch(() => null)
+
+				const update = new ParameterImpl(ParameterType.Integer)
+				update.streamIdentifier = 6
+				socket.mockData(createQualifiedNodeResponse('1.1', update, undefined))
+				await new Promise(setImmediate)
+				socket.mockStreamData(
+					createStreamEntryResponse([{ identifier: 5, value: { type: ParameterType.Integer, value: -50 } }])
+				)
+				socket.mockStreamData(
+					createStreamEntryResponse([{ identifier: 6, value: { type: ParameterType.Integer, value: -12 } }])
+				)
+				await new Promise(setImmediate)
+
+				expect(parameter.streamIdentifier).toBe(6)
+				expect(parameter.value).toBe(-12)
 			})
 		})
 	})

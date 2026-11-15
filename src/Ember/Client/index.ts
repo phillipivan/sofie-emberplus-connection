@@ -886,12 +886,22 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				connections: reportedConnections(update),
 			})
 			// changes.push({ path: getPath(tree), node: tree })
+			// A provider reports changes to any property, and leaves out the ones that haven't changed
 			switch (tree.contents.type) {
 				case ElementType.Node:
-					this._updateEmberNode(update.contents as EmberNode, tree.contents)
+				case ElementType.Function:
+				case ElementType.Template:
+					updateProps<EmberElement>(tree.contents, update.contents)
 					break
 				case ElementType.Parameter:
-					this._updateParameter(update.contents as Parameter, tree.contents)
+					// Not the type: when a provider leaves it out, the decoder infers one from the value (an
+					// enumeration's value is an integer), so the type in an update can't be told from a guess
+					updateProps<Parameter>(
+						tree.contents,
+						update.contents as Parameter,
+						propertiesOf(update.contents as Parameter).filter((key) => key !== 'parameterType')
+					)
+					this._followStreamIdentifier(getPath(tree), tree.contents)
 					break
 				case ElementType.Matrix:
 					this._updateMatrix(update.contents as Matrix, tree.contents)
@@ -929,17 +939,21 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		return changes
 	}
 
-	private _updateEmberNode(update: EmberNode, EmberNode: EmberNode) {
-		updateProps<EmberNode>(EmberNode, update, ['isOnline'])
-	}
-
-	private _updateParameter(update: Parameter, parameter: Parameter) {
-		updateProps<Parameter>(parameter, update, ['value', 'isOnline', 'access'])
+	/** A subscribed parameter's stream values are routed by its stream identifier, which a provider may change */
+	private _followStreamIdentifier(path: string, parameter: Parameter) {
+		const registered = this._streamManager.getStreamInfoByPath(path)
+		if (!registered || registered.streamIdentifier === parameter.streamIdentifier) return
+		this._streamManager.unregisterParameter(path)
+		this._streamManager.registerParameter(parameter, path)
 	}
 
 	private _updateMatrix(update: Matrix, matrix: Matrix) {
-		// connections are merged below, since a report may cover only the targets that changed
-		updateProps<Matrix>(matrix, update, ['targets', 'targetCount', 'sources', 'sourceCount'])
+		// Connections are merged below, since a report may cover only the targets that changed. An empty identifier is
+		// what the decoder gives a report without contents, such as a report of connections only.
+		const properties = propertiesOf(update).filter(
+			(key) => key !== 'connections' && !(key === 'identifier' && update.identifier === '')
+		)
+		updateProps<Matrix>(matrix, update, properties)
 
 		// update connections
 		if (update.connections) {
@@ -1010,4 +1024,9 @@ function findConnection(connections: Connections | undefined, target: number): C
 		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 		connections as { [target: number]: Connection }
 	).find((connection) => connection.target === target)
+}
+
+/** The names of an element's contents' properties */
+function propertiesOf<T extends object>(contents: T): Array<keyof T> {
+	return Object.keys(contents) as Array<keyof T>
 }
