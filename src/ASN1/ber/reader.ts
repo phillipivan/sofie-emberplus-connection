@@ -99,7 +99,7 @@ export class Reader {
 					}
 
 					for (let i = 0; i < lenB; i++) {
-						len = (len << 8) + (this._buf[currOffset++] & 0xff)
+						len = len * 0x100 + (this._buf[currOffset++] & 0xff) // not `<< 8`, as in readLength
 					}
 					lenB = len
 				}
@@ -148,7 +148,8 @@ export class Reader {
 				if (this._size - offset < lenB) return null
 
 				this._len = 0
-				for (let i = 0; i < lenB; i++) this._len = (this._len << 8) + (this._buf[offset++] & 0xff)
+				// Not `<< 8`, which is signed: four length bytes from 0x80000000 up would give a negative length
+				for (let i = 0; i < lenB; i++) this._len = this._len * 0x100 + (this._buf[offset++] & 0xff)
 			}
 		} else {
 			// Wasn't a variable length

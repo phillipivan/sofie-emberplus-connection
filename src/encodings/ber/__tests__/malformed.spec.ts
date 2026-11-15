@@ -157,8 +157,34 @@ describe('decoding a malformed message ends', () => {
 		expect(hanging).toEqual([])
 	})
 
+	// Any one byte wrong: a tag, a length (too long, too short, long form, indefinite) or contents
+	it.each(messages())('%s, with any one byte changed', (_, message) => {
+		const hanging: string[] = []
+		for (let i = 0; i < message.length; i++) {
+			for (const value of [0x00, 0x01, 0x7f, 0x80, 0x81, 0x84, 0xff, message[i] ^ 0x01]) {
+				const changed = Buffer.from(message)
+				changed[i] = value
+				if (decodeEnds(changed) === 'did not end') hanging.push(`byte ${i} = 0x${value.toString(16)}`)
+			}
+		}
+		expect(hanging).toEqual([])
+	})
+
 	// The messages from #46, as found
 	it.each(['60036b01', '60026b05', '60056b03a001ff'])('%s', (hex) => {
 		expect(decodeEnds(Buffer.from(hex, 'hex'))).not.toBe('did not end')
+	})
+
+	// A stream entry whose REAL value has the length 84 80 00 03 a0: four length bytes that, read as a signed number,
+	// give a negative length
+	it('a value whose length bytes start with 0x80', () => {
+		expect(
+			decodeEnds(
+				Buffer.from(
+					'602f662da00c650aa003020101a1030201fda00e650ca003020102a1050984800003a00d650ba003020103a10404020102',
+					'hex'
+				)
+			)
+		).not.toBe('did not end')
 	})
 })
