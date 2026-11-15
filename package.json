@@ -3,7 +3,7 @@
 	"version": "0.4.5",
 	"description": "Typescript implementation of the Ember+ automation protocol",
 	"engines": {
-		"node": ">=26.13"
+		"node": ">=26"
 	},
 	"files": [
 		"dist/**/*"
@@ -11,7 +11,7 @@
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"scripts": {
-		"prepare": "husky",
+		"postinstall": "husky",
 		"build": "rimraf dist && run build:main",
 		"build:main": "tsc -p tsconfig.build.json",
 		"lint:raw": "eslint",
@@ -20,18 +20,12 @@
 		"unit": "jest --coverage",
 		"test": "run lint && jest test",
 		"test:coverage": "run test -- --coverage",
-		"cov": "jest --coverage; open-cli coverage/lcov-report/index.html",
-		"cov-open": "open-cli coverage/lcov-report/index.html",
 		"changelog": "sofie-version",
-		"release": "run reset && run test && sofie-version",
+		"release": "run test && sofie-version",
 		"reset": "git clean -dfx && git reset --hard && yarn",
 		"validate:dependencies": "yarn npm audit --environment production && run license-validate",
 		"validate:dev-dependencies": "yarn npm audit --environment development",
-		"license-validate": "sofie-licensecheck --allowPackages caniuse-lite@1.0.30001541",
-		"husky": "./node_modules/.bin/husky",
-		"eslint": "./node_modules/.bin/eslint",
-		"prettier": "./node_modules/.bin/prettier",
-		"lint-staged": "./node_modules/.bin/lint-staged"
+		"license-validate": "sofie-licensecheck"
 	},
 	"contributors": [
 		"Gilles Dufour <dufour.gilles@gmail.com> (www.gdnet.be)",
@@ -72,9 +66,9 @@
 		"typescript-eslint": "^8.72.2"
 	},
 	"bugs": {
-		"url": "https://github.com/phillipivan/sofie-emberplus-connection.git/issues"
+		"url": "https://github.com/phillipivan/sofie-emberplus-connection/issues"
 	},
-	"homepage": "https://github.com/phillipivan/sofie-emberplus-connection.git#readme",
+	"homepage": "https://github.com/phillipivan/sofie-emberplus-connection#readme",
 	"keywords": [
 		"emberplus",
 		"lawo"

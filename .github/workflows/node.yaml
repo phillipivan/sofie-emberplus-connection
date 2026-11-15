@@ -18,10 +18,10 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - name: Use Node.js 24.x
+      - name: Use Node.js 26.x
         uses: actions/setup-node@v6
         with:
-          node-version: 24.x
+          node-version: 26.x
       - name: Prepare Environment
         run: |
           npm install -g corepack # not bundled with Node.js 25 and later
@@ -45,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [22.x, 24.x, 26.x]
+        node-version: [26.x]
 
     steps:
       - name: Git checkout
@@ -72,7 +72,7 @@ jobs:
         uses: codecov/codecov-action@v5
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        if: matrix.node-version == '24.x'
+        if: matrix.node-version == '26.x'
 
   validate-dependencies:
     name: Validate production dependencies
@@ -85,10 +85,10 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - name: Use Node.js 24.x
+      - name: Use Node.js 26.x
         uses: actions/setup-node@v6
         with:
-          node-version: 24.x
+          node-version: 26.x
       - name: Prepare Environment
         run: |
           npm install -g corepack # not bundled with Node.js 25 and later
@@ -117,10 +117,10 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - name: Use Node.js 24.x
+      - name: Use Node.js 26.x
         uses: actions/setup-node@v6
         with:
-          node-version: 24.x
+          node-version: 26.x
       - name: Prepare Environment
         run: |
           npm install -g corepack # not bundled with Node.js 25 and later
