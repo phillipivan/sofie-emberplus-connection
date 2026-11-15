@@ -237,8 +237,10 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		}
 
 		if (dtd !== DTD_GLOW) {
-			// Don't throw, just warn and continue processing
-			debug('Warning: Received frame with DTD %d, expected %d', dtd, DTD_GLOW)
+			// Glow (1) is the only DTD, and the spec says the DTD byte "must be set to one". libember_slim's reader doesn't
+			// decode another DTD's packet as Glow, and nor do we: it is dropped, without an error. (It was decoded as Glow.)
+			debug('dropping packet with DTD %d, expected %d (Glow)', dtd, DTD_GLOW)
+			return
 		}
 
 		if (appBytes < 2) {

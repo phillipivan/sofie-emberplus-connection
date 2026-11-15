@@ -245,6 +245,29 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			expect(error).toBeUndefined()
 			expect(events).toEqual(['keepaliveReq'])
 		})
+
+		// glowrx.c hands a packet whose DTD isn't Glow (1) to onOtherPackageReceived, not to the Glow reader. The spec:
+		// the DTD byte "must be set to one" (#56: the codec decoded it as Glow)
+		it.each([0, 2])('does not read an EmBER packet of the DTD %d as Glow, and reports no error', (dtd) => {
+			const { packets, error } = received(
+				new S101Codec(),
+				libs101Encode([...header(0xc0, { dtd }), ...payload()])
+			)
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([])
+		})
+
+		it('reads the Glow packets around one of another DTD', () => {
+			const message = payload()
+			const glow = libs101Encode([...header(0xc0), ...message])
+			const { packets } = received(
+				new S101Codec(),
+				Buffer.concat([glow, libs101Encode([...header(0xc0, { dtd: 2 }), ...payload()]), glow])
+			)
+
+			expect(packets).toEqual([message, message])
+		})
 	})
 
 	describe('where the codec differs from libember', () => {
@@ -271,14 +294,6 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			const { events } = received(new S101Codec(), nonEscaping([0x00, 0x0e, 0x01, 0x01]))
 
 			expect(events).toEqual(['keepaliveReq'])
-		})
-
-		// glowrx.c hands a packet whose DTD isn't Glow (1) to onOtherPackageReceived, not to the Glow reader. The codec
-		// warns and decodes it as Glow.
-		it.failing('does not read an EmBER packet of another DTD as Glow', () => {
-			const { packets } = received(new S101Codec(), libs101Encode([...header(0xc0, { dtd: 2 }), ...payload()]))
-
-			expect(packets).toEqual([])
 		})
 
 		// libs101's CommandType.hpp has a fourth command, ProviderState (0x03), which the documentation doesn't list.
