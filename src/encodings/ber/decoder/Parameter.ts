@@ -119,14 +119,16 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 				break
 		}
 	}
+	// As libember's effectiveType(). A null value (Glow 2.50) has no type of its own (libember's Value takes it as
+	// ParameterType::None), so the type field decides; Null only when there is none.
 	parameterType =
 		parameterType === ParameterType.Trigger
 			? ParameterType.Trigger
 			: !!enumMap || !!enumeration
 				? ParameterType.Enum
-				: valueType
+				: valueType && valueType !== ParameterType.Null
 					? valueType
-					: parameterType
+					: (parameterType ?? valueType)
 	parameterType = check(parameterType, 'decode parameter', 'parameterType', ParameterType.Null, errors, options)
 
 	return makeResult(

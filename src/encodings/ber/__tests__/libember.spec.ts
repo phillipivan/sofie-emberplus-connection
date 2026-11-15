@@ -448,20 +448,23 @@ describe('BER and Glow compared with libember', () => {
 
 			expect(decoded.value).toBe(2 ** 32 - 1)
 		})
-	})
 
-	describe('where the library differs from libember', () => {
-		// Glow 2.50 made a parameter's value nullable. libember's glow::Value takes a NULL as having no type
-		// (ParameterType::None), so effectiveType() falls back to the type field; the library gives the parameter the
-		// type Null instead.
-		it.failing('keeps the type of a parameter whose value is null', () => {
+		// Glow 2.50 made a parameter's value nullable (#49). libember's glow::Value takes a NULL as having no type
+		// (ParameterType::None), so effectiveType() falls back to the type field.
+		it('keeps the type of a parameter whose value is null', () => {
 			const decoded = decodedParameter(contents(Ber.BERDataTypes.SET, [2, raw('05 00')], [13, int(1)]))
 
 			expect(decoded).toMatchObject({ parameterType: ParameterType.Integer, value: null })
 		})
 
-		// GlowParameterBase::setValue(ber::Null) writes a NULL whatever the type. The library writes the value by the
-		// parameter's type: 0 for an integer or a real, the string "null", or it throws for a boolean, enum or octets.
+		it('gives a null value without a type field the type Null, with no error', () => {
+			const decoded = decodeParameter(new Ber.Reader(contents(Ber.BERDataTypes.SET, [2, raw('05 00')])))
+
+			expect(decoded.value).toMatchObject({ parameterType: ParameterType.Null, value: null })
+			expect(decoded.errors).toEqual([])
+		})
+
+		// GlowParameterBase::setValue(ber::Null) and setDefault(ber::Null) write a NULL whatever the type
 		for (const type of [
 			ParameterType.Integer,
 			ParameterType.Real,
@@ -470,13 +473,18 @@ describe('BER and Glow compared with libember', () => {
 			ParameterType.Enum,
 			ParameterType.Octets,
 		]) {
-			it.failing(`writes a null value of a parameter of the type ${type} as a NULL`, () => {
+			it(`writes a null value of a parameter of the type ${type} as a NULL`, () => {
 				const parameter = new ParameterImpl(type, 'p', undefined, null as EmberValue)
+				parameter.defaultValue = null
 
-				expect(fields(encodedParameter(parameter), Ber.BERDataTypes.SET).get(2)?.toString('hex')).toBe('0500')
+				const encoded = fields(encodedParameter(parameter), Ber.BERDataTypes.SET)
+				expect(encoded.get(2)?.toString('hex')).toBe('0500')
+				expect(encoded.get(12)?.toString('hex')).toBe('0500')
 			})
 		}
+	})
 
+	describe('where the library differs from libember', () => {
 		// glow/impl/GlowInvocationResult.ipp: success() is true when the field is left out
 		it.failing('takes an invocation result without a success field as a success', () => {
 			const decoded = decodeInvocationResult(

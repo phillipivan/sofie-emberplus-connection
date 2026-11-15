@@ -11,6 +11,11 @@ export const encodeParameter = (parameter: Parameter, writer: Ber.Writer): void 
 	writer.startSequence(Ber.BERDataTypes.SET)
 
 	const writeValue = (value: EmberValue): void => {
+		// A null value (Glow 2.50) is a NULL whatever the parameter's type, as libember's setValue(ber::Null) writes it
+		if (value === null) {
+			writer.writeNull()
+			return
+		}
 		switch (parameter.parameterType) {
 			case ParameterType.Null:
 				writer.writeNull()
