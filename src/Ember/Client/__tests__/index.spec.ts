@@ -1786,6 +1786,67 @@ describe('client', () => {
 
 	// Ember+ specification, Notifications: a provider reports changes to any property of an element, and a property it
 	// leaves out of an update is unchanged
+	// One message is one change of an element: its contents and its first children together
+	describe('callbacks for the first reply that brings children', () => {
+		/** A device, 1, with the element at 1.1, loaded without children, and a callback registered for 1.1 */
+		async function seedWithCallback<T extends EmberElement>(client: EmberClient, contents: T) {
+			const element = new NumberedTreeNodeImpl(1, contents)
+			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: element })
+			element.parent = device
+			client.tree[1] = device
+			const calls: unknown[] = []
+			const request = await client.getDirectory(element, undefined, (node) => calls.push(node))
+			request.response?.catch(() => null)
+			return { element, calls }
+		}
+
+		// As the library's own EmberServer answers a GetDirectory on a parameter
+		it('calls a parameter callback once for a reply with an empty set of children', async () => {
+			await runWithConnection(async (client, socket) => {
+				const { element, calls } = await seedWithCallback(
+					client,
+					new ParameterImpl(ParameterType.Integer, 'gain')
+				)
+
+				socket.mockData(
+					createQualifiedNodeResponse(
+						'1.1',
+						new ParameterImpl(ParameterType.Integer, 'gain', undefined, 3),
+						{}
+					)
+				)
+				await new Promise(setImmediate)
+				socket.mockData(
+					createQualifiedNodeResponse(
+						'1.1',
+						new ParameterImpl(ParameterType.Integer, 'gain', undefined, 4),
+						{}
+					)
+				)
+				await new Promise(setImmediate)
+
+				expect(calls).toEqual([element, element])
+				expect(element.contents.value).toBe(4)
+			})
+		})
+
+		it('calls a node callback once for the reply that brings its children', async () => {
+			await runWithConnection(async (client, socket) => {
+				const { element, calls } = await seedWithCallback(client, new EmberNodeImpl('channel'))
+
+				socket.mockData(
+					createQualifiedNodeResponse('1.1', new EmberNodeImpl('channel'), {
+						1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain')),
+					})
+				)
+				await new Promise(setImmediate)
+
+				expect(calls).toEqual([element])
+				expect(element.children?.[1]?.contents).toMatchObject({ identifier: 'gain' })
+			})
+		})
+	})
+
 	describe('updates to properties other than the value', () => {
 		/** A device, 1, with the element at 1.1, as loaded */
 		function seed<T extends EmberElement>(client: EmberClient, contents: T): NumberedTreeNode<T> {

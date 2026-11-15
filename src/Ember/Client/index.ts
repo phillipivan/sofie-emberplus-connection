@@ -911,7 +911,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (update.children) {
 			const treePath = getPath(tree)
 			if (!tree.children) {
-				changes.push({ path: treePath, node: tree })
+				// The element's first children: a change, unless the contents above already made one. The callbacks
+				// run once per change, and one message is one change of the element.
+				if (!changes.some((change) => change.path === treePath && change.node === tree)) {
+					changes.push({ path: treePath, node: tree })
+				}
 				tree.children = update.children
 				for (const c of Object.values<NumberedTreeNode<EmberElement>>(update.children)) {
 					c.parent = tree
