@@ -41,6 +41,9 @@ class ExtendedReader extends Reader {
 				return { type: ParameterType.Boolean, value: this.readBoolean() }
 			case BERDataTypes.OCTETSTRING:
 				return { type: ParameterType.Octets, value: this.readStringAsBuffer(UNIVERSAL(4)) }
+			case BERDataTypes.ENUMERATED:
+				// Not one of the DTD's Value types, but earlier versions of this library wrote an enum's value with it
+				return { type: ParameterType.Integer, value: this.readEnumeration() }
 			case BERDataTypes.RELATIVE_OID:
 				return { type: ParameterType.String, value: this.readOID(BERDataTypes.RELATIVE_OID) }
 			case BERDataTypes.NULL:

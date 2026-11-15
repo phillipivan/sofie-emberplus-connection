@@ -3,6 +3,20 @@ import { BERDataTypes } from '../BERDataTypes.js'
 import { Reader } from '../Reader.js'
 import { Writer } from '../Writer.js'
 
+describe('BER Reader.readValue', () => {
+	// Earlier versions of this library wrote a value of the type Enum with the tag ENUMERATED (#51)
+	test('reads an ENUMERATED value as the integer it is', () => {
+		expect(new Reader(Buffer.from('0a0102', 'hex')).readValue()).toEqual({ type: ParameterType.Integer, value: 2 })
+	})
+
+	test('reads back a value of the type Enum as an integer', () => {
+		const writer = new Writer()
+		writer.writeValue({ type: ParameterType.Enum, value: 2 })
+
+		expect(new Reader(writer.buffer).readValue()).toEqual({ type: ParameterType.Integer, value: 2 })
+	})
+})
+
 describe('BER Reader.readReal', () => {
 	// Regression for the infinite-loop DoS: a non-canonical REAL with an explicit
 	// all-zero significand must short-circuit to 0 rather than spin the

@@ -501,17 +501,27 @@ describe('BER and Glow compared with libember', () => {
 
 			expect(decoded.value.success).toBe(false)
 		})
-	})
 
-	describe('where the library differs from libember', () => {
 		// The DTD's Value is an integer, real, string, boolean, octets or null; libember's Value writes an enum's
-		// value as the integer it is (ParameterType has no BER type of its own). The library writes an argument or
-		// result of the type Enum with the tag ENUMERATED, which libember reads as no value it knows, and the library
-		// itself can't read back.
-		it.failing('writes a value of the type Enum as an INTEGER', () => {
+		// value as the integer it is: ParameterType has no BER type of its own (#51). Nor has a trigger: libember's
+		// Value is written by the type of what it holds.
+		it('writes a value of the type Enum as an INTEGER', () => {
 			expect(written((w) => w.writeValue({ type: ParameterType.Enum, value: 2 })).toString('hex')).toBe('020102')
 		})
 
+		it.each<[string, EmberValue, string]>([
+			['an integer', 1, '020101'],
+			['a real', 1.5, '0903800003'], // libember's REAL form (Real.hpp), as #15 and #16 have it
+			['a string', 'go', '0c02676f'],
+			['a boolean', true, '0101ff'],
+			['octets', Buffer.from([0xfe]), '0401fe'],
+			['null', null, '0500'],
+		])('writes %s value of the type Trigger by its own type', (_, value, encoded) => {
+			expect(written((w) => w.writeValue({ type: ParameterType.Trigger, value })).toString('hex')).toBe(encoded)
+		})
+	})
+
+	describe('where the library differs from libember', () => {
 		// glow/impl/GlowCommand.ipp: number() is CommandType::None when the field is left out, and a number it doesn't
 		// know stays that number, which a provider then doesn't act on. The library takes either for a Subscribe.
 		it.failing('does not take a command it does not know (34) for a Subscribe', () => {

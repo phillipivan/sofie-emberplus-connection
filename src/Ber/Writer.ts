@@ -138,7 +138,8 @@ class ExtendedWriter extends Writer {
 			return
 		}
 
-		if (Buffer.isBuffer(value) && tag) {
+		if (Buffer.isBuffer(value)) {
+			if (tag === undefined) tag = BERDataTypes.OCTETSTRING
 			if (value.length === 0) {
 				this.writeTag(tag)
 				this.writeLength(0)
@@ -220,7 +221,12 @@ function shortenLong(value: Long): { size: number; value: Long } {
 	return { size, value }
 }
 
-function parameterTypetoBERTAG(parameterType: ParameterType): number {
+/**
+ * The BER type a value of a parameter type is written as: one of the DTD's Value (integer, real, string, boolean,
+ * octets or null). An enum's value is the integer it is, as libember writes it. A trigger has no value type of its own,
+ * so its value is written by its JavaScript type (undefined here).
+ */
+function parameterTypetoBERTAG(parameterType: ParameterType): number | undefined {
 	switch (parameterType) {
 		case ParameterType.Integer:
 			return BERDataTypes.INTEGER
@@ -231,9 +237,9 @@ function parameterTypetoBERTAG(parameterType: ParameterType): number {
 		case ParameterType.Boolean:
 			return BERDataTypes.BOOLEAN
 		case ParameterType.Trigger:
-			return BERDataTypes.STRING // TODO: this is a guess
+			return undefined
 		case ParameterType.Enum:
-			return BERDataTypes.ENUMERATED
+			return BERDataTypes.INTEGER
 		case ParameterType.Octets:
 			return BERDataTypes.OCTETSTRING
 		case ParameterType.Null:
