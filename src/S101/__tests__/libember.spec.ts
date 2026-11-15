@@ -100,7 +100,8 @@ const awkwardPayload = () =>
 function received(codec: S101Codec, bytes: Buffer) {
 	const packets: Buffer[] = []
 	const events: string[] = []
-	codec.on('emberPacket', (p) => packets.push(p))
+	// Copied: the codec hands on a view of a buffer it reuses for the next escaping frame (#59)
+	codec.on('emberPacket', (p) => packets.push(Buffer.from(p)))
 	codec.on('keepaliveReq', () => events.push('keepaliveReq'))
 	codec.on('keepaliveResp', () => events.push('keepaliveResp'))
 	let error: unknown = undefined
@@ -334,19 +335,19 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 		})
 	})
 
-	describe('where the codec differs from libember', () => {
-		// The documentation's S101 section, variant 2: "All libraries mentioned in this document support both variants".
-		// StreamDecoder.hpp and emberframing.c read a frame that starts with 0xF8, then a byte whose low three bits give
-		// the number of length bytes, the payload's length (most significant byte first) and the payload, unescaped
-		// and without a CRC. A consumer offers it with a keep-alive request in this form (the codec ignores it, which
-		// the documentation allows: the consumer then keeps to escaping frames).
-		const nonEscaping = (message: number[] | Buffer) => {
-			const length = Buffer.alloc(4)
-			length.writeUInt32BE(message.length)
-			return Buffer.from([INVALID, 0x04, ...length, ...message])
+	// The documentation's S101 section, variant 2: "All libraries mentioned in this document support both variants".
+	// emberframing.c reads a frame that starts with 0xF8, then a byte whose low three bits give the number of length
+	// bytes, the message's length (most significant byte first) and the message, unescaped and without a CRC.
+	// (StreamDecoder.hpp reads the same form, but works out the length wrong: its shift uses the length, still 0, for
+	// the number of length bytes.)
+	describe('non-escaping frames, as libember_slim reads them', () => {
+		const nonEscaping = (message: number[] | Buffer, lengthLength = 4) => {
+			const length = Buffer.alloc(8)
+			length.writeBigUInt64BE(BigInt(message.length))
+			return Buffer.from([INVALID, lengthLength, ...length.subarray(8 - lengthLength), ...message])
 		}
 
-		it.failing('reads an EmBER packet in a non-escaping frame', () => {
+		it('reads an EmBER packet in a non-escaping frame', () => {
 			const message = awkwardPayload() // the bytes 0xFE and 0xFF, which this form doesn't escape, among them
 			const { packets, error } = received(new S101Codec(), nonEscaping([...header(0xc0), ...message]))
 
@@ -354,10 +355,89 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			expect(packets).toEqual([message])
 		})
 
-		it.failing('reads a keep-alive request in a non-escaping frame', () => {
-			const { events } = received(new S101Codec(), nonEscaping([0x00, 0x0e, 0x01, 0x01]))
+		it('reads a keep-alive request in a non-escaping frame', () => {
+			const { events, error } = received(new S101Codec(), nonEscaping([0x00, 0x0e, 0x01, 0x01]))
 
+			expect(error).toBeUndefined()
 			expect(events).toEqual(['keepaliveReq'])
+		})
+
+		it.each([1, 2, 3, 7])('reads a frame whose length takes %d bytes', (lengthLength) => {
+			const message = awkwardPayload()
+			const { packets, error } = received(
+				new S101Codec(),
+				nonEscaping([...header(0xc0), ...message], lengthLength)
+			)
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([message])
+		})
+
+		it('passes over an empty message without an error, as emberframing.c hands it on', () => {
+			const { packets, events, error } = received(new S101Codec(), Buffer.from([INVALID, 0x00]))
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([])
+			expect(events).toEqual([])
+		})
+
+		it('reads a frame that arrives a byte at a time', () => {
+			const message = awkwardPayload()
+			const codec = new S101Codec()
+			const packets: Buffer[] = []
+			codec.on('emberPacket', (p) => packets.push(p))
+
+			for (const byte of nonEscaping([...header(0xc0), ...message])) codec.dataIn(Buffer.from([byte]))
+
+			expect(packets).toEqual([message])
+		})
+
+		it('reads a message split into non-escaping packets (first, middle, last)', () => {
+			const message = awkwardPayload()
+			const third = Math.ceil(message.length / 3)
+			const { packets, error } = received(
+				new S101Codec(),
+				Buffer.concat([
+					nonEscaping([...header(0x80), ...message.subarray(0, third)]),
+					nonEscaping([...header(0x00), ...message.subarray(third, 2 * third)]),
+					nonEscaping([...header(0x40), ...message.subarray(2 * third)]),
+				])
+			)
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([message])
+		})
+
+		it('reads escaping and non-escaping frames mixed, in order', () => {
+			const message = awkwardPayload()
+			const other = payload()
+			const { packets, events, error } = received(
+				new S101Codec(),
+				Buffer.concat([
+					libs101Encode([...header(0xc0), ...other]),
+					nonEscaping([...header(0xc0), ...message]),
+					libs101Encode([0x00, 0x0e, 0x01, 0x01]),
+					nonEscaping([0x00, 0x0e, 0x02, 0x01]),
+					libs101Encode([...header(0xc0), ...message]),
+				])
+			)
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([other, message, message])
+			expect(events).toEqual(['keepaliveReq', 'keepaliveResp'])
+		})
+
+		// An unescaped 0xF8 can't be inside an escaping frame, so one there starts a non-escaping frame
+		it('reads a non-escaping frame that cuts an escaping one short, and drops the escaping one', () => {
+			const message = awkwardPayload()
+			const cutShort = libs101Encode([...header(0xc0), ...payload()]).subarray(0, 12)
+			const { packets, error } = received(
+				new S101Codec(),
+				Buffer.concat([cutShort, nonEscaping([...header(0xc0), ...message])])
+			)
+
+			expect(error).toBeUndefined()
+			expect(packets).toEqual([message])
 		})
 	})
 })

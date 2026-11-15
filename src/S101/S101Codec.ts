@@ -88,6 +88,13 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	private multiPacketBuffer?: SmartBuffer
 	private isMultiPacket = false
 
+	/**
+	 * Reads S101 frames in either form the spec gives (the S101 section, "Variant 1" and "Variant 2"): escaping frames,
+	 * from BOF to EOF, the message escaped and followed by its CRC; and non-escaping frames, which start with 0xF8 (never
+	 * found outside an escaping frame, where it is escaped): a byte whose low three bits give the number of length
+	 * bytes, the length, most significant byte first, and the message, neither escaped nor followed by a CRC. A frame
+	 * that runs past the data is kept for the next read.
+	 */
 	dataIn(buf: Buffer): void {
 		// console.log('TimeStamp: ', Date.now(), 'dataIn', buf.toString('hex'))
 
@@ -97,22 +104,64 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			this.frameBuffer = undefined
 		}
 
-		let frameOffset = 0
 		const errors: Error[] = []
-		while (frameOffset < buf.length) {
-			let frameStart = buf.indexOf(S101_BOF, frameOffset)
-			if (frameStart === -1) break
+		const handle = (read: () => void) => {
+			try {
+				read()
+			} catch (e) {
+				// An oversized message is the end of the connection: report it straight away, as before
+				if (e instanceof S101OversizedFrameError) throw e
+				// Any other rejected frame (or a listener that threw) is reported once the rest of the read is handled
+				errors.push(e instanceof Error ? e : new Error(String(e)))
+			}
+		}
 
+		// The next 0xF8 at or after an offset, found once per stretch of data, not once per frame
+		let nextNonEscaping = buf.indexOf(S101_INV)
+		const nonEscapingFrom = (offset: number) => {
+			if (nextNonEscaping !== -1 && nextNonEscaping < offset) nextNonEscaping = buf.indexOf(S101_INV, offset)
+			return nextNonEscaping
+		}
+
+		let frameOffset = 0
+		while (frameOffset < buf.length) {
+			const bof = buf.indexOf(S101_BOF, frameOffset)
+			const nonEscaping = nonEscapingFrom(frameOffset)
+			if (bof === -1 && nonEscaping === -1) break
+
+			if (nonEscaping !== -1 && (bof === -1 || nonEscaping < bof)) {
+				const frame = readNonEscapingFrame(buf, nonEscaping)
+				if (frame === null) {
+					// Kept whole: its declared length is within bounds (or not all its length bytes have come yet)
+					this.frameBuffer = buf.subarray(nonEscaping)
+					break
+				}
+				if ('oversized' in frame) {
+					this.dropOversized(
+						format('dropping oversized non-escaping S101 frame: %d bytes declared', frame.oversized)
+					)
+				}
+				handle(() => this.handleMessage(frame.message))
+				frameOffset = frame.end
+				continue
+			}
+
+			let frameStart = bof
 			const frameEnd = buf.indexOf(S101_EOF, frameStart + 1)
+
+			// An unescaped 0xF8 can't be in an escaping frame: this one was cut short, and a non-escaping frame starts there
+			const cutShortAt = nonEscapingFrom(frameStart + 1)
+			if (cutShortAt !== -1 && (frameEnd === -1 || cutShortAt < frameEnd)) {
+				debug('dropping an escaping frame cut short by a non-escaping one')
+				frameOffset = cutShortAt
+				continue
+			}
+
 			if (frameEnd === -1) {
 				//console.log('Parsing frameEnd to next chunk')
 				const pending = buf.subarray(frameStart)
 				if (pending.length > MAX_FRAME_BUFFER_SIZE) {
-					// Clear state before throwing so the next dataIn call starts clean.
-					this.frameBuffer = undefined
-					this.escaped = false
-					this.resetMultiPacketBuffer()
-					throw new S101OversizedFrameError(
+					this.dropOversized(
 						format('dropping oversized S101 frame: %d bytes buffered without EOF', pending.length)
 					)
 				}
@@ -157,20 +206,21 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			this.inbuf.readOffset = 0
 
 			// console.log('Buffer 00-16', this.inbuf.toString('hex').substring(0, 40))
-			try {
-				this.handleFrame(this.inbuf)
-			} catch (e) {
-				// An oversized message is the end of the connection: report it straight away, as before
-				if (e instanceof S101OversizedFrameError) throw e
-				// Any other rejected frame (or a listener that threw) is reported once the rest of the read is handled
-				errors.push(e instanceof Error ? e : new Error(String(e)))
-			}
+			handle(() => this.handleFrame(this.inbuf))
 			frameOffset = frameEnd + 1
 		}
 
 		// One error per read, as before: the frame's own error, or all of them when several were rejected
 		if (errors.length === 1) throw errors[0]
 		if (errors.length > 1) throw new AggregateError(errors, format('dropped %d S101 frames', errors.length))
+	}
+
+	/** Clears the state, so the next read starts clean, and reports a frame too large to take */
+	private dropOversized(message: string): never {
+		this.frameBuffer = undefined
+		this.escaped = false
+		this.resetMultiPacketBuffer()
+		throw new S101OversizedFrameError(message)
 	}
 
 	/**
@@ -196,17 +246,31 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		return root === RootBERID && collection === StreamEntriesBERID
 	}
 
+	/** An escaping frame, unescaped: the message, then its CRC */
 	handleFrame(frame: SmartBuffer): void {
-		if (!this.validateFrame(frame.toBuffer())) {
+		const buffer = frame.toBuffer()
+		if (!this.validateFrame(buffer)) {
 			throw new Error(format('dropping frame of length %d with invalid CRC', frame.length))
 		}
+		this.handleMessage(buffer.subarray(0, buffer.length - 2))
+	}
+
+	/** A message, from a frame of either form: slot, message type, command and what the command carries */
+	private handleMessage(message: Buffer): void {
+		if (message.length < 3) {
+			// Too short for a slot, message type and command, so not Ember+: passed over without an error, as
+			// libember_slim's reader passes it to the application
+			debug('ignoring message of %d bytes', message.length)
+			return
+		}
+		const frame = SmartBuffer.fromBuffer(message)
 
 		const slot = frame.readUInt8()
-		const message = frame.readUInt8()
-		if (message != MSG_EMBER) {
+		const messageType = frame.readUInt8()
+		if (messageType != MSG_EMBER) {
 			// Not Ember+ (0x0E, the only message type the spec lists): passed over without an error, as libember_slim's
 			// reader passes it to the application. (It was an error.)
-			debug('ignoring frame of length %d with message type %d (not Ember)', frame.length, message)
+			debug('ignoring message of %d bytes with message type %d (not Ember)', frame.length, messageType)
 			return
 		}
 		// Any slot is read. The spec: the slot addresses a sub-device and "should be set to 0x00" (by a sender);
@@ -221,17 +285,23 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			debug('received keepalive response')
 			this.emit('keepaliveResp')
 		} else if (command === CMD_EMBER) {
-			const remainingData = frame.readBuffer()
-			const emberFrame = SmartBuffer.fromBuffer(remainingData)
-			this.handleEmberFrame(emberFrame)
+			this.handleEmberPayload(frame.readBuffer())
 		} else {
 			// A command this codec doesn't handle, such as libs101's ProviderState (0x03), which the spec doesn't describe,
 			// is passed over without an error, as libember_slim's reader passes it to the application. (It was an error.)
-			debug('ignoring frame of length %d with unknown command %d', frame.length, command)
+			debug('ignoring message of %d bytes with unknown command %d', frame.length, command)
 		}
 	}
 
+	/** An EmBER packet's part of an escaping frame, from the version byte, with the frame's CRC at the end */
 	handleEmberFrame(frame: SmartBuffer): void {
+		const data = frame.readBuffer()
+		this.handleEmberPayload(data.subarray(0, data.length - 2))
+	}
+
+	/** An EmBER packet's part of a message, from the version byte */
+	private handleEmberPayload(data: Buffer): void {
+		const frame = SmartBuffer.fromBuffer(data)
 		const version = frame.readUInt8()
 		const flags = frame.readUInt8()
 		const dtd = frame.readUInt8()
@@ -261,8 +331,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			}
 		}
 
-		let payload = frame.readBuffer()
-		payload = payload.slice(0, payload.length - 2) // Remove CRC
+		const payload = frame.readBuffer()
 
 		if ((flags & FLAG_SINGLE_PACKET) === FLAG_SINGLE_PACKET) {
 			if ((flags & FLAG_EMPTY_PACKET) === 0) {
@@ -446,4 +515,25 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		}
 		return crc
 	}
+}
+
+/**
+ * The non-escaping (variant 2) frame starting at `start`, its 0xF8: as libember_slim reads it (emberframing.c), the
+ * number of length bytes is the next byte's low three bits (the others are reserved), then the length, most
+ * significant byte first, then the message. Null when the data ends first; the declared length when it is more than
+ * this codec takes in one frame.
+ */
+function readNonEscapingFrame(
+	buf: Buffer,
+	start: number
+): { message: Buffer; end: number } | { oversized: number } | null {
+	if (start + 1 >= buf.length) return null
+	const lengthLength = buf[start + 1] & 0x07
+	const messageStart = start + 2 + lengthLength
+	if (messageStart > buf.length) return null
+	let length = 0
+	for (let i = start + 2; i < messageStart; i++) length = length * 0x100 + buf[i] // not `<< 8`: up to seven bytes
+	if (length > MAX_FRAME_BUFFER_SIZE) return { oversized: length }
+	if (messageStart + length > buf.length) return null
+	return { message: buf.subarray(messageStart, messageStart + length), end: messageStart + length }
 }

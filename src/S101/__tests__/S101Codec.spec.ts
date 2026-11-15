@@ -66,6 +66,23 @@ describe('S101Codec DoS hardening', () => {
 		expect((codec as any).isMultiPacket).toBe(false)
 	}, 5000)
 
+	// A non-escaping frame gives its length up front (up to seven bytes of it): one longer than a frame may be is
+	// dropped at once, not buffered
+	test.each([
+		['2^31 - 1', [0x04, 0x7f, 0xff, 0xff, 0xff]],
+		['2^56 - 1', [0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]],
+	])('a non-escaping frame declaring %s bytes is dropped, and the codec reads on', (_, header) => {
+		const codec = new S101Codec()
+		const events: string[] = []
+		codec.on('keepaliveReq', () => events.push('req'))
+
+		expect(() => codec.dataIn(Buffer.from([0xf8, ...header, 0x00, 0x0e]))).toThrow(/oversized/i)
+		expect((codec as any).frameBuffer).toBeUndefined()
+
+		codec.dataIn(codec.keepAliveRequest())
+		expect(events).toEqual(['req'])
+	})
+
 	test('sanity: a normal well-formed frame still decodes and emits', () => {
 		const codec = new S101Codec()
 
