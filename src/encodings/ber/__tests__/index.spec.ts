@@ -80,14 +80,15 @@ describe('encoders/Ber/index', () => {
 		expect(decoded.errors).toHaveLength(1)
 		expect(decoded.errors?.toString()).toMatch(/Unexpected BER application tag '126'/)
 	})
+	// Application tag 30, the highest number a one-byte tag holds (31 and up take the multi-byte form)
 	test('Unknown root elements', () => {
-		const testBuffer = Buffer.from([RootBERID, 1, Ber.APPLICATION(31)])
+		const testBuffer = Buffer.from([RootBERID, 1, Ber.APPLICATION(30)])
 		const decoded = berDecode(testBuffer)
 
 		expect(decoded.value).toHaveLength(1)
 		expect((decoded.value as Collection<RootElement>)[0].contents.type).toBe(ElementType.Node)
 		expect(decoded.errors).toHaveLength(1)
-		expect(decoded.errors?.toString()).toMatch(/Unexpected BER application tag '127'/)
+		expect(decoded.errors?.toString()).toMatch(/Unexpected BER application tag '126'/)
 	})
 	// A connection report captured from a test device: a QualifiedMatrix with a path and connections but no
 	// contents, which the Glow DTD makes optional

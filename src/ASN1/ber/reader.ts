@@ -3,6 +3,7 @@
 import assert from 'assert'
 
 import { newInvalidAsn1Error } from './errors.js'
+import { readTagAt } from './tag.js'
 import { Types } from './types.js'
 
 ///--- API
@@ -71,8 +72,12 @@ export class Reader {
 
 		// Note: this method advances `currOffset`, not `this._offset`, so every bounds
 		// check below must be against `currOffset` or a truncated block loops forever.
-		while (currOffset + 2 <= this._size) {
-			b = this._buf[currOffset++]
+		while (currOffset < this._size) {
+			// A tag takes one byte or more (the multi-byte form), and its length byte follows
+			const tag = readTagAt(this._buf, currOffset, this._size)
+			if (tag === null || currOffset + tag.size >= this._size) break
+			currOffset += tag.size
+			b = tag.tag
 			lenB = this._buf[currOffset++]
 
 			if (b == 0 && lenB == 0) {
@@ -114,8 +119,9 @@ export class Reader {
 		return null
 	}
 
+	/** The next tag, without moving on: null when the data ends before the tag does */
 	peek(): number | null {
-		return this.readByte(true)
+		return readTagAt(this._buf, this._offset, this._size)?.tag ?? null
 	}
 
 	/**
@@ -169,12 +175,17 @@ export class Reader {
 	readSequence(tag?: number): number | null {
 		// The decoders read a sequence's contents until they reach the end its length gives. Were a sequence allowed
 		// to end past the data, or a read at the end to return nothing, those loops would never end (#46).
-		const seq = this.peek()
-		if (seq === null) throw newInvalidAsn1Error('Expected a sequence at offset ' + this._offset + ': no data left')
+		const next = readTagAt(this._buf, this._offset, this._size)
+		if (next === null) {
+			throw newInvalidAsn1Error(
+				'Expected a sequence at offset ' + this._offset + ': the data ends before its tag does'
+			)
+		}
+		const seq = next.tag
 		if (tag !== undefined && tag !== seq)
 			throw newInvalidAsn1Error('Expected 0x' + tag.toString(16) + ': got 0x' + seq.toString(16))
 
-		const o = this.readLength(this._offset + 1) // stored in `length`
+		const o = this.readLength(this._offset + next.size) // stored in `length`
 		if (o === null) throw newInvalidAsn1Error('Sequence 0x' + seq.toString(16) + ': its length runs past the data')
 		if (this._len > this._size - o) {
 			throw newInvalidAsn1Error(
@@ -203,19 +214,21 @@ export class Reader {
 	readStringAsBuffer(tag?: number): Buffer | null {
 		if (!tag) tag = Types.OctetString
 
-		const b = this.peek()
-		if (b === null) return null
+		const next = readTagAt(this._buf, this._offset, this._size)
+		if (next === null) return null
+		const b = next.tag
 
 		if (b !== tag) throw newInvalidAsn1Error('Expected 0x' + tag.toString(16) + ': got 0x' + b.toString(16))
 
-		const o = this.readLength(this._offset + 1) // stored in `length`
+		const o = this.readLength(this._offset + next.size) // stored in `length`
 
 		if (o === null) return null
 
 		if (this.length > this._size - o) return null
 
 		let length = this.length
-		if (this._blockInfo[this._offset + 2] !== undefined) {
+		// indefinite length (after the tag, the length byte 0x80): the contents end with an end-of-contents marker
+		if (this._blockInfo[this._offset + next.size + 1] !== undefined) {
 			length = length - 2
 		}
 
@@ -289,13 +302,13 @@ export class Reader {
 	private _readTag(tag: number): number | null {
 		assert.ok(tag !== undefined)
 
-		const b = this.peek()
-
-		if (b === null) return null
+		const next = readTagAt(this._buf, this._offset, this._size)
+		if (next === null) return null
+		const b = next.tag
 
 		if (b !== tag) throw newInvalidAsn1Error('Expected 0x' + tag.toString(16) + ': got 0x' + b.toString(16))
 
-		const o = this.readLength(this._offset + 1) // stored in `length`
+		const o = this.readLength(this._offset + next.size) // stored in `length`
 		if (o === null) return null
 
 		if (this.length > 8) throw newInvalidAsn1Error('Integer too long: ' + this.length)
