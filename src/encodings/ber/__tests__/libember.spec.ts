@@ -366,19 +366,16 @@ describe('BER and Glow compared with libember', () => {
 		])('gives %s the type libember gives it', (_, encoded, type) => {
 			expect(decodedParameter(encoded).parameterType).toBe(type)
 		})
-	})
 
-	describe('where the library differs from libember', () => {
 		// The DTD: templateReference [18] RELATIVE-OID; libember's GlowParameterBase sets and reads it as a
-		// ber::ObjectIdentifier, as it does the node's, matrix's and function's. The library codes the parameter's as a
-		// UTF8String, so it fails on a parameter from libember with a template reference, and with it the whole message.
-		it.failing("reads a parameter's template reference as a RELATIVE-OID", () => {
+		// ber::ObjectIdentifier, as it does the node's, matrix's and function's (#47)
+		it("reads a parameter's template reference as a RELATIVE-OID", () => {
 			const decoded = decodedParameter(contents(Ber.BERDataTypes.SET, [0, str('gain')], [18, oid('1.2')]))
 
 			expect(decoded).toMatchObject({ identifier: 'gain', templateReference: '1.2' })
 		})
 
-		it.failing("writes a parameter's template reference as a RELATIVE-OID", () => {
+		it("writes a parameter's template reference as a RELATIVE-OID", () => {
 			const parameter = new ParameterImpl(ParameterType.Integer, 'gain')
 			parameter.templateReference = '1.2'
 			const field = fields(encodedParameter(parameter), Ber.BERDataTypes.SET).get(18)
@@ -386,7 +383,7 @@ describe('BER and Glow compared with libember', () => {
 			expect(field?.toString('hex')).toBe('0d020102')
 		})
 
-		it.failing('decodes the rest of a message holding a parameter with a template reference', () => {
+		it('decodes the rest of a message holding a parameter with a template reference', () => {
 			const element =
 				(path: string, ...entries: Array<[number, (writer: Ber.Writer) => void]>) =>
 				(w: Ber.Writer) => {
@@ -414,7 +411,9 @@ describe('BER and Glow compared with libember', () => {
 			const decoded = Object.values<RootElement>(berDecode(message).value as Collection<RootElement>)
 			expect(decoded.map((el) => 'path' in el && el.path)).toEqual(['1', '2'])
 		})
+	})
 
+	describe('where the library differs from libember', () => {
 		// The DTD: a value or limit is an Integer64; Integral.hpp codes a `long long` in up to eight bytes. The library
 		// writes and reads integers as 32 bits: it writes 2^31 as -2^31 and 2^32 - 1 as -1, and misreads longer ones.
 		for (const value of [

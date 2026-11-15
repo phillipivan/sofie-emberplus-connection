@@ -220,6 +220,17 @@ describe('encodings/ber/Parameter', () => {
 		roundtripParameter(param)
 	})
 
+	test('read a templateReference in the UTF8String form earlier versions of this library wrote', () => {
+		const writer = new Ber.Writer()
+		writer.startSequence(Ber.BERDataTypes.SET)
+		writer.startSequence(Ber.CONTEXT(18))
+		writer.writeString('3.2.1.1', Ber.BERDataTypes.STRING)
+		writer.endSequence()
+		writer.endSequence()
+
+		expect(decodeParameter(new Ber.Reader(writer.buffer)).value.templateReference).toBe('3.2.1.1')
+	})
+
 	test('write and read a parameter - all', () => {
 		const param: Parameter = {
 			...prm,

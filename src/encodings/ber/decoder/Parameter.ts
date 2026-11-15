@@ -105,7 +105,11 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 				schemaIdentifiers = reader.readString(Ber.BERDataTypes.STRING) ?? schemaIdentifiers
 				break
 			case Ber.CONTEXT(18):
-				templateReference = reader.readString(Ber.BERDataTypes.STRING) ?? templateReference
+				// A RELATIVE-OID. Earlier versions of this library wrote it as a UTF8String, which is still read.
+				templateReference =
+					(reader.peek() === Ber.BERDataTypes.STRING
+						? reader.readString(Ber.BERDataTypes.STRING)
+						: reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)) ?? templateReference
 				break
 			case 0:
 				break // indefinite length

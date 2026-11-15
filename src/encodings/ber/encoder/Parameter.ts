@@ -113,7 +113,12 @@ export const encodeParameter = (parameter: Parameter, writer: Ber.Writer): void 
 
 	writer.writeIfDefined(parameter.schemaIdentifiers, writer.writeString, 17, Ber.BERDataTypes.STRING)
 
-	writer.writeIfDefined(parameter.templateReference, writer.writeString, 18, Ber.BERDataTypes.STRING)
+	// A RELATIVE-OID, as the DTD has it and libember writes it (and as the other elements' template references are)
+	if (parameter.templateReference != null) {
+		writer.startSequence(Ber.CONTEXT(18))
+		writer.writeRelativeOID(parameter.templateReference, Ber.BERDataTypes.RELATIVE_OID)
+		writer.endSequence()
+	}
 
 	writer.endSequence()
 }
