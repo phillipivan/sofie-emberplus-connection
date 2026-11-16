@@ -1,7 +1,7 @@
 import * as Ber from '../../../Ber/index.js'
 import { Parameter, ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Parameter.js'
 import { StreamDescription } from '../../../model/StreamDescription.js'
-import { EmberValue, RelativeOID, StringIntegerCollection } from '../../../types/types.js'
+import { EmberValue, MinMax, RelativeOID, StringIntegerCollection } from '../../../types/types.js'
 import {
 	appendErrors,
 	check,
@@ -60,10 +60,10 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 				break
 			}
 			case Ber.CONTEXT(3):
-				minimum = reader.readValue().value as number | null
+				minimum = appendErrors(readMinMax(reader, 'minimum', options), errors)
 				break
 			case Ber.CONTEXT(4):
-				maximum = reader.readValue().value as number | null
+				maximum = appendErrors(readMinMax(reader, 'maximum', options), errors)
 				break
 			case Ber.CONTEXT(5):
 				access = appendErrors(readParameterAccess(reader.readInt(), options), errors)
@@ -154,6 +154,23 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 			templateReference
 		),
 		errors
+	)
+}
+
+/**
+ * A limit. The DTD's MinMax is an integer, a real or null; a limit of any other type (such as a string limit from a
+ * provider that wrote it with the parameter's type) is left out, with an error. It was kept as it was, typed as a
+ * number. (libember's MinMax reads any other type as the integer 0, which would make up a limit.)
+ */
+function readMinMax(reader: Ber.Reader, name: string, options: DecodeOptions): DecodeResult<MinMax | undefined> {
+	const { type, value } = reader.readValue()
+	if (value === null || typeof value === 'number') return makeResult(value)
+	return unexpected(
+		[],
+		'decode parameter',
+		`${name} of the type ${type} is not an integer, real or null; left out`,
+		undefined,
+		options
 	)
 }
 

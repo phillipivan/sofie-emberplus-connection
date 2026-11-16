@@ -301,6 +301,48 @@ describe('encodings/ber/Parameter', () => {
 			)
 		})
 
+		// The DTD's MinMax is an integer, a real or null. A limit of another type was kept, typed as a number.
+		test('decodes a limit of another type as none, with an error', () => {
+			const writer = new Ber.Writer()
+			writer.startSequence(Ber.BERDataTypes.SET)
+			writer.startSequence(Ber.CONTEXT(3))
+			writer.writeString('0', Ber.BERDataTypes.STRING)
+			writer.endSequence()
+			writer.startSequence(Ber.CONTEXT(4))
+			writer.writeBoolean(true)
+			writer.endSequence()
+			writer.endSequence()
+
+			const decoded = decodeParameter(new Ber.Reader(writer.buffer))
+
+			expect(decoded.value.minimum).toBeUndefined()
+			expect(decoded.value.maximum).toBeUndefined()
+			expect(decoded.errors?.map(String)).toEqual(
+				expect.arrayContaining([
+					expect.stringContaining('minimum of the type STRING is not an integer, real or null'),
+					expect.stringContaining('maximum of the type BOOLEAN is not an integer, real or null'),
+				])
+			)
+		})
+
+		test('refuses a limit of another type when unexpected values are not to be skipped', () => {
+			const writer = new Ber.Writer()
+			writer.startSequence(Ber.BERDataTypes.SET)
+			writer.startSequence(Ber.CONTEXT(3))
+			writer.writeString('0', Ber.BERDataTypes.STRING)
+			writer.endSequence()
+			writer.endSequence()
+
+			expect(() =>
+				decodeParameter(new Ber.Reader(writer.buffer), {
+					skipApplicationTags: true,
+					skipContextTags: true,
+					substituteForRequired: true,
+					skipUnexpected: false,
+				})
+			).toThrow(/minimum of the type STRING/)
+		})
+
 		test('leaves out a limit that is not a number', () => {
 			// e.g. a string limit decoded from a provider that encoded it with the parameter's type
 			const writer = new Ber.Writer()
