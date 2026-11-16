@@ -2,7 +2,16 @@ import { EmberValue, MinMax, RelativeOID, StringIntegerCollection } from '../typ
 import { ElementType, EmberBaseElement } from './EmberElement.js'
 import { StreamDescription } from './StreamDescription.js'
 
-export { Parameter, ParameterType, ParameterAccess, ParameterImpl, ParameterValue, TypedParameter, isValueOfType }
+export {
+	Parameter,
+	ParameterType,
+	ParameterAccess,
+	ParameterImpl,
+	ParameterValue,
+	TypedParameter,
+	isValueOfType,
+	fitsItsType,
+}
 
 enum ParameterType {
 	Null = 'NULL',
@@ -118,6 +127,16 @@ function isValueOfType<T extends ParameterType>(type: T, value: unknown): value 
 		default:
 			return false // Null: only null
 	}
+}
+
+/**
+ * Whether a parameter's value and default are of its type's form (as isValueOfType has it), which makes it a Parameter
+ * of one of the types. A parameter built from a type and a value that are each known only as one of several (a
+ * ParameterImpl of the type ParameterType) is narrowed to one with it.
+ */
+function fitsItsType(parameter: TypedParameter<ParameterType>): parameter is Parameter {
+	const { parameterType, value, defaultValue } = parameter
+	return isValueOfType(parameterType, value ?? null) && isValueOfType(parameterType, defaultValue ?? null)
 }
 
 class ParameterImpl<T extends ParameterType = ParameterType> implements TypedParameter<T> {

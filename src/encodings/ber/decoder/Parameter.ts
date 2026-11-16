@@ -1,5 +1,12 @@
 import * as Ber from '../../../Ber/index.js'
-import { isValueOfType, Parameter, ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Parameter.js'
+import {
+	fitsItsType,
+	isValueOfType,
+	Parameter,
+	ParameterAccess,
+	ParameterImpl,
+	ParameterType,
+} from '../../../model/Parameter.js'
 import { StreamDescription } from '../../../model/StreamDescription.js'
 import { EmberValue, isRelativeOID, MinMax, RelativeOID, StringIntegerCollection } from '../../../types/types.js'
 import {
@@ -149,33 +156,32 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 		defaultValue = appendErrors(misfit(parameterType, 'default', defaultType, options), errors)
 	}
 
-	// The value and default fit the type, checked above
-	return makeResult(
-		<Parameter>(
-			new ParameterImpl(
-				parameterType,
-				identifier,
-				description,
-				value,
-				maximum,
-				minimum,
-				access,
-				format,
-				enumeration,
-				factor,
-				isOnline,
-				formula,
-				step,
-				defaultValue,
-				streamIdentifier,
-				enumMap,
-				streamDescriptor,
-				schemaIdentifiers,
-				templateReference
-			)
-		),
-		errors
+	const parameter = new ParameterImpl(
+		parameterType,
+		identifier,
+		description,
+		value,
+		maximum,
+		minimum,
+		access,
+		format,
+		enumeration,
+		factor,
+		isOnline,
+		formula,
+		step,
+		defaultValue,
+		streamIdentifier,
+		enumMap,
+		streamDescriptor,
+		schemaIdentifiers,
+		templateReference
 	)
+	// The value and default fit the type, checked above: only a mistake in that check fails this
+	if (!fitsItsType(parameter)) {
+		throw new Error(`decode parameter: a value or default that doesn't fit the type ${parameterType} was kept`)
+	}
+	return makeResult(parameter, errors)
 }
 
 /**

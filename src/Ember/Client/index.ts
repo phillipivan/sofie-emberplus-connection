@@ -19,7 +19,7 @@ import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberFunction } from '../../model/EmberFunction.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
 import { Connections, Matrix } from '../../model/Matrix.js'
-import { isValueOfType, Parameter, ParameterImpl } from '../../model/Parameter.js'
+import { fitsItsType, isValueOfType, Parameter, ParameterImpl } from '../../model/Parameter.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
 import {
 	Collection,
@@ -395,19 +395,15 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
-		const { parameterType } = node.contents
-		// For a caller that doesn't check types. (Such a value was sent, coerced to the type by the encoder, or not.)
-		if (!isValueOfType(parameterType, value)) {
-			throw new Error(`setValue: ${String(value)} doesn't fit a parameter of the type ${parameterType}`)
-		}
-
 		// Send only the path and the value, as the specification's examples and Lawo's libember do. The parameter type
 		// only decides how the value is encoded. The tree is updated when the provider replies.
-		const request = new QualifiedElementImpl<Parameter>(
-			getPath(node),
-			// The value fits the type, checked above
-			<Parameter>new ParameterImpl(parameterType, undefined, undefined, value)
-		)
+		const { parameterType } = node.contents
+		const contents = new ParameterImpl(parameterType, undefined, undefined, value)
+		// For a caller that doesn't check types. (Such a value was sent, coerced to the type by the encoder, or not.)
+		if (!fitsItsType(contents)) {
+			throw new Error(`setValue: ${String(value)} doesn't fit a parameter of the type ${parameterType}`)
+		}
+		const request = new QualifiedElementImpl(getPath(node), contents)
 
 		// The reply is the parameter, of the type the tree has, or, when it isn't loaded, of the type the provider
 		// reported (which the decoder guesses from the value when the provider leaves it out): not checked against P
