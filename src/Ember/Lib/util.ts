@@ -60,9 +60,17 @@ export function toQualifiedCommand<C extends Command>(node: RootElement, command
 	return { path: getPath(node), elementType, command }
 }
 
-export function updateProps<T extends object>(oldProps: T, newProps: T, props?: Array<keyof T>): void {
-	if (!props) props = Object.keys(newProps) as Array<keyof T>
+/**
+ * The names of an object's own properties, as its type's keys. This is the one cast left: Object.keys gives strings,
+ * since an object may have properties its type doesn't name. (Element contents from this library or its decoder have
+ * only their type's; any others a caller added are taken along with them.)
+ */
+export function propertiesOf<T extends object>(contents: T): Array<keyof T> {
+	return Object.keys(contents) as Array<keyof T>
+}
 
+/** Copies the properties that are defined in newProps, and differ, onto oldProps: by default, all of them */
+export function updateProps<T extends object>(oldProps: T, newProps: T, props = propertiesOf(newProps)): void {
 	for (const key of props) {
 		if (newProps[key] !== undefined && newProps[key] !== oldProps[key]) {
 			oldProps[key] = newProps[key]

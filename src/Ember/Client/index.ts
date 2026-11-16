@@ -36,7 +36,15 @@ import {
 	RootType,
 	TreeElement,
 } from '../../types/types.js'
-import { getPath, isElementOfType, isEmptyNode, isNumbered, toQualifiedCommand, updateProps } from '../Lib/util.js'
+import {
+	getPath,
+	isElementOfType,
+	isEmptyNode,
+	isNumbered,
+	propertiesOf,
+	toQualifiedCommand,
+	updateProps,
+} from '../Lib/util.js'
 import { S101Client } from '../Socket/index.js'
 import { ConnectionStatus } from './ConnectionStatus.js'
 import { StreamManager } from './StreamManager.js'
@@ -1056,11 +1064,6 @@ function reportedConnections(update: TreeElement<EmberElement>): Connections | u
 function findConnection(connections: Connections | undefined, target: number): Connection | undefined {
 	if (!connections) return undefined
 	return Object.values<Connection>(connections).find((connection) => connection.target === target)
-}
-
-/** The names of an element's contents' properties */
-function propertiesOf<T extends object>(contents: T): Array<keyof T> {
-	return Object.keys(contents) as Array<keyof T>
 }
 
 /**
