@@ -1,5 +1,5 @@
 import { Command } from '../model/Command.js'
-import { EmberElement } from '../model/EmberElement.js'
+import { ElementType, EmberElement } from '../model/EmberElement.js'
 import { InvocationResult } from '../model/InvocationResult.js'
 import { ParameterType } from '../model/Parameter.js'
 import { StreamEntry } from '../model/StreamEntry.js'
@@ -14,6 +14,9 @@ export {
 	EmberTypedValue,
 	Root,
 	RootElement,
+	QualifiedCommand,
+	CommandableElementType,
+	isCommandableElementType,
 	MinMax,
 	StringIntegerCollection,
 	RootType,
@@ -28,6 +31,27 @@ type EmberTreeNode<T extends EmberElement> = NumberedTreeNode<T>
  * one, given by its path, of any kind but a command (the Glow DTD's RootElement)
  */
 type RootElement = NumberedTreeNode<EmberElement> | QualifiedElement<Exclude<EmberElement, Command>>
+/**
+ * A command for an element given by its path, as a consumer sends it: the path, the element's kind, which decides how
+ * it is encoded (as a QualifiedNode, a QualifiedParameter, ...), and the command, with none of the element's contents,
+ * as the specification's examples and Lawo's libember send it
+ */
+interface QualifiedCommand<C extends Command = Command> {
+	path: RelativeOID
+	elementType: CommandableElementType
+	command: C
+}
+/** The kinds of element a command can be sent to (a template's encoding has no children to carry one) */
+type CommandableElementType = ElementType.Node | ElementType.Parameter | ElementType.Matrix | ElementType.Function
+/** Whether a command can be sent to an element of the kind */
+function isCommandableElementType(type: ElementType): type is CommandableElementType {
+	return (
+		type === ElementType.Node ||
+		type === ElementType.Parameter ||
+		type === ElementType.Matrix ||
+		type === ElementType.Function
+	)
+}
 type Root = Collection<RootElement> | Collection<StreamEntry> | InvocationResult
 
 enum RootType {

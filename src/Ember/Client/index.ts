@@ -23,9 +23,11 @@ import { isValueOfType, Parameter, ParameterImpl } from '../../model/Parameter.j
 import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
 import {
 	Collection,
+	CommandableElementType,
 	EmberTypedValue,
 	EmberValue,
 	NumberedTreeNode,
+	QualifiedCommand,
 	QualifiedElement,
 	RelativeOID,
 	Root,
@@ -33,7 +35,7 @@ import {
 	RootType,
 	TreeElement,
 } from '../../types/types.js'
-import { assertQualifiedEmberNode, getPath, insertCommand, isEmptyNode, isNumbered, updateProps } from '../Lib/util.js'
+import { getPath, isEmptyNode, isNumbered, toQualifiedCommand, updateProps } from '../Lib/util.js'
 import { S101Client } from '../Socket/index.js'
 import { ConnectionStatus } from './ConnectionStatus.js'
 import { StreamManager } from './StreamManager.js'
@@ -56,7 +58,8 @@ export enum ExpectResponse {
 
 export interface Request {
 	reqId: string
-	node: RootElement
+	/** What was sent: an element (a value or connection to set, or a command at the root), or a command for one */
+	node: RootElement | QualifiedCommand
 	// Basic validation of the response change
 	nodeResponse: ExpectResponse
 
@@ -117,8 +120,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	 * ('' for the root), with the element type a request to that path is sent as. A provider keeps what a consumer
 	 * subscribed to only for that connection, so after a reconnect they're sent again: see _restoreSubscriptions.
 	 */
-	private _sentGetDirectories = new Map<RelativeOID, { type?: ElementType; dirFieldMask?: FieldFlags }>()
-	private _sentSubscribes = new Map<RelativeOID, { type?: ElementType }>()
+	private _sentGetDirectories = new Map<
+		RelativeOID,
+		{ elementType?: CommandableElementType; dirFieldMask?: FieldFlags }
+	>()
+	private _sentSubscribes = new Map<RelativeOID, { elementType?: CommandableElementType }>()
 
 	private _timeout = 3000
 	private _resendTimeout = 1000
@@ -254,15 +260,17 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			return request
 		}
 
+		// (first, so that a request that can't be sent leaves no callback behind)
+		const request = toQualifiedCommand(node, command)
 		if (cb)
 			this._subscriptions.push({
-				path: getPath(node),
+				path: request.path,
 				cb,
 			})
 
-		const request = await this._sendCommand<RootElement>(node, command, ExpectResponse.HasChildren)
-		if (request.sentOk) this._sentGetDirectories.set(getPath(node), { type: node.contents.type, dirFieldMask })
-		return request
+		const sent = await this._sendRequest<RootElement>(request, ExpectResponse.HasChildren)
+		if (sent.sentOk) this._sentGetDirectories.set(request.path, { elementType: request.elementType, dirFieldMask })
+		return sent
 	}
 	async subscribe(
 		node: RootElement | Array<RootElement>,
@@ -286,11 +294,14 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			return request
 		}
 
+		// (first, so that a request that can't be sent leaves nothing behind)
+		const request = toQualifiedCommand(node, command)
+
 		// Check if this is a Parameter with streamIdentifier
 		if (node.contents.type === ElementType.Parameter) {
 			const parameter = node.contents
 			if (parameter.streamIdentifier !== undefined) {
-				const path = getPath(node)
+				const path = request.path
 				this._streamManager.registerParameter(parameter, path)
 				// like the StreamManager, keep the first one registered for a path: its value is the one updated
 				if (!this._streamNodes.has(path)) this._streamNodes.set(path, node)
@@ -299,13 +310,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		if (cb)
 			this._subscriptions.push({
-				path: getPath(node),
+				path: request.path,
 				cb,
 			})
 
-		const request = await this._sendCommand<void>(node, command, ExpectResponse.None)
-		if (request.sentOk) this._sentSubscribes.set(getPath(node), { type: node.contents.type })
-		return request
+		const sent = await this._sendRequest<void>(request, ExpectResponse.None)
+		if (sent.sentOk) this._sentSubscribes.set(request.path, { elementType: request.elementType })
+		return sent
 	}
 	async unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>): RequestPromise<Root | void> {
 		if (!node) {
@@ -528,8 +539,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (tree?.contents.type === ElementType.Parameter && this._getDirectoryOnParams) {
 			// do an additional getDirectory because Providers do not _have_ to send updates without that (should vs shall).
 			// Don't wait for the reply, as some providers never answer one. A reply updates the tree and calls cb.
-			const request = await this._sendCommand(tree, new GetDirectoryImpl(), ExpectResponse.None)
-			if (request.sentOk) this._sentGetDirectories.set(getPath(tree), { type: tree.contents.type })
+			const request = toQualifiedCommand(tree, new GetDirectoryImpl())
+			const sent = await this._sendRequest(request, ExpectResponse.None)
+			if (sent.sentOk) this._sentGetDirectories.set(request.path, { elementType: request.elementType })
 		}
 
 		return tree
@@ -596,11 +608,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const isBelow = (other: string) =>
 			other !== '' && (other.includes('.') ? other.slice(0, other.lastIndexOf('.')) : '') === path
 
-		for (const [other, { type }] of this._sentGetDirectories) {
-			if (type === ElementType.Parameter && isBelow(other)) this._sentGetDirectories.delete(other)
+		for (const [other, { elementType }] of this._sentGetDirectories) {
+			if (elementType === ElementType.Parameter && isBelow(other)) this._sentGetDirectories.delete(other)
 		}
-		for (const [other, { type }] of this._sentSubscribes) {
-			if (type === ElementType.Parameter && isBelow(other)) this._sentSubscribes.delete(other)
+		for (const [other, { elementType }] of this._sentSubscribes) {
+			if (elementType === ElementType.Parameter && isBelow(other)) this._sentSubscribes.delete(other)
 		}
 		for (const other of this._streamManager.getAllRegisteredPaths()) {
 			if (!isBelow(other)) continue
@@ -619,41 +631,31 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _restoreSubscriptions(): void {
 		const depth = (path: RelativeOID) => (path ? path.split('.').length : 0)
 		const byDepth = ([a]: [RelativeOID, unknown], [b]: [RelativeOID, unknown]) => depth(a) - depth(b)
-		const resend = (path: RelativeOID, type: ElementType | undefined, command: Command) => {
-			const request = type
-				? insertCommand(
-						new QualifiedElementImpl(path, { type } as EmberElement) as Exclude<
-							RootElement,
-							NumberedTreeNode<EmberElement>
-						>,
-						command
-					)
+		const resend = (path: RelativeOID, elementType: CommandableElementType | undefined, command: Command) => {
+			const request: QualifiedCommand | RootElement = elementType
+				? { path, elementType, command }
 				: new NumberedTreeNodeImpl(0, command) // the root
 			this._sendRequest(request, ExpectResponse.None).catch((e) =>
 				this.emit('warn', e instanceof Error ? e : new Error(String(e)))
 			)
 		}
 
-		for (const [path, { type, dirFieldMask }] of [...this._sentGetDirectories].sort(byDepth)) {
-			resend(path, type, new GetDirectoryImpl(dirFieldMask))
+		for (const [path, { elementType, dirFieldMask }] of [...this._sentGetDirectories].sort(byDepth)) {
+			resend(path, elementType, new GetDirectoryImpl(dirFieldMask))
 		}
-		for (const [path, { type }] of [...this._sentSubscribes].sort(byDepth)) {
-			resend(path, type, new SubscribeImpl())
+		for (const [path, { elementType }] of [...this._sentSubscribes].sort(byDepth)) {
+			resend(path, elementType, new SubscribeImpl())
 		}
 	}
 
+	/** Sends a command for an element, given by its path */
 	private async _sendCommand<T>(node: RootElement, command: Command, expectResponse: ExpectResponse) {
-		// assert a qualified EmberNode
-		const qualifiedEmberNode = assertQualifiedEmberNode(node)
-		// insert command
-		const commandEmberNode = insertCommand(qualifiedEmberNode, command)
-		// send request
-		return this._sendRequest<T>(commandEmberNode, expectResponse)
+		return this._sendRequest<T>(toQualifiedCommand(node, command), expectResponse)
 	}
 
 	/** @param connectionTarget for a request to change a matrix connection, see Request.connectionTarget */
 	private async _sendRequest<T>(
-		node: RootElement,
+		node: RootElement | QualifiedCommand,
 		expectResponse: ExpectResponse,
 		connectionTarget?: number
 	): RequestPromise<T> {
@@ -770,16 +772,14 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (root.rootType === RootType.InvocationResult) {
 			const node = root.value
 			this._requests.forEach((req) => {
-				if (req.node.contents.type === ElementType.Function) {
-					if (req.node.children && req.node.children[0]) {
-						const command = req.node.children[0].contents
-						if (command.type === ElementType.Command && isInvoke(command)) {
-							if (command.invocation?.id && command.invocation.id === node.id) {
-								req.resolve(node)
-								this._requests.delete(req.reqId)
-							}
-						}
-					}
+				// the Invoke whose invocation the result is of
+				if (
+					'command' in req.node &&
+					isInvoke(req.node.command) &&
+					req.node.command.invocation?.id === node.id
+				) {
+					req.resolve(node)
+					this._requests.delete(req.reqId)
 				}
 			})
 		} else if (root.rootType === RootType.Elements) {

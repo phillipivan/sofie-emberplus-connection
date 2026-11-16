@@ -1,16 +1,16 @@
 import { Command, Invoke, isInvoke } from '../../model/Command.js'
 import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberNode } from '../../model/index.js'
-import { isNumbered, isQualified, NumberedTreeNodeImpl, QualifiedElementImpl, TreeElement } from '../../model/Tree.js'
-import { isRelativeOID, NumberedTreeNode, QualifiedElement, RelativeOID, RootElement } from '../../types/types.js'
-
-export function assertQualifiedEmberNode(node: RootElement): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
-	if ('path' in node) {
-		return node
-	} else {
-		return toQualifiedEmberNode(node)
-	}
-}
+import { isNumbered, isQualified, QualifiedElementImpl, TreeElement } from '../../model/Tree.js'
+import {
+	isCommandableElementType,
+	isRelativeOID,
+	NumberedTreeNode,
+	QualifiedCommand,
+	QualifiedElement,
+	RelativeOID,
+	RootElement,
+} from '../../types/types.js'
 
 export { isNumbered }
 
@@ -48,15 +48,16 @@ function isNotCommand<T extends EmberElement>(contents: T): contents is Exclude<
 	return contents.type !== ElementType.Command
 }
 
-export function insertCommand(
-	node: Exclude<RootElement, NumberedTreeNode<EmberElement>>,
-	command: Command
-): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
-	// Send only the path and the command, as the specification's examples do. The element's type is kept, as it
-	// decides how the element is encoded, but not its other contents.
-	return new QualifiedElementImpl<EmberElement>(node.path, { type: node.contents.type } as EmberElement, [
-		new NumberedTreeNodeImpl(0, command),
-	]) as Exclude<RootElement, NumberedTreeNode<EmberElement>>
+/**
+ * A command for an element, given by its path and kind, as the client sends it. A command can't be sent to another
+ * command, or to a template, whose encoding has no children to carry it.
+ */
+export function toQualifiedCommand<C extends Command>(node: RootElement, command: C): QualifiedCommand<C> {
+	const elementType = node.contents.type
+	if (!isCommandableElementType(elementType)) {
+		throw new Error(`Cannot send a command to a ${elementType.toLowerCase()}`)
+	}
+	return { path: getPath(node), elementType, command }
 }
 
 export function updateProps<T extends object>(oldProps: T, newProps: T, props?: Array<keyof T>): void {

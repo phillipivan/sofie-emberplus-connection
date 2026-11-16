@@ -11,9 +11,19 @@ import {
 	ParameterType,
 	QualifiedElement,
 	QualifiedElementImpl,
+	TemplateImpl,
 	TreeElement,
 } from '../../../model/index.js'
-import { childPath, isElementOfType, isInvokeElement, isNumbered, parentPath, toQualifiedEmberNode } from '../util.js'
+import { RootElement } from '../../../types/types.js'
+import {
+	childPath,
+	isElementOfType,
+	isInvokeElement,
+	isNumbered,
+	parentPath,
+	toQualifiedCommand,
+	toQualifiedEmberNode,
+} from '../util.js'
 
 describe('element type guards', () => {
 	const elements: Array<[ElementType, TreeElement<EmberElement>]> = [
@@ -83,5 +93,29 @@ describe('toQualifiedEmberNode', () => {
 		expect(() => toQualifiedEmberNode(new NumberedTreeNodeImpl(0, new GetDirectoryImpl()))).toThrow(
 			'Cannot convert a command to a qualified node'
 		)
+	})
+})
+
+describe('toQualifiedCommand', () => {
+	const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+
+	test.each<[string, RootElement, ElementType]>([
+		['a numbered node', new NumberedTreeNodeImpl(3, new EmberNodeImpl(), undefined, device), ElementType.Node],
+		[
+			'a qualified parameter',
+			new QualifiedElementImpl('1.3', new ParameterImpl(ParameterType.Integer)),
+			ElementType.Parameter,
+		],
+	])('gives %s, by its path and kind, with the command', (_, element, elementType) => {
+		const command = new GetDirectoryImpl()
+
+		expect(toQualifiedCommand(element, command)).toEqual({ path: '1.3', elementType, command })
+	})
+	// A template's encoding has no children to carry a command, and a command has no path of its own
+	test.each<[string, RootElement]>([
+		['template', new NumberedTreeNodeImpl(3, new TemplateImpl(), undefined, device)],
+		['command', new NumberedTreeNodeImpl(0, new GetDirectoryImpl())],
+	])('refuses a %s', (kind, element) => {
+		expect(() => toQualifiedCommand(element, new GetDirectoryImpl())).toThrow(`Cannot send a command to a ${kind}`)
 	})
 })

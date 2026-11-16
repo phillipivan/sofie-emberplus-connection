@@ -1732,7 +1732,6 @@ describe('client', () => {
 				'a function',
 				() => new EmberFunctionImpl('add', 'Add', [new FunctionArgumentImpl(ParameterType.Integer, 'a')]),
 			],
-			['a template', () => new TemplateImpl(undefined, 'Channel template')],
 		])('resolves for %s when the reply has no children', async (_, contents) => {
 			await runWithConnection(async (client, socket) => {
 				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
@@ -1747,6 +1746,26 @@ describe('client', () => {
 				socket.mockData(createQualifiedNodeResponse('1.1', contents(), undefined))
 
 				await expect(request.response).resolves.toBe(device.children[1])
+			})
+		})
+
+		// A template's encoding has no children to carry a command. The request went as a bare QualifiedTemplate,
+		// without the command, and waited for a reply until it timed out.
+		it('refuses a template, sending nothing and keeping no callback', async () => {
+			await runWithConnection(async (client, socket) => {
+				const template = new NumberedTreeNodeImpl(1, new TemplateImpl(undefined, 'Channel template'))
+				client.tree[1] = template // so that a report on it is a change at its path
+				const cb = jest.fn()
+
+				await expect(client.getDirectory(template, undefined, cb)).rejects.toThrow(
+					'Cannot send a command to a template'
+				)
+				await expect(client.subscribe(template, cb)).rejects.toThrow('Cannot send a command to a template')
+				expect(onSocketWrite).not.toHaveBeenCalled()
+
+				socket.mockData(createQualifiedNodeResponse('1', new TemplateImpl(undefined, 'Changed'), undefined))
+				await new Promise(setImmediate)
+				expect(cb).not.toHaveBeenCalled()
 			})
 		})
 	})
