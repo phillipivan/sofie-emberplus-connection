@@ -126,7 +126,6 @@ describe('encodings/ber/EmberNode', () => {
 	test('write and read a node', () => {
 		const writer = new Ber.Writer()
 		encodeNode(en, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeNode(reader))
 
@@ -136,14 +135,12 @@ describe('encodings/ber/EmberNode', () => {
 	test('decode indefinite length', () => {
 		const decoded = berDecode(indefiniteLength)
 
-		console.log(decoded.value)
 		expect(decoded.errors).toHaveLength(0)
 	})
 
 	test('decode indefinite node only', () => {
 		const reader = new Ber.Reader(nodeOnly)
 		const decoded = decodeGenericElement(reader)
-		console.log(decoded.value)
 		expect(decoded.errors).toHaveLength(0)
 	})
 })

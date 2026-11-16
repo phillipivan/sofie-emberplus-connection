@@ -23,7 +23,6 @@ describe('encodings/ber/InvocationResult', () => {
 	test('write and read invocation result', () => {
 		const writer = new Ber.Writer()
 		encodeInvocationResult(ir, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeInvocationResult(reader))
 
@@ -33,7 +32,6 @@ describe('encodings/ber/InvocationResult', () => {
 	test('write and read invocation result - void return', () => {
 		const writer = new Ber.Writer()
 		encodeInvocationResult(voidRes, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeInvocationResult(reader))
 
@@ -44,7 +42,6 @@ describe('encodings/ber/InvocationResult', () => {
 	test('write and read invocation result - empty result', () => {
 		const writer = new Ber.Writer()
 		encodeInvocationResult({ id: voidRes.id, success: true, result: [] }, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeInvocationResult(reader))
 

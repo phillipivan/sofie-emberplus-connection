@@ -17,7 +17,6 @@ describe('encodings/ber/Command', () => {
 	function testCommand(command: Command): void {
 		const writer = new Ber.Writer()
 		encodeCommand(command, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeCommand(reader))
 

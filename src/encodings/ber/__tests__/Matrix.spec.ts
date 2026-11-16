@@ -18,7 +18,6 @@ describe('encodings/ber/Matrix', () => {
 		const writer = new Ber.Writer()
 		if (!qualified) encodeNumberedElement(node as NumberedTreeNode<Matrix>, writer)
 		else encodeQualifedElement(node as QualifiedElement<Matrix>, writer)
-		console.log(writer.buffer)
 		expect(writer.buffer.length).toBeGreaterThan(0)
 		const buffer = indefinite ? toIndefiniteLength(writer.buffer) : writer.buffer
 		if (indefinite) expect(buffer[1]).toBe(0x80)

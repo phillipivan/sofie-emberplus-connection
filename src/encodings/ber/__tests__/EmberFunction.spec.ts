@@ -11,7 +11,6 @@ describe('encodings/ber/EmberFunction', () => {
 		function testFunction(fn: EmberFunction): void {
 			const writer = new Ber.Writer()
 			encodeFunction(fn, writer)
-			console.log(writer.buffer)
 			const reader = new Ber.Reader(writer.buffer)
 			const decoded = guarded(decodeFunctionContent(reader))
 

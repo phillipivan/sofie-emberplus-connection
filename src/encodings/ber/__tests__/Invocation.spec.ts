@@ -28,7 +28,6 @@ describe('encodings/ber/Invocation', () => {
 	test('write and read an invocation - 3 args', () => {
 		const writer = new Ber.Writer()
 		encodeInvocation(iv, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeInvocation(reader))
 
@@ -38,7 +37,6 @@ describe('encodings/ber/Invocation', () => {
 	test('write and read an invocation - no arguments', () => {
 		const writer = new Ber.Writer()
 		encodeInvocation(noArgs, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeInvocation(reader))
 
@@ -48,7 +46,6 @@ describe('encodings/ber/Invocation', () => {
 	test('write and read an invocation - no identifier', () => {
 		const writer = new Ber.Writer()
 		encodeInvocation(noId, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeInvocation(reader))
 
@@ -59,7 +56,6 @@ describe('encodings/ber/Invocation', () => {
 		const writer = new Ber.Writer()
 		encodeInvocation(iv, writer)
 		const buffer = toIndefiniteLength(writer.buffer)
-		console.log(buffer)
 		expect(buffer[1]).toBe(0x80)
 		const reader = new Ber.Reader(buffer)
 		const decoded = guarded(decodeInvocation(reader))

@@ -14,7 +14,6 @@ describe('encodings/ber/StreamEntry', () => {
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStreamEntry(reader))
 
@@ -29,7 +28,6 @@ describe('encodings/ber/StreamEntry', () => {
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStreamEntry(reader))
 
@@ -44,7 +42,6 @@ describe('encodings/ber/StreamEntry', () => {
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStreamEntry(reader))
 
@@ -59,7 +56,6 @@ describe('encodings/ber/StreamEntry', () => {
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStreamEntry(reader))
 
@@ -74,7 +70,6 @@ describe('encodings/ber/StreamEntry', () => {
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStreamEntry(reader))
 
@@ -89,7 +84,6 @@ describe('encodings/ber/StreamEntry', () => {
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStreamEntry(reader))
 
@@ -104,7 +98,6 @@ describe('encodings/ber/StreamEntry', () => {
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStreamEntry(reader))
 
@@ -119,7 +112,6 @@ describe('encodings/ber/StreamEntry', () => {
 
 		const writer = new Ber.Writer()
 		encodeStreamEntry(se, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStreamEntry(reader))
 

@@ -13,7 +13,6 @@ describe('encodings/ber/StreamDescription', () => {
 	test('write and read stream description', () => {
 		const writer = new Ber.Writer()
 		encodeStreamDescription(sd, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStreamDescription(reader))
 

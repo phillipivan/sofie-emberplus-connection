@@ -15,7 +15,6 @@ describe('encodings/ber/Connection', () => {
 	test('write and read a connection', () => {
 		const writer = new Ber.Writer()
 		encodeConnection(connection, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeConnection(reader))
 
@@ -26,7 +25,6 @@ describe('encodings/ber/Connection', () => {
 		const minCon = { target: 42 } as Connection
 		const writer = new Ber.Writer()
 		encodeConnection(minCon, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeConnection(reader))
 

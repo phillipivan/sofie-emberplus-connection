@@ -14,7 +14,6 @@ describe('encoders/ber/FunctionArgument', () => {
 	test('write and read function argument', () => {
 		const writer = new Ber.Writer()
 		encodeFunctionArgument(fa, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeFunctionArgument(reader))
 
@@ -27,7 +26,6 @@ describe('encoders/ber/FunctionArgument', () => {
 		}
 		const writer = new Ber.Writer()
 		encodeFunctionArgument(noName, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeFunctionArgument(reader))
 

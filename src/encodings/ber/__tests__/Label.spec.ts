@@ -14,7 +14,6 @@ describe('encodings/ber/Label', () => {
 	test('write and read a label', () => {
 		const writer = new Ber.Writer()
 		encodeLabel(lbl, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeLabel(reader))
 

@@ -15,7 +15,6 @@ describe('encodings/ber/Parameter', () => {
 	function roundtripParameter(prm: Parameter): void {
 		const writer = new Ber.Writer()
 		encodeParameter(prm, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeParameter(reader))
 

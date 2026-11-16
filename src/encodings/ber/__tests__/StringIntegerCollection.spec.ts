@@ -14,7 +14,6 @@ describe('encodings/ber/StringIntegerCollection', () => {
 	test('write and read string integer collection - 3 values', () => {
 		const writer = new Ber.Writer()
 		encodeStringIntegerCollection(sic, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStringIntegerCollection(reader))
 
@@ -26,7 +25,6 @@ describe('encodings/ber/StringIntegerCollection', () => {
 
 		const writer = new Ber.Writer()
 		encodeStringIntegerCollection(emptySic, writer)
-		console.log(writer.buffer)
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = guarded(decodeStringIntegerCollection(reader))
 
