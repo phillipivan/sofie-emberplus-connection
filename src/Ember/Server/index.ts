@@ -11,6 +11,7 @@ import {
 	EmberFunction,
 	EmberNodeImpl,
 	InvocationResult,
+	isConnections,
 	Matrix,
 	MatrixImpl,
 	MatrixType,
@@ -27,7 +28,7 @@ import {
 	RootType,
 	TreeElement,
 } from '../../types/types.js'
-import { isElementOfType, isInvokeElement, parentPath, toQualifiedEmberNode } from '../Lib/util.js'
+import { getPath, isElementOfType, isInvokeElement, parentPath, toQualifiedEmberNode } from '../Lib/util.js'
 import { S101Server } from '../Socket/S101Server.js'
 import S101Socket from '../Socket/S101Socket.js'
 
@@ -128,14 +129,15 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	update<T extends EmberElement>(element: NumberedTreeNode<T>, update: Partial<T>): void {
-		if (isElementOfType(element, ElementType.Matrix)) {
-			// The update is for this element, so a matrix's (TypeScript can't tie the two together through T)
-			const matrixUpdate = update as Partial<Matrix>
-
-			if (matrixUpdate.connections) {
-				for (const connection of Object.values<Connection>(matrixUpdate.connections)) {
-					this.updateMatrixConnection(element, connection)
-				}
+		// A matrix's connections, checked, since TypeScript can't tie the update to the element through T: before any
+		// of the update is applied, so that one that isn't any is refused whole
+		const connections: unknown = 'connections' in update ? update.connections : undefined
+		if (isElementOfType(element, ElementType.Matrix) && connections !== undefined) {
+			if (!isConnections(connections)) {
+				throw new Error(`update: what was given as the connections of ${getPath(element)} are not connections`)
+			}
+			for (const connection of Object.values<Connection>(connections)) {
+				this.updateMatrixConnection(element, connection)
 			}
 		}
 

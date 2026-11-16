@@ -1,4 +1,4 @@
-export { Connection, ConnectionDisposition, ConnectionOperation, ConnectionImpl }
+export { Connection, ConnectionDisposition, ConnectionOperation, ConnectionImpl, isConnection }
 
 /** How to interpret the set of sources in a connection. */
 enum ConnectionOperation {
@@ -45,4 +45,22 @@ class ConnectionImpl implements Connection {
 		public operation?: ConnectionOperation,
 		public disposition?: ConnectionDisposition
 	) {}
+}
+
+/**
+ * Whether a value is a connection: a numeric target, and sources, an operation and a disposition, if any, of their
+ * kinds. For a value from a caller that doesn't check types.
+ */
+function isConnection(value: unknown): value is Connection {
+	if (typeof value !== 'object' || value === null) return false
+	if (!('target' in value) || typeof value.target !== 'number') return false
+	const isOneOf = (values: Record<string, string>, v: unknown) =>
+		v === undefined || (typeof v === 'string' && Object.values<string>(values).includes(v))
+	return (
+		(!('sources' in value) ||
+			value.sources === undefined ||
+			(Array.isArray(value.sources) && value.sources.every((source: unknown) => typeof source === 'number'))) &&
+		(!('operation' in value) || isOneOf(ConnectionOperation, value.operation)) &&
+		(!('disposition' in value) || isOneOf(ConnectionDisposition, value.disposition))
+	)
 }

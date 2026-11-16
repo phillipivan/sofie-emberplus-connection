@@ -464,6 +464,23 @@ describe('EmberServer matrices', () => {
 			expect(matrix.contents.description).toBe('Router')
 			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [0] })
 		})
+
+		// From a caller that doesn't check types. TypeScript can't tie the update to the matrix, so the update was cast
+		// to a matrix's, and what it held was used as connections whatever it was.
+		it.each<[string, unknown]>([
+			['a connection without a target', { 0: { sources: [1] } }],
+			['sources that are not numbers', { 0: { target: 0, sources: ['1'] } }],
+			['a list of targets', [0, 1]],
+		])('refuses connections that are %s, applying nothing', (_, connections) => {
+			const update: Partial<Matrix> = { description: 'Router' }
+			Object.assign(update, { connections })
+
+			expect(() => server.update(matrix, update)).toThrow(
+				'update: what was given as the connections of 1.1 are not connections'
+			)
+			expect(matrix.contents.description).toBeUndefined()
+			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [] })
+		})
 	})
 
 	// What a provider's onMatrixOperation handler does with a consumer's request

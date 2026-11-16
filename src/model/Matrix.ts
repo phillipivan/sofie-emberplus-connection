@@ -1,9 +1,9 @@
 import { RelativeOID } from '../types/types.js'
-import { Connection } from './Connection.js'
+import { Connection, isConnection } from './Connection.js'
 import { ElementType, EmberBaseElement } from './EmberElement.js'
 import { Label } from './Label.js'
 
-export { Matrix, MatrixType, MatrixAddressingMode, Connections, MatrixImpl }
+export { Matrix, MatrixType, MatrixAddressingMode, Connections, MatrixImpl, isConnections }
 
 /**
  *  Type of a matrix.
@@ -103,4 +103,14 @@ class MatrixImpl implements Matrix {
 		public schemaIdentifiers?: string,
 		public templateReference?: RelativeOID
 	) {}
+}
+
+/** Whether a value is a matrix's connections: an object of connections. For a value from a caller that doesn't check types. */
+function isConnections(value: unknown): value is Connections {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		!Array.isArray(value) &&
+		Object.values<unknown>({ ...value }).every((connection) => isConnection(connection))
+	)
 }

@@ -10,7 +10,7 @@ import {
 	UnknownCommand,
 	Unsubscribe,
 } from './Command.js'
-import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation } from './Connection.js'
+import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation, isConnection } from './Connection.js'
 import { ElementType, EmberElement, isEmberElement } from './EmberElement.js'
 import { EmberFunction, EmberFunctionImpl } from './EmberFunction.js'
 import { EmberNode, EmberNodeImpl } from './EmberNode.js'
@@ -18,7 +18,7 @@ import { FunctionArgument, FunctionArgumentImpl } from './FunctionArgument.js'
 import { Invocation } from './Invocation.js'
 import { InvocationResult } from './InvocationResult.js'
 import { Label } from './Label.js'
-import { Connections, Matrix, MatrixAddressingMode, MatrixImpl, MatrixType } from './Matrix.js'
+import { Connections, isConnections, Matrix, MatrixAddressingMode, MatrixImpl, MatrixType } from './Matrix.js'
 import {
 	fitsItsType,
 	isValueOfType,
@@ -73,7 +73,9 @@ export {
 	ConnectionDisposition,
 	ConnectionOperation,
 	ConnectionImpl,
+	isConnection,
 	MatrixImpl,
+	isConnections,
 	Parameter,
 	ParameterType,
 	ParameterAccess,
