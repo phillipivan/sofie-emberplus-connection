@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import * as Ber from '../../../Ber/index.js'
-import { ElementType } from '../../../model/EmberElement.js'
 import { Matrix, MatrixAddressingMode, MatrixType, SignalContents } from '../../../model/Matrix.js'
 import { SourceBERID, TargetBERID } from '../constants.js'
 import { encodeLabel } from './Label.js'
@@ -89,19 +88,6 @@ function encodeSignal(berId: number, number: number, writer: Ber.Writer, content
 		writer.endSequence()
 	}
 	writer.endSequence()
-}
-
-export const elementTypeToInt = (type: ElementType): number => {
-	const typeToInt: Record<ElementType, number> = {
-		[ElementType.Parameter]: 0,
-		[ElementType.Node]: 1,
-		[ElementType.Command]: 2,
-		[ElementType.Matrix]: 3,
-		[ElementType.Function]: 4,
-		[ElementType.Template]: 5,
-	}
-
-	return typeToInt[type]
 }
 
 export const matrixTypeToInt = (type: MatrixType): number => {

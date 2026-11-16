@@ -6,8 +6,6 @@ import { EmberTypedValue, MinMax } from '../../../types/types.js'
 import { encodeStreamDescription } from './StreamDescription.js'
 import { encodeStringIntegerCollection } from './StringIntegerCollection.js'
 
-// import { elementTypeToInt } from './Matrix.js'
-
 export const encodeParameter = (parameter: Parameter, writer: Ber.Writer): void => {
 	writer.startSequence(Ber.BERDataTypes.SET)
 
