@@ -45,7 +45,9 @@ class ExtendedReader extends Reader {
 				// Not one of the DTD's Value types, but earlier versions of this library wrote an enum's value with it
 				return { type: ParameterType.Integer, value: this.readEnumeration() }
 			case BERDataTypes.RELATIVE_OID:
-				return { type: ParameterType.String, value: this.readOID(BERDataTypes.RELATIVE_OID) }
+				// Not one of the DTD's Value types; read as the relative OID it is (not as an absolute one, which splits
+				// its first byte into two arcs)
+				return { type: ParameterType.String, value: this.readRelativeOID(BERDataTypes.RELATIVE_OID) }
 			case BERDataTypes.NULL:
 				// No readNull in the BER library: read past the tag (one byte or more) and its empty contents
 				this.readStringAsBuffer(BERDataTypes.NULL)

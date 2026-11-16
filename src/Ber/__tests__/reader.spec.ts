@@ -9,6 +9,17 @@ describe('BER Reader.readValue', () => {
 		expect(new Reader(Buffer.from('0a0102', 'hex')).readValue()).toEqual({ type: ParameterType.Integer, value: 2 })
 	})
 
+	// Not one of the DTD's Value types; it was read as an absolute OID, whose first byte holds two arcs, so 1.2.3 read
+	// as 0.1.2.3 (#58). (libember's Value reads a type outside the CHOICE as the integer 0.)
+	test.each([
+		['1.2.3', '0d03010203'],
+		['1.200.3', '0d0401814803'],
+		['0', '0d0100'],
+		['', '0d00'],
+	])('reads a RELATIVE-OID value %j as the relative OID it is', (oid, encoded) => {
+		expect(new Reader(Buffer.from(encoded, 'hex')).readValue()).toEqual({ type: ParameterType.String, value: oid })
+	})
+
 	test('reads back a value of the type Enum as an integer', () => {
 		const writer = new Writer()
 		writer.writeValue({ type: ParameterType.Enum, value: 2 })
