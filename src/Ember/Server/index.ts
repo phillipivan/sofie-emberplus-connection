@@ -435,22 +435,23 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		_dirFieldMasks: FieldFlags,
 		client: S101Socket
 	) {
-		if (tree === this.tree) {
-			// getDir on root
-			const response: Collection<NumberedTreeNode<EmberElement>> = { ...this.tree }
-			for (const [i, rootEl] of Object.entries<NumberedTreeNode<EmberElement>>(this.tree)) {
-				response[i as unknown as number] = new NumberedTreeNodeImpl(rootEl.number, rootEl.contents)
+		if (!('contents' in tree)) {
+			// getDir on root: the top-level elements, without their children, keyed by number
+			const response: Collection<NumberedTreeNode<EmberElement>> = {}
+			for (const rootEl of Object.values<NumberedTreeNode<EmberElement>>(tree)) {
+				response[rootEl.number] = new NumberedTreeNodeImpl(rootEl.number, rootEl.contents)
 			}
 			const data = berEncode(response, RootType.Elements)
 			client.sendBER(data)
 		} else {
-			const qualified = toQualifiedEmberNode(tree as NumberedTreeNode<EmberElement>)
+			const qualified = toQualifiedEmberNode(tree)
 			qualified.children = {} // destroy ref to this.tree
-			if ('children' in tree && tree.children) {
-				for (const [i, child] of Object.entries<NumberedTreeNode<EmberElement>>(tree.children)) {
+			if (tree.children) {
+				// the children, without their children, keyed by number
+				for (const child of Object.values<NumberedTreeNode<EmberElement>>(tree.children)) {
 					if (child.contents.type === ElementType.Matrix) {
 						// matrix should not have connections, targets and sources:
-						qualified.children[i as unknown as number] = new NumberedTreeNodeImpl(
+						qualified.children[child.number] = new NumberedTreeNodeImpl(
 							child.number,
 							new MatrixImpl(
 								child.contents.identifier,
@@ -472,13 +473,10 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 							)
 						)
 					} else {
-						qualified.children[i as unknown as number] = new NumberedTreeNodeImpl(
-							child.number,
-							child.contents
-						)
+						qualified.children[child.number] = new NumberedTreeNodeImpl(child.number, child.contents)
 					}
 				}
-			} else if (qualified.contents.type === ElementType.Node && !('children' in tree && tree.children)) {
+			} else if (qualified.contents.type === ElementType.Node) {
 				// node without children -> none of the properties should be set
 				qualified.contents = new EmberNodeImpl()
 				qualified.children = undefined
