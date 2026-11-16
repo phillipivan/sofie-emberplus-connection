@@ -697,6 +697,31 @@ describe('client', () => {
 			return device.children[1] as NumberedTreeNode<Matrix>
 		}
 
+		// A signal's contents are merged as an element's are: a report gives what changed. (They were read past.)
+		it("merges a report of signals' contents into those it has, signal by signal", async () => {
+			await runWithConnection(async (client, socket) => {
+				const node = seedMatrix(client)
+				node.contents.targetContents = { 1: { identifier: 'out-1', labelsLocation: '1.9.1' } }
+
+				const report = (contents: Matrix) =>
+					socket.mockData(createQualifiedNodeResponse('1.1', contents, undefined))
+				report({
+					type: ElementType.Matrix,
+					targetContents: { 1: { isOnline: false }, 2: { identifier: 'out-2' } },
+					sourceContents: { 4: { labelsLocation: '1.8.4' } },
+				})
+				await new Promise(setImmediate)
+				report({ type: ElementType.Matrix, connections: { 3: { target: 3, sources: [1] } } }) // no signal contents
+				await new Promise(setImmediate)
+
+				expect(node.contents.targetContents).toEqual({
+					1: { identifier: 'out-1', labelsLocation: '1.9.1', isOnline: false },
+					2: { identifier: 'out-2' },
+				})
+				expect(node.contents.sourceContents).toEqual({ 4: { labelsLocation: '1.8.4' } })
+			})
+		})
+
 		// As the specification's examples, Lawo's libember and Ember+ Viewer do: a QualifiedMatrix holding the path
 		// and only the connection, without contents
 		test.each([

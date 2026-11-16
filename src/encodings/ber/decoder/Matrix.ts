@@ -1,7 +1,14 @@
 import * as Ber from '../../../Ber/index.js'
 import { EmberElement } from '../../../model/EmberElement.js'
 import { Label } from '../../../model/Label.js'
-import { Connections, Matrix, MatrixAddressingMode, MatrixImpl, MatrixType } from '../../../model/Matrix.js'
+import {
+	Connections,
+	Matrix,
+	MatrixAddressingMode,
+	MatrixImpl,
+	MatrixType,
+	SignalContents,
+} from '../../../model/Matrix.js'
 import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, EmberTreeNode, RelativeOID } from '../../../types/types.js'
 import { MatrixBERID, QualifiedMatrixBERID, SourceBERID, TargetBERID } from '../constants.js'
@@ -30,8 +37,8 @@ function decodeMatrix(
 	reader.readSequence(isQualified ? QualifiedMatrixBERID : MatrixBERID)
 	let number: number | null = null
 	let path: RelativeOID | null = null
-	let targets: Array<number> | undefined = undefined
-	let sources: Array<number> | undefined = undefined
+	let targets: DecodedSignals | undefined = undefined
+	let sources: DecodedSignals | undefined = undefined
 	let connections: Connections | undefined = undefined
 	let contents: Matrix | null = null
 	let kids: Collection<EmberTreeNode<EmberElement>> | undefined = undefined
@@ -72,8 +79,10 @@ function decodeMatrix(
 	}
 	// contents are optional, but the model keeps targets, sources and connections in them
 	if (!contents) contents = new MatrixImpl()
-	contents.targets = targets
-	contents.sources = sources
+	contents.targets = targets?.numbers
+	contents.sources = sources?.numbers
+	contents.targetContents = targets?.contents
+	contents.sourceContents = sources?.contents
 	contents.connections = connections
 
 	let el: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>
@@ -208,27 +217,31 @@ function decodeMatrixContents(reader: Ber.Reader, options: DecodeOptions = defau
 	)
 }
 
-function decodeTargets(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Array<number>> {
+/** A collection of targets or sources: their numbers, and the contents of those that have any, by number */
+interface DecodedSignals {
+	numbers: Array<number>
+	contents?: { [signal: number]: SignalContents }
+}
+
+function decodeTargets(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<DecodedSignals> {
 	return decodeSignals(reader, TargetBERID, 'targets', options)
 }
 
-function decodeSources(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Array<number>> {
+function decodeSources(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<DecodedSignals> {
 	return decodeSignals(reader, SourceBERID, 'sources', options)
 }
 
 /**
- * Decodes a collection of targets or sources to the signals' numbers.
- *
- * Signal ::= SEQUENCE { number [0] Integer32, contents [1] SignalContents OPTIONAL }. The contents (identifier,
- * isOnline and labelsLocation, since Glow 2.50) have no place in the model, so they are read past.
+ * Decodes a collection of targets or sources: Signal ::= SEQUENCE { number [0] Integer32, contents [1] SignalContents
+ * OPTIONAL }. The contents (identifier, isOnline and labelsLocation, Glow 2.50) are kept by the signal's number.
  */
 function decodeSignals(
 	reader: Ber.Reader,
 	signalBERID: number,
 	name: string,
 	options: DecodeOptions = defaultDecode
-): DecodeResult<Array<number>> {
-	const signals: Array<number> = []
+): DecodeResult<DecodedSignals> {
+	const signals: DecodedSignals = { numbers: [] }
 	const errors: Array<Error> = []
 	reader.readSequence(Ber.BERDataTypes.SEQUENCE)
 	const endOffset = reader.offset + reader.length
@@ -240,6 +253,7 @@ function decodeSignals(
 		reader.readSequence(Ber.CONTEXT(0))
 		reader.readSequence(signalBERID)
 		let number: number | null = null
+		let contents: SignalContents | undefined = undefined
 		const signalEnd = reader.offset + reader.length
 		while (reader.offset < signalEnd) {
 			const tag = reader.readSequence()
@@ -248,7 +262,7 @@ function decodeSignals(
 					number = reader.readInt()
 					break
 				case Ber.CONTEXT(1):
-					skipNext(reader) // the signal's contents
+					contents = appendErrors(decodeSignalContents(reader, name, options), errors)
 					break
 				case 0:
 					break // indefinite length
@@ -261,10 +275,50 @@ function decodeSignals(
 		if (number === null) {
 			errors.push(new Error(`decode ${name}: missing signal number`))
 		} else {
-			signals.push(number)
+			signals.numbers.push(number)
+			if (contents) (signals.contents ??= {})[number] = contents
 		}
 	}
 	return makeResult(signals, errors)
+}
+
+/** SignalContents ::= SET { identifier [0] EmberString, isOnline [1] BOOLEAN, labelsLocation [2] RELATIVE-OID }, each optional */
+function decodeSignalContents(
+	reader: Ber.Reader,
+	name: string,
+	options: DecodeOptions = defaultDecode
+): DecodeResult<SignalContents> {
+	const contents: SignalContents = {}
+	const errors: Array<Error> = []
+	reader.readSequence(Ber.BERDataTypes.SET)
+	const endOffset = reader.offset + reader.length
+	while (reader.offset < endOffset) {
+		const tag = reader.readSequence()
+		switch (tag) {
+			case Ber.CONTEXT(0): {
+				const identifier = reader.readString(Ber.BERDataTypes.STRING)
+				if (identifier !== null) contents.identifier = identifier
+				break
+			}
+			case Ber.CONTEXT(1): {
+				const isOnline = reader.readBoolean()
+				if (isOnline !== null) contents.isOnline = isOnline
+				break
+			}
+			case Ber.CONTEXT(2): {
+				const labelsLocation = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)
+				if (labelsLocation !== null) contents.labelsLocation = labelsLocation
+				break
+			}
+			case 0:
+				break // indefinite length
+			default:
+				unknownContext(errors, `decode ${name} contents`, tag, options)
+				skipNext(reader)
+				break
+		}
+	}
+	return makeResult(contents, errors)
 }
 
 function decodeConnections(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Connections> {

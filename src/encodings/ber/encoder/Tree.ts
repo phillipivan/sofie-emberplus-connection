@@ -62,7 +62,14 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 	// Encode Contents, unless there's nothing to put in them. A matrix's targets, sources and connections are encoded
 	// after them. (Copied either way: Object.values takes an object literal's type, not an interface.)
 	const contents = isMatrix(el.contents)
-		? { ...el.contents, targets: undefined, sources: undefined, connections: undefined }
+		? {
+				...el.contents,
+				targets: undefined,
+				sources: undefined,
+				connections: undefined,
+				targetContents: undefined,
+				sourceContents: undefined,
+			}
 		: { ...el.contents }
 	if (Object.values<unknown>(contents).filter((v) => v !== undefined).length > 1) {
 		writer.startSequence(Ber.CONTEXT(1)) // start contents
@@ -93,7 +100,7 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 			// write target collection
 			for (const target of el.contents.targets) {
 				writer.startSequence(Ber.CONTEXT(0)) // start child
-				encodeTarget(target, writer)
+				encodeTarget(target, writer, el.contents.targetContents?.[target])
 				writer.endSequence() // end child
 			}
 			writer.endSequence() // end sequence
@@ -105,7 +112,7 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 			// write sources collection
 			for (const source of el.contents.sources) {
 				writer.startSequence(Ber.CONTEXT(0))
-				encodeSource(source, writer)
+				encodeSource(source, writer, el.contents.sourceContents?.[source])
 				writer.endSequence()
 			}
 			writer.endSequence()

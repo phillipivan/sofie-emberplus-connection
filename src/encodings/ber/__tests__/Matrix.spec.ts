@@ -43,6 +43,17 @@ describe('encodings/ber/Matrix', () => {
 			matrix.sources = [0, 1, 2, 3, 4]
 			roundtripMatrix(matrix, qualified)
 		})
+		test('signal contents', () => {
+			const matrix: Matrix = new MatrixImpl('identifier')
+			matrix.targets = [0, 1, 2]
+			matrix.sources = [5, 6]
+			matrix.targetContents = {
+				0: { identifier: 'out-0', isOnline: false, labelsLocation: '1.9.0' },
+				2: { isOnline: true },
+			}
+			matrix.sourceContents = { 6: { labelsLocation: '1.8.6' } }
+			roundtripMatrix(matrix, qualified)
+		})
 		test('connections', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
 			matrix.connections = {
@@ -383,15 +394,68 @@ describe('encodings/ber/Matrix', () => {
 		test.each([
 			['definite', (buffer: Buffer) => buffer],
 			['indefinite', toIndefiniteLength],
-		])('are decoded to their numbers, with %s lengths', (_, encode) => {
+		])('are decoded with their contents, by number, with %s lengths', (_, encode) => {
 			const decoded = decodeMatrix(new Ber.Reader(encode(matrixWithSignalContents())), true)
 
-			expect(decoded.errors ?? []).toEqual([])
-			expect(decoded.value.contents).toMatchObject({
-				targets: [10, 20],
-				sources: [1, 2],
-				connections: { 10: { target: 10, sources: [2] } },
+			expect(decoded.errors).toEqual([])
+			// (the contents were read past: the model had no place for them)
+			const expected = new MatrixImpl(undefined, [10, 20], [1, 2], { 10: { target: 10, sources: [2] } })
+			expected.targetContents = { 10: { identifier: 'target-10', isOnline: true, labelsLocation: '1.9.10' } }
+			expected.sourceContents = { 1: { identifier: 'source-1', isOnline: true, labelsLocation: '1.8.1' } }
+			expect(decoded.value.contents).toEqual(expected)
+		})
+
+		// Not contents of the matrix: none are written for them (which a decoder would read as contents without the
+		// identifier they require)
+		test('are written without contents of the matrix', () => {
+			const writer = new Ber.Writer()
+			const matrix = new QualifiedElementImpl<Matrix>('1.1', {
+				type: ElementType.Matrix,
+				targets: [3],
+				targetContents: { 3: { identifier: 'out-3' } },
 			})
+			encodeQualifedElement(matrix, writer)
+			const decoded = decodeMatrix(new Ber.Reader(writer.buffer), true)
+
+			expect(decoded.errors).toEqual([])
+			expect(decoded.value.contents.identifier).toBeUndefined()
+			expect(decoded.value.contents.targetContents).toEqual({ 3: { identifier: 'out-3' } })
+		})
+
+		test('with a field the DTD does not define: an error, and the rest kept', () => {
+			const w = new Ber.Writer()
+			w.startSequence(Ber.APPLICATION(17)) // QualifiedMatrix
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeRelativeOID('1.1', Ber.BERDataTypes.RELATIVE_OID)
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(3)) // targets
+			w.startSequence(Ber.BERDataTypes.SEQUENCE)
+			w.startSequence(Ber.CONTEXT(0))
+			w.startSequence(Ber.APPLICATION(14))
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeInt(4)
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(1))
+			w.startSequence(Ber.BERDataTypes.SET)
+			w.startSequence(Ber.CONTEXT(7)) // not in SignalContents
+			w.writeInt(1)
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeString('out-4', Ber.BERDataTypes.STRING)
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			const decoded = decodeMatrix(new Ber.Reader(w.buffer), true)
+
+			expect(decoded.value.contents.targetContents).toEqual({ 4: { identifier: 'out-4' } })
+			expect(decoded.errors.map((e) => e.message)).toEqual([
+				"decode targets contents: Unexpected BER context tag '167'",
+			])
 		})
 	})
 })

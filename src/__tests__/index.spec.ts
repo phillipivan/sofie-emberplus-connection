@@ -51,6 +51,13 @@ describe('the package exports', () => {
 		expect(Model.isGetDirectory({ type: Model.ElementType.Command, number: Model.CommandType.Invoke })).toBe(false)
 	})
 
+	test("a matrix signal's contents", () => {
+		const contents: Model.SignalContents = { identifier: 'out-1', isOnline: true, labelsLocation: '1.9.1' }
+		const matrix: Model.Matrix = { type: Model.ElementType.Matrix, targets: [1], targetContents: { 1: contents } }
+
+		expect(matrix.targetContents?.[1]?.labelsLocation).toBe('1.9.1')
+	})
+
 	test('the tree element guards', () => {
 		const numbered: Types.RootElement = new Model.NumberedTreeNodeImpl(1, new Model.EmberNodeImpl())
 		const qualified: Types.RootElement = new Model.QualifiedElementImpl('1.2', new Model.EmberNodeImpl())

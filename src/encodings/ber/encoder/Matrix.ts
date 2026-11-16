@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import * as Ber from '../../../Ber/index.js'
 import { ElementType } from '../../../model/EmberElement.js'
-import { Matrix, MatrixAddressingMode, MatrixType } from '../../../model/Matrix.js'
+import { Matrix, MatrixAddressingMode, MatrixType, SignalContents } from '../../../model/Matrix.js'
 import { SourceBERID, TargetBERID } from '../constants.js'
 import { encodeLabel } from './Label.js'
 
@@ -63,19 +63,31 @@ export const encodeMatrix = (matrix: Matrix, writer: Ber.Writer): void => {
 	writer.endSequence()
 }
 
-export const encodeTarget = (target: number, writer: Ber.Writer): void => {
-	writer.startSequence(TargetBERID)
-	writer.startSequence(Ber.CONTEXT(0))
-	writer.writeInt(target, Ber.BERDataTypes.INTEGER)
-	writer.endSequence()
-	writer.endSequence()
-}
+export const encodeTarget = (target: number, writer: Ber.Writer, contents?: SignalContents): void =>
+	encodeSignal(TargetBERID, target, writer, contents)
 
-export const encodeSource = (source: number, writer: Ber.Writer): void => {
-	writer.startSequence(SourceBERID)
+export const encodeSource = (source: number, writer: Ber.Writer, contents?: SignalContents): void =>
+	encodeSignal(SourceBERID, source, writer, contents)
+
+/** A target or source: its number, and its contents when it has any */
+function encodeSignal(berId: number, number: number, writer: Ber.Writer, contents?: SignalContents): void {
+	writer.startSequence(berId)
 	writer.startSequence(Ber.CONTEXT(0))
-	writer.writeInt(source, Ber.BERDataTypes.INTEGER)
+	writer.writeInt(number, Ber.BERDataTypes.INTEGER)
 	writer.endSequence()
+	if (contents && Object.values<unknown>({ ...contents }).some((value) => value !== undefined)) {
+		writer.startSequence(Ber.CONTEXT(1))
+		writer.startSequence(Ber.BERDataTypes.SET)
+		writer.writeIfDefined(contents.identifier, writer.writeString, 0, Ber.BERDataTypes.STRING)
+		writer.writeIfDefined(contents.isOnline, writer.writeBoolean, 1, Ber.BERDataTypes.BOOLEAN)
+		if (contents.labelsLocation !== undefined) {
+			writer.startSequence(Ber.CONTEXT(2))
+			writer.writeRelativeOID(contents.labelsLocation, Ber.BERDataTypes.RELATIVE_OID)
+			writer.endSequence()
+		}
+		writer.endSequence()
+		writer.endSequence()
+	}
 	writer.endSequence()
 }
 

@@ -18,7 +18,15 @@ import { FunctionArgument, FunctionArgumentImpl } from './FunctionArgument.js'
 import { Invocation } from './Invocation.js'
 import { InvocationResult } from './InvocationResult.js'
 import { Label } from './Label.js'
-import { Connections, isConnections, Matrix, MatrixAddressingMode, MatrixImpl, MatrixType } from './Matrix.js'
+import {
+	Connections,
+	isConnections,
+	Matrix,
+	MatrixAddressingMode,
+	MatrixImpl,
+	MatrixType,
+	SignalContents,
+} from './Matrix.js'
 import {
 	fitsItsType,
 	isValueOfType,
@@ -76,6 +84,7 @@ export {
 	isConnection,
 	MatrixImpl,
 	isConnections,
+	SignalContents,
 	Parameter,
 	ParameterType,
 	ParameterAccess,

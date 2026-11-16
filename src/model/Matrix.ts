@@ -3,7 +3,7 @@ import { Connection, isConnection } from './Connection.js'
 import { ElementType, EmberBaseElement } from './EmberElement.js'
 import { Label } from './Label.js'
 
-export { Matrix, MatrixType, MatrixAddressingMode, Connections, MatrixImpl, isConnections }
+export { Matrix, MatrixType, MatrixAddressingMode, Connections, MatrixImpl, SignalContents, isConnections }
 
 /**
  *  Type of a matrix.
@@ -36,6 +36,19 @@ enum MatrixAddressingMode {
  */
 type Connections = { [target: number]: Connection }
 
+/** A target's or source's contents (the Glow DTD's SignalContents, all of them optional) */
+interface SignalContents {
+	/** Name. */
+	identifier?: string
+	/** Whether the signal is online. Left out, it is (the DTD's default). */
+	isOnline?: boolean
+	/**
+	 * Path of a node holding the signal's labels: the newer of the specification's two ways of labelling signals (the
+	 * older is the matrix's `labels`, which a provider should not use alongside it).
+	 */
+	labelsLocation?: RelativeOID
+}
+
 /**
  *  A two-dimensional array of Boolean values used for eg. signal routing, bus
  *  assignments on mixing consoles etc..
@@ -46,6 +59,10 @@ interface Matrix extends EmberBaseElement {
 	targets?: Array<number>
 	/** Source objects, the row of the matric. */
 	sources?: Array<number>
+	/** The contents the provider gave targets (identifier, isOnline, labelsLocation), by target number. */
+	targetContents?: { [target: number]: SignalContents }
+	/** The contents the provider gave sources, by source number. */
+	sourceContents?: { [source: number]: SignalContents }
 	/**
 	 * Describes the targets active connections. In a consumer's tree: each target's current sources, with the
 	 * disposition the provider last reported for the target (pending while a change to it is queued).
@@ -101,7 +118,9 @@ class MatrixImpl implements Matrix {
 		public gainParameterNumber?: number,
 		public labels?: Array<Label>,
 		public schemaIdentifiers?: string,
-		public templateReference?: RelativeOID
+		public templateReference?: RelativeOID,
+		public targetContents?: { [target: number]: SignalContents },
+		public sourceContents?: { [source: number]: SignalContents }
 	) {}
 }
 
