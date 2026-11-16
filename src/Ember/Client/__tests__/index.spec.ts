@@ -1412,7 +1412,7 @@ describe('client', () => {
 				const streamData = createStreamEntryResponse([
 					{
 						identifier: 1,
-						value: { type: ParameterType.Octets, value: 42.5 },
+						value: { type: ParameterType.Real, value: 42.5 },
 					},
 				])
 				socket.mockData(streamData)
