@@ -140,6 +140,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		{ elementType?: CommandableElementType; dirFieldMask?: FieldFlags }
 	>()
 	private _sentSubscribes = new Map<RelativeOID, { elementType?: CommandableElementType }>()
+	/**
+	 * The latest GetDirectory on the root, answered or on its way: what getElementByPath waits for when the top level
+	 * doesn't have a path's first element. Undefined until one is sent, and again when one fails.
+	 */
+	private _rootDirectory: Promise<void> | undefined
 
 	private _timeout = 3000
 	private _resendTimeout = 1000
@@ -270,11 +275,19 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					cb,
 				})
 
-			const request = await this._sendRequest(
+			const sending = this._sendRequest(
 				new NumberedTreeNodeImpl(0, command),
 				ExpectResponse.Any,
 				isElementResponse
 			)
+			// Kept before anything is awaited, so that a lookup made meanwhile waits for this one instead of sending its
+			// own. One that fails isn't kept, so the next lookup sends another (and its failure is handled here).
+			const loaded = sending.then(async (request) => request.response).then(() => undefined)
+			this._rootDirectory = loaded
+			loaded.catch(() => {
+				if (this._rootDirectory === loaded) this._rootDirectory = undefined
+			})
+			const request = await sending
 			if (request.sentOk) this._sentGetDirectories.set('', { dirFieldMask })
 			return request
 		}
@@ -532,6 +545,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (!firstIdentifier) throw new Error('Expected at least one segment in the path')
 
 		let tree: NumberedTreeNode<EmberElement> | undefined = getNodeInCollection(this.tree, firstIdentifier)
+		if (!tree) {
+			// The top level comes from a GetDirectory on the root: send one, unless one has been (answered or on its way),
+			// and look again when it is answered. (Nothing was found until the caller had sent one.)
+			if (!this._rootDirectory) await this.getDirectory(this.tree)
+			await this._rootDirectory
+			tree = getNodeInCollection(this.tree, firstIdentifier)
+		}
 		if (tree?.number !== undefined) numberedPath.push(tree.number)
 
 		while (pathArr.length) {

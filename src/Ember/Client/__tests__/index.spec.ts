@@ -1938,6 +1938,86 @@ describe('client', () => {
 		})
 	})
 
+	// getElementByPath found nothing until the caller had loaded the top level with a GetDirectory on the root
+	describe('getElementByPath and the top level', () => {
+		// A provider whose top level is the node 1, "device": counts the GetDirectory requests on the root it answers
+		function answerRootRequests(socket: S101ClientMock, answer = () => true) {
+			const counted = { rootRequests: 0 }
+			onSocketWrite.mockImplementation((data: Buffer) => {
+				const request = firstElement(data)
+				if (isQualified(request) || request.contents.type !== ElementType.Command) return true
+				counted.rootRequests++
+				if (answer()) {
+					setImmediate(() =>
+						socket.mockData({ value: { 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')) } })
+					)
+				}
+				return true
+			})
+			return counted
+		}
+		afterEach(() => onSocketWrite.mockReset())
+
+		it('loads the top level when it has not been, then finds the element', async () => {
+			await runWithConnection(async (client, socket) => {
+				const counted = answerRootRequests(socket)
+
+				const found = await client.getElementByPath('device')
+
+				expect(found).toBe(client.tree[1])
+				expect(counted.rootRequests).toBe(1)
+			})
+		})
+
+		it('loads it once for lookups made together', async () => {
+			await runWithConnection(async (client, socket) => {
+				const counted = answerRootRequests(socket)
+
+				const found = await Promise.all([client.getElementByPath('device'), client.getElementByPath('1')])
+
+				expect(found).toEqual([client.tree[1], client.tree[1]])
+				expect(counted.rootRequests).toBe(1)
+			})
+		})
+
+		it('does not load it again once it has been', async () => {
+			await runWithConnection(async (client, socket) => {
+				const counted = answerRootRequests(socket)
+
+				await client.getElementByPath('device')
+				await expect(client.getElementByPath('other')).resolves.toBeUndefined()
+
+				expect(counted.rootRequests).toBe(1)
+			})
+		})
+
+		it('does not load it when the top level has the first element', async () => {
+			await runWithConnection(async (client, socket) => {
+				const counted = answerRootRequests(socket)
+				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+
+				await expect(client.getElementByPath('device')).resolves.toBe(client.tree[1])
+				expect(counted.rootRequests).toBe(0)
+			})
+		})
+
+		it('loads it again after an attempt that failed', async () => {
+			await runWithConnection(
+				async (client, socket) => {
+					let attempts = 0
+					const counted = answerRootRequests(socket, () => ++attempts > 1) // the first goes unanswered
+
+					await expect(client.getElementByPath('device')).rejects.toThrow('Request timed out')
+					const found = await client.getElementByPath('device')
+
+					expect(found).toBe(client.tree[1])
+					expect(counted.rootRequests).toBe(2)
+				},
+				{ timeout: 300 }
+			)
+		})
+	})
+
 	describe('matrix helpers', () => {
 		const labels = (kind: string, values: { [signal: number]: string | null }) =>
 			new NumberedTreeNodeImpl(
