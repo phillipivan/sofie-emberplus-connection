@@ -138,12 +138,7 @@ class ExtendedWriter extends Writer {
 
 		if (Buffer.isBuffer(value)) {
 			if (tag === undefined) tag = BERDataTypes.OCTETSTRING
-			if (value.length === 0) {
-				this.writeTag(tag)
-				this.writeLength(0)
-			} else {
-				this.writeBuffer(value, tag)
-			}
+			this.writeBuffer(value, tag) // writes an empty buffer as a zero-length TLV
 			return
 		}
 

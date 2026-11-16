@@ -39,6 +39,19 @@ describe('BER', () => {
 		})
 	})
 
+	describe('Writer.writeValue, an untyped Buffer', () => {
+		test.each<[string, Buffer, number | undefined, string]>([
+			['octets', Buffer.from([0xfe]), undefined, '0401fe'],
+			['empty octets', Buffer.alloc(0), undefined, '0400'],
+			['octets under a tag', Buffer.from([0xfe]), 0x80, '8001fe'],
+			['empty octets under a tag', Buffer.alloc(0), 0x80, '8000'],
+		])('writes %s', (_, value, tag, hex) => {
+			const w = new Writer()
+			w.writeValue(value, tag)
+			expect(w.buffer.toString('hex')).toBe(hex)
+		})
+	})
+
 	describe('Writer', () => {
 		test('Real', () => {
 			const w = new Writer()
