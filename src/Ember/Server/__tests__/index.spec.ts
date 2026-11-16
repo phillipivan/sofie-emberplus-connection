@@ -355,10 +355,7 @@ describe('EmberServer matrices', () => {
 	/** Each target's sources, as the server holds them */
 	const connectionsOf = () =>
 		Object.fromEntries(
-			Object.values<Connection>(matrix.contents.connections as { [target: number]: Connection }).map((c) => [
-				c.target,
-				c.sources,
-			])
+			Object.values<Connection>(matrix.contents.connections ?? {}).map((c) => [c.target, c.sources])
 		)
 
 	describe('update()', () => {
@@ -543,9 +540,7 @@ describe('EmberServer matrices', () => {
 			return consumer.received.map(reportedConnections)
 		}
 		const applyRequest = async (m: NumberedTreeNode<Matrix>, connections: Connections) => {
-			// The Connections interface has no implicit string index signature, which Object.values needs
-			// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-			for (const connection of Object.values<Connection>(connections as { [target: number]: Connection })) {
+			for (const connection of Object.values<Connection>(connections)) {
 				server.updateMatrixConnection(m, connection)
 			}
 		}
@@ -625,7 +620,7 @@ describe('EmberServer matrices', () => {
 	/** The sources of each target a matrix report lists */
 	function reportedConnections(data: Buffer) {
 		const [report] = Object.values<RootElement>(berDecode(data).value as Collection<RootElement>)
-		const connections = (report.contents as Matrix).connections as { [target: number]: Connection }
+		const connections = (report.contents as Matrix).connections ?? {}
 		return Object.fromEntries(Object.values<Connection>(connections).map((c) => [c.target, c.sources]))
 	}
 })

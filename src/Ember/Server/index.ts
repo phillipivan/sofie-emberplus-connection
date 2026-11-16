@@ -133,11 +133,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			const matrixUpdate: Partial<Matrix> = update as Partial<Matrix>
 
 			if (matrixUpdate.connections) {
-				// The Connections interface has no implicit string index signature, which Object.values needs
-				for (const connection of Object.values<Connection>(
-					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-					matrixUpdate.connections as { [target: number]: Connection }
-				)) {
+				for (const connection of Object.values<Connection>(matrixUpdate.connections)) {
 					this.updateMatrixConnection(matrix, connection)
 				}
 			}
@@ -221,9 +217,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 
 		if (matrixType === MatrixType.OneToOne) {
 			const sources = connection.sources ?? []
-			// The Connections interface has no implicit string index signature, which Object.values needs
-			// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-			for (const other of Object.values<Connection>(connections as { [target: number]: Connection })) {
+			for (const other of Object.values<Connection>(connections)) {
 				if (other.target === connection.target) continue
 				if (!other.sources?.some((source) => sources.includes(source))) continue
 				other.sources = other.sources.filter((source) => !sources.includes(source))
@@ -321,10 +315,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		if (!tree || tree.contents.type !== ElementType.Matrix || !el.contents.connections) return
 		const matrix = tree as NumberedTreeNode<Matrix>
 
-		const requested = Object.values<Connection>(
-			// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-			el.contents.connections as { [target: number]: Connection }
-		).map((connection) => connection.target)
+		const requested = Object.values<Connection>(el.contents.connections).map((connection) => connection.target)
 		const pending: PendingMatrixReply = {
 			path: toQualifiedEmberNode(matrix).path,
 			client,
@@ -517,11 +508,7 @@ function exceedsConnectLimits(matrix: Matrix, current: number[], next: number[])
 	if (maximumConnectsPerTarget !== undefined && next.length > maximumConnectsPerTarget) return true
 	if (maximumTotalConnects === undefined) return false
 	let total = next.length - current.length
-	for (const connection of Object.values<Connection>(
-		// The Connections interface has no implicit string index signature, which Object.values needs
-		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-		(matrix.connections ?? {}) as { [target: number]: Connection }
-	)) {
+	for (const connection of Object.values<Connection>(matrix.connections ?? {})) {
 		total += connection.sources?.length ?? 0
 	}
 	return total > maximumTotalConnects

@@ -964,11 +964,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		// update connections
 		if (update.connections) {
 			const connections = (matrix.connections ??= {})
-			// The Connections interface has no implicit string index signature, which Object.values needs
-			for (const connection of Object.values<Connection>(
-				// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-				update.connections as { [target: number]: Connection }
-			)) {
+			for (const connection of Object.values<Connection>(update.connections)) {
 				// (connections are kept by their target: no need to go through them all to find it)
 				const cached = connections[connection.target] as Connection | undefined
 
@@ -1025,11 +1021,7 @@ function reportedConnections(update: TreeElement<EmberElement>): Connections | u
 
 function findConnection(connections: Connections | undefined, target: number): Connection | undefined {
 	if (!connections) return undefined
-	// The Connections interface has no implicit string index signature, which Object.values needs
-	return Object.values<Connection>(
-		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-		connections as { [target: number]: Connection }
-	).find((connection) => connection.target === target)
+	return Object.values<Connection>(connections).find((connection) => connection.target === target)
 }
 
 /** The names of an element's contents' properties */

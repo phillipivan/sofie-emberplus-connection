@@ -1218,13 +1218,7 @@ describe('client', () => {
 				}
 
 				const matrix = client.tree[0].children?.[5]?.children?.[2]?.contents as Matrix
-				expect(
-					// The Connections interface has no implicit string index signature, which Object.values needs
-					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-					Object.values<Connection>((matrix.connections ?? {}) as { [target: number]: Connection }).map(
-						(c) => [c.target, c.sources]
-					)
-				).toEqual([
+				expect(Object.values<Connection>(matrix.connections ?? {}).map((c) => [c.target, c.sources])).toEqual([
 					[10, [173]],
 					[11, [171]],
 					[12, [172]],

@@ -31,11 +31,10 @@ enum MatrixAddressingMode {
 }
 
 /**
- *  Dictionary or targets, indexed by element number.
+ *  Dictionary of targets, indexed by element number. A type, not an interface: an interface has no implicit index
+ *  signature, so `Object.values` would not take one without a cast.
  */
-interface Connections {
-	[target: number]: Connection
-}
+type Connections = { [target: number]: Connection }
 
 /**
  *  A two-dimensional array of Boolean values used for eg. signal routing, bus
