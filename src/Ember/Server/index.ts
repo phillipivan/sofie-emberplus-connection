@@ -27,7 +27,7 @@ import {
 	RootType,
 	TreeElement,
 } from '../../types/types.js'
-import { isElementOfType, isInvokeElement, toQualifiedEmberNode } from '../Lib/util.js'
+import { isElementOfType, isInvokeElement, parentPath, toQualifiedEmberNode } from '../Lib/util.js'
 import { S101Server } from '../Socket/S101Server.js'
 import S101Socket from '../Socket/S101Socket.js'
 
@@ -146,15 +146,11 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		Object.assign(element.contents, changes)
 		const el = toQualifiedEmberNode(element)
 		const data = berEncode([el], RootType.Elements)
-		let elPath = el.path
-		if (el.contents.type !== ElementType.Node && !('targets' in update || 'sources' in update)) {
-			const lastDotIndex = elPath.lastIndexOf('.')
-			if (lastDotIndex > -1) {
-				elPath = elPath.slice(0, lastDotIndex)
-			} else {
-				elPath = ''
-			}
-		}
+		// A node's own path; for another element, its parent's (matrix targets and sources: the matrix's own)
+		const elPath =
+			el.contents.type !== ElementType.Node && !('targets' in update || 'sources' in update)
+				? parentPath(el.path)
+				: el.path
 
 		// The subscribers of the parent (or of a node itself), and those that subscribed to the element itself
 		const recipients = new Set([...(this._subscriptions[elPath] ?? []), ...(this._subscriptions[el.path] ?? [])])

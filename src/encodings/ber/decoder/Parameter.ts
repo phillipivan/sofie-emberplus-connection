@@ -1,7 +1,7 @@
 import * as Ber from '../../../Ber/index.js'
 import { isValueOfType, Parameter, ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Parameter.js'
 import { StreamDescription } from '../../../model/StreamDescription.js'
-import { EmberValue, MinMax, RelativeOID, StringIntegerCollection } from '../../../types/types.js'
+import { EmberValue, isRelativeOID, MinMax, RelativeOID, StringIntegerCollection } from '../../../types/types.js'
 import {
 	appendErrors,
 	check,
@@ -109,11 +109,15 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 				schemaIdentifiers = reader.readString(Ber.BERDataTypes.STRING) ?? schemaIdentifiers
 				break
 			case Ber.CONTEXT(18):
-				// A RELATIVE-OID. Earlier versions of this library wrote it as a UTF8String, which is still read.
-				templateReference =
-					(reader.peek() === Ber.BERDataTypes.STRING
-						? reader.readString(Ber.BERDataTypes.STRING)
-						: reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID)) ?? templateReference
+				// A RELATIVE-OID. Earlier versions of this library wrote it as a UTF8String, which is still read, when
+				// it holds a numeric path.
+				if (reader.peek() === Ber.BERDataTypes.STRING) {
+					const text = reader.readString(Ber.BERDataTypes.STRING)
+					if (text !== null && isRelativeOID(text)) templateReference = text
+					else errors.push(new Error(`decode parameter: template reference '${text}' is not a numeric path`))
+				} else {
+					templateReference = reader.readRelativeOID(Ber.BERDataTypes.RELATIVE_OID) ?? templateReference
+				}
 				break
 			case 0:
 				break // indefinite length

@@ -2,7 +2,7 @@ import { Command, Invoke, isInvoke } from '../../model/Command.js'
 import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberNode } from '../../model/index.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl, TreeElement } from '../../model/Tree.js'
-import { NumberedTreeNode, QualifiedElement, RootElement } from '../../types/types.js'
+import { isRelativeOID, NumberedTreeNode, QualifiedElement, RelativeOID, RootElement } from '../../types/types.js'
 
 export function assertQualifiedEmberNode(node: RootElement): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
 	if ('path' in node) {
@@ -17,7 +17,7 @@ export function isNumbered(node: TreeElement<EmberElement>): node is NumberedTre
 	return 'number' in node
 }
 
-export function getPath(node: RootElement): string {
+export function getPath(node: RootElement): RelativeOID {
 	function isQualified(node: TreeElement<EmberElement>): node is QualifiedElement<EmberElement> {
 		return 'path' in node
 	}
@@ -25,9 +25,9 @@ export function getPath(node: RootElement): string {
 		return node.path
 	} else if (isNumbered(node)) {
 		if (node.parent) {
-			return getPath(node.parent) + '.' + node.number
+			return childPath(getPath(node.parent), node.number)
 		} else {
-			return node.number + ''
+			return `${node.number}`
 		}
 	}
 
@@ -122,4 +122,15 @@ export function isElementOfType<K extends ElementType, E extends TreeElement<Emb
 /** Whether a command element is an Invoke, narrowing the element with it */
 export function isInvokeElement(el: NumberedTreeNode<Command>): el is NumberedTreeNode<Invoke> {
 	return isInvoke(el.contents)
+}
+
+/** The path of an element's child: the parent's path and the child's number (for the root, '', the number alone) */
+export function childPath(parent: RelativeOID, number: number): RelativeOID {
+	return parent === '' ? `${number}` : `${parent}.${number}`
+}
+
+/** The path of an element's parent ('' for a top-level element) */
+export function parentPath(path: RelativeOID): RelativeOID {
+	const parent = path.slice(0, Math.max(path.lastIndexOf('.'), 0))
+	return isRelativeOID(parent) ? parent : ''
 }

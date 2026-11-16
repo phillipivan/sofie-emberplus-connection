@@ -21,6 +21,7 @@ export {
 	StringIntegerCollection,
 	RootType,
 	RelativeOID,
+	isRelativeOID,
 	Collection,
 }
 
@@ -59,6 +60,16 @@ type EmberTypedValue =
 
 type MinMax = number | null
 type StringIntegerCollection = Map<string, number>
-type RelativeOID = string
+/**
+ * A numeric path: element numbers joined by '.', such as '1.2.3', or '' for the root. An identifier path ('Ruby.Sums')
+ * is not one. The type checks that the path starts with a number (TypeScript can't repeat a pattern); isRelativeOID
+ * checks the whole of a string at runtime.
+ */
+type RelativeOID = '' | `${number}` | `${number}.${string}`
+
+/** Whether a string is a numeric path (a RelativeOID): numbers joined by '.', or '' for the root */
+function isRelativeOID(s: string): s is RelativeOID {
+	return /^(\d+(\.\d+)*)?$/.test(s)
+}
 
 type Collection<T> = { [index: number]: T }

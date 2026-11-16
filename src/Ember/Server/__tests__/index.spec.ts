@@ -42,6 +42,7 @@ import {
 	EmberValue,
 	NumberedTreeNode,
 	QualifiedElement,
+	RelativeOID,
 	RootElement,
 	RootType,
 } from '../../../types/types.js'
@@ -62,7 +63,7 @@ class FakeConnection extends EventEmitter {
 	}
 
 	/** Sends the server a command for an element */
-	request(path: string, command: Command): void {
+	request(path: RelativeOID, command: Command): void {
 		const element = new QualifiedElementImpl<EmberElement>(path, new EmberNodeImpl(), {
 			0: new NumberedTreeNodeImpl(0, command),
 		})
@@ -389,7 +390,7 @@ describe('EmberServer invocations', () => {
 	})
 
 	/** Sends an Invoke with the given id to the element at `path` ('' for the root); gives the result the server sent */
-	async function invoke(path: string, id: number): Promise<InvocationResult> {
+	async function invoke(path: RelativeOID, id: number): Promise<InvocationResult> {
 		const consumer = new FakeConnection()
 		const s101Server = (server as unknown as { _server: S101Server })._server
 		s101Server.emit('connection', consumer as unknown as S101Socket)
@@ -411,7 +412,7 @@ describe('EmberServer invocations', () => {
 		expect(invoked).toEqual(['reset'])
 	})
 
-	it.each([
+	it.each<[string, RelativeOID]>([
 		['a node', '1.1'],
 		['the root', ''],
 	])('answers an Invoke on %s as a failure, without the handler', async (_, path) => {

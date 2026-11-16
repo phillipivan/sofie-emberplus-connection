@@ -22,7 +22,7 @@ describe('encodings/ber/Label', () => {
 
 	test('write and read a label without description', () => {
 		const writer = new Ber.Writer()
-		const badLabel = { basePath: '5.4.3.2.1', description: '' }
+		const badLabel: Label = { basePath: '5.4.3.2.1', description: '' }
 		encodeLabel(badLabel, writer)
 		const badBuffer = writer.buffer.slice(0, writer.buffer.length - 4)
 		badBuffer[1] = badBuffer[1] - 4

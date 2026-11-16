@@ -111,11 +111,11 @@ function decodeMatrixContents(reader: Ber.Reader, options: DecodeOptions = defau
 	let sourceCount: number | undefined = undefined
 	let maximumTotalConnects: number | undefined = undefined
 	let maximumConnectsPerTarget: number | undefined = undefined
-	let parametersLocation: string | number | undefined = undefined
+	let parametersLocation: RelativeOID | number | undefined = undefined
 	let gainParameterNumber: number | undefined = undefined
 	let labels: Array<Label> | undefined = undefined
 	let schemaIdentifiers: string | undefined = undefined
-	let templateReference: string | undefined = undefined
+	let templateReference: RelativeOID | undefined = undefined
 	let seqOffset: number
 	const errors: Array<Error> = []
 	const endOffset = reader.offset + reader.length

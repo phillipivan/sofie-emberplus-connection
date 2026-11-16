@@ -11,7 +11,7 @@ import {
 	QualifiedElementImpl,
 	TreeElement,
 } from '../../../model/index.js'
-import { isElementOfType, isInvokeElement, isNumbered } from '../util.js'
+import { childPath, isElementOfType, isInvokeElement, isNumbered, parentPath } from '../util.js'
 
 describe('element type guards', () => {
 	const elements: Array<[ElementType, TreeElement<EmberElement>]> = [
@@ -46,5 +46,23 @@ describe('element type guards', () => {
 
 		expect(isNumbered(numbered) && (numbered satisfies NumberedTreeNode<EmberElement>).number).toBe(3)
 		expect(isNumbered(qualified)).toBe(false)
+	})
+})
+
+describe('numeric paths', () => {
+	test.each([
+		['', 3, '3'],
+		['1', 3, '1.3'],
+		['1.2', 30, '1.2.30'],
+	] as const)("childPath('%s', %d) is '%s'", (parent, number, path) => {
+		expect(childPath(parent, number)).toBe(path)
+	})
+
+	test.each([
+		['1.2.3', '1.2'],
+		['1', ''],
+		['', ''],
+	] as const)("parentPath('%s') is '%s'", (path, parent) => {
+		expect(parentPath(path)).toBe(parent)
 	})
 })

@@ -28,7 +28,15 @@ import { LabelImpl } from '../../../model/Label.js'
 import { Parameter, ParameterAccess, TypedParameter } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl } from '../../../model/StreamDescription.js'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
-import { Collection, EmberTypedValue, EmberValue, Root, RootElement, RootType } from '../../../types/types.js'
+import {
+	Collection,
+	EmberTypedValue,
+	EmberValue,
+	RelativeOID,
+	Root,
+	RootElement,
+	RootType,
+} from '../../../types/types.js'
 import { EmberClient, EmberClientOptions } from '../index.js'
 
 // import { EmberTreeNode, RootElement } from '../../../types/types.js'
@@ -108,7 +116,7 @@ describe('client', () => {
 	}
 
 	function createQualifiedNodeResponse(
-		path: string,
+		path: RelativeOID,
 		content: EmberElement,
 		children: Collection<NumberedTreeNode<EmberElement>> | undefined
 	): DecodeResult<Root> {

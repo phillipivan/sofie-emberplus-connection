@@ -3,7 +3,7 @@ import Long from 'long'
 import { Reader } from '../ASN1/ber/reader.js'
 import { ASN1Error, UnimplementedEmberTypeError } from '../Errors.js'
 import { ParameterType } from '../model/Parameter.js'
-import { EmberTypedValue } from '../types/types.js'
+import { EmberTypedValue, isRelativeOID, RelativeOID } from '../types/types.js'
 import { BERDataTypes } from './BERDataTypes.js'
 import { UNIVERSAL } from './functions.js'
 
@@ -23,6 +23,12 @@ class ExtendedReader extends Reader {
 	// 	const buf = this.readString(tag, true)
 	// 	return new ExtendedReader(buf)
 	// }
+
+	/** A RELATIVE-OID as the numeric path (RelativeOID) it is: its numbers joined by '.' */
+	readRelativeOID(tag?: number): RelativeOID | null {
+		const oid = super.readRelativeOID(tag)
+		return oid === null || isRelativeOID(oid) ? oid : null
+	}
 
 	readValue(): EmberTypedValue {
 		const tag = this.peek()

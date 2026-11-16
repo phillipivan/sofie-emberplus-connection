@@ -4,7 +4,7 @@ import { ElementType, EmberElement } from '../../../model/EmberElement.js'
 import { EmberNodeImpl } from '../../../model/EmberNode.js'
 import { EmberFunctionImpl, ParameterImpl, ParameterType } from '../../../model/index.js'
 import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElementImpl, TreeElement } from '../../../model/Tree.js'
-import { Collection, RootElement } from '../../../types/types.js'
+import { Collection, RelativeOID, RootElement } from '../../../types/types.js'
 import {
 	CommandBERID,
 	ElementCollectionBERID,
@@ -90,7 +90,7 @@ export function decodeGenericElement(
 	}
 
 	reader.readSequence(tag)
-	let path: string | null = null
+	let path: RelativeOID | null = null
 	let number: number | null = null
 	let contents: EmberElement | undefined = undefined
 	let children: Collection<NumberedTreeNode<EmberElement>> | undefined

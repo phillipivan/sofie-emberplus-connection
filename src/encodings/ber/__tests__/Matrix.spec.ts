@@ -3,7 +3,7 @@ import { ConnectionDisposition, ConnectionOperation } from '../../../model/Conne
 import { ElementType } from '../../../model/EmberElement.js'
 import { Matrix, MatrixAddressingMode, MatrixImpl, MatrixType } from '../../../model/Matrix.js'
 import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
-import { Collection, RootElement } from '../../../types/types.js'
+import { Collection, RelativeOID, RootElement } from '../../../types/types.js'
 import { guarded } from '../decoder/DecodeResult.js'
 import { decodeMatrix } from '../decoder/Matrix.js'
 import { encodeQualifedElement } from '../encoder/Qualified.js'
@@ -151,7 +151,7 @@ describe('encodings/ber/Matrix', () => {
 		})
 		// ParametersLocation ::= CHOICE { basePath [0] RELATIVE-OID, inline [1] Integer32 }: a base path of one or
 		// two parts is still a path, not the inline number it happens to look like
-		test.each(['1.2', '5', ''])('parametersLocation base path %j', (basePath) => {
+		test.each<RelativeOID>(['1.2', '5', ''])('parametersLocation base path %j', (basePath) => {
 			const matrix: Matrix = new MatrixImpl('identifier')
 			matrix.parametersLocation = basePath
 			roundtripMatrix(matrix, qualified)

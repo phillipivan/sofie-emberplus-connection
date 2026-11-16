@@ -5,7 +5,7 @@ import { Matrix } from '../../../model/Matrix.js'
 import { Parameter } from '../../../model/Parameter.js'
 import { Template, TemplateImpl } from '../../../model/Template.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../../model/Tree.js'
-import { EmberTreeNode, TreeElement } from '../../../types/types.js'
+import { EmberTreeNode, RelativeOID, TreeElement } from '../../../types/types.js'
 import { QualifiedTemplateBERID, TemplateBERID } from '../constants.js'
 import {
 	appendErrors,
@@ -26,7 +26,7 @@ export function decodeTemplate(
 ): DecodeResult<TreeElement<Template>> {
 	reader.readSequence(isQualified ? QualifiedTemplateBERID : TemplateBERID)
 	let number: number | null = null
-	let path: string | null = null
+	let path: RelativeOID | null = null
 	let element: EmberTreeNode<Parameter | EmberNode | Matrix | EmberFunction> | undefined = undefined
 	let description: string | undefined = undefined
 	const errors: Array<Error> = []

@@ -218,6 +218,21 @@ describe('encodings/ber/Parameter', () => {
 		roundtripParameter(param)
 	})
 
+	test('leave out a templateReference in the UTF8String form that is not a numeric path, with an error', () => {
+		const writer = new Ber.Writer()
+		writer.startSequence(Ber.BERDataTypes.SET)
+		writer.startSequence(Ber.CONTEXT(18))
+		writer.writeString('Ruby.Sums', Ber.BERDataTypes.STRING)
+		writer.endSequence()
+		writer.endSequence()
+
+		const decoded = decodeParameter(new Ber.Reader(writer.buffer))
+		expect(decoded.value.templateReference).toBeUndefined()
+		expect(decoded.errors.map(String)).toEqual(
+			expect.arrayContaining([expect.stringContaining("template reference 'Ruby.Sums' is not a numeric path")])
+		)
+	})
+
 	test('read a templateReference in the UTF8String form earlier versions of this library wrote', () => {
 		const writer = new Ber.Writer()
 		writer.startSequence(Ber.BERDataTypes.SET)

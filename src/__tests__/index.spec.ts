@@ -36,6 +36,31 @@ describe('the package exports', () => {
 		expect(Model.isEmberElement({ type: 'SOMETHING ELSE' })).toBe(false)
 	})
 
+	// A numeric path: element numbers joined by '.', or '' for the root; an identifier path is not one
+	test.each([
+		['1.2.3', true],
+		['', true],
+		['0', true],
+		['12.0.345', true],
+		['gain', false],
+		['1.gain', false],
+		['1..2', false],
+		['.1', false],
+		['1.', false],
+		['-1', false],
+		['1.5e3', false],
+	])('isRelativeOID(%j) is %s', (path, result) => {
+		expect(Types.isRelativeOID(path)).toBe(result)
+	})
+
+	test('the RelativeOID type takes a numeric path and not an identifier path', () => {
+		const path: Types.RelativeOID = '1.2.3'
+		// @ts-expect-error an identifier path is not a numeric path
+		const identifiers: Types.RelativeOID = 'Ruby.Sums'
+
+		expect([path, identifiers]).toHaveLength(2)
+	})
+
 	test('the socket class S101Client is built on', () => {
 		expect(new S101Client('localhost', 9000, false)).toBeInstanceOf(S101Socket)
 	})

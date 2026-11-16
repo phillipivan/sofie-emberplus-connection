@@ -1,5 +1,6 @@
 import * as Ber from '../../../Ber/index.js'
 import { Label, LabelImpl } from '../../../model/Label.js'
+import { RelativeOID } from '../../../types/types.js'
 import { LabelBERID } from '../constants.js'
 import {
 	check,
@@ -15,7 +16,7 @@ export { decodeLabel }
 
 function decodeLabel(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Label> {
 	reader.readSequence(LabelBERID)
-	let basePath: string | null = null
+	let basePath: RelativeOID | null = null
 	let description: string | null = null
 	const errors: Array<Error> = []
 	const endOffset = reader.offset + reader.length

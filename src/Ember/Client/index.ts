@@ -27,6 +27,7 @@ import {
 	EmberValue,
 	NumberedTreeNode,
 	QualifiedElement,
+	RelativeOID,
 	Root,
 	RootElement,
 	RootType,
@@ -116,8 +117,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	 * ('' for the root), with the element type a request to that path is sent as. A provider keeps what a consumer
 	 * subscribed to only for that connection, so after a reconnect they're sent again: see _restoreSubscriptions.
 	 */
-	private _sentGetDirectories = new Map<string, { type?: ElementType; dirFieldMask?: FieldFlags }>()
-	private _sentSubscribes = new Map<string, { type?: ElementType }>()
+	private _sentGetDirectories = new Map<RelativeOID, { type?: ElementType; dirFieldMask?: FieldFlags }>()
+	private _sentSubscribes = new Map<RelativeOID, { type?: ElementType }>()
 
 	private _timeout = 3000
 	private _resendTimeout = 1000
@@ -616,9 +617,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	 * nobody has to look anything up again. Nothing has been sent yet on the first connection.
 	 */
 	private _restoreSubscriptions(): void {
-		const depth = (path: string) => (path ? path.split('.').length : 0)
-		const byDepth = ([a]: [string, unknown], [b]: [string, unknown]) => depth(a) - depth(b)
-		const resend = (path: string, type: ElementType | undefined, command: Command) => {
+		const depth = (path: RelativeOID) => (path ? path.split('.').length : 0)
+		const byDepth = ([a]: [RelativeOID, unknown], [b]: [RelativeOID, unknown]) => depth(a) - depth(b)
+		const resend = (path: RelativeOID, type: ElementType | undefined, command: Command) => {
 			const request = type
 				? insertCommand(
 						new QualifiedElementImpl(path, { type } as EmberElement) as Exclude<
