@@ -12,7 +12,7 @@ interface Label {
 
 class LabelImpl implements Label {
 	constructor(
-		public basePath: string,
+		public basePath: RelativeOID,
 		public description: string
 	) {}
 }
