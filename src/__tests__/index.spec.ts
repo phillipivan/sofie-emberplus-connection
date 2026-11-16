@@ -127,7 +127,10 @@ describe('the package exports', () => {
 			const command: Model.Command = invocation()
 			const tree: S101SocketEvents['emberTree'] = [berDecode(Buffer.alloc(0))]
 			const codecEvent: keyof S101CodecEvents = 'keepaliveReq'
-			return { request, set, command, tree, codecEvent }
+			const labels: Promise<Array<Model.LabelSet>> = client.getMatrixLabels(
+				new Model.QualifiedElementImpl<Model.Matrix>('1.4', { type: Model.ElementType.Matrix })
+			)
+			return { request, set, labels, command, tree, codecEvent }
 		}
 		const invocation = (): Model.Invoke => ({
 			type: Model.ElementType.Command,

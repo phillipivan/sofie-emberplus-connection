@@ -18,7 +18,9 @@ import {
 import { Connection, ConnectionDisposition, ConnectionOperation } from '../../model/Connection.js'
 import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberFunction } from '../../model/EmberFunction.js'
+import { EmberNodeImpl } from '../../model/EmberNode.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
+import { LabelSet } from '../../model/Label.js'
 import { Connections, Matrix, SignalContents } from '../../model/Matrix.js'
 import { fitsItsType, isValueOfType, Parameter, ParameterImpl } from '../../model/Parameter.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
@@ -37,6 +39,7 @@ import {
 	TreeElement,
 } from '../../types/types.js'
 import {
+	childPath,
 	getPath,
 	isElementOfType,
 	isEmptyNode,
@@ -566,6 +569,64 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		return tree
 	}
 
+	/** Matrices: */
+	/**
+	 * Fetches a matrix's labels, given by its `labels` (the older of the specification's two ways of labelling signals):
+	 * every label set, in the order the matrix lists them (the only order the specification gives: take the first by
+	 * default), each with its description, by which a user chooses one. A GetDirectory on each set's targets and sources
+	 * nodes (`<basePath>.1`, `<basePath>.2`), which also asks the provider to report changes to them, and is sent again
+	 * after a reconnect. The labels are as reported (any padding kept); one that isn't a string (a null value) is left
+	 * out. Rejects when a request fails, as one that times out.
+	 *
+	 * The matrix's contents have to be loaded: a provider may report them only when listing the matrix's parent, and not
+	 * in reply to a GetDirectory on the matrix. With no label sets, it gives none, and sends nothing.
+	 */
+	async getMatrixLabels(matrix: ElementOf<Matrix>): Promise<Array<LabelSet>> {
+		const sets: Array<LabelSet> = []
+		for (const { basePath, description } of matrix.contents.labels ?? []) {
+			const [targets, sources] = await Promise.all([
+				this._labelsAt(childPath(basePath, 1)),
+				this._labelsAt(childPath(basePath, 2)),
+			])
+			sets.push({ basePath, description, targets, sources })
+		}
+		return sets
+	}
+	/**
+	 * The path of the node holding a matrix's signal and connection parameters (its `parametersLocation`): the path it
+	 * gives, or, for an inline number, the matrix's own path and that number. (An inline node isn't listed by a
+	 * GetDirectory, so it is asked for by its path.) Undefined when the matrix has no parametersLocation.
+	 */
+	matrixParametersPath(matrix: ElementOf<Matrix>): RelativeOID | undefined {
+		const location = matrix.contents.parametersLocation
+		if (location === undefined) return undefined
+		return typeof location === 'number' ? childPath(getPath(matrix), location) : location
+	}
+	/** The path of the node holding a target's parameters: `<parametersLocation>.1.<target>` */
+	matrixTargetParametersPath(matrix: ElementOf<Matrix>, target: number): RelativeOID | undefined {
+		const base = this.matrixParametersPath(matrix)
+		return base === undefined ? undefined : childPath(childPath(base, 1), target)
+	}
+	/** The path of the node holding a source's parameters: `<parametersLocation>.2.<source>` */
+	matrixSourceParametersPath(matrix: ElementOf<Matrix>, source: number): RelativeOID | undefined {
+		const base = this.matrixParametersPath(matrix)
+		return base === undefined ? undefined : childPath(childPath(base, 2), source)
+	}
+	/** The path of the node holding a connection's parameters: `<parametersLocation>.3.<target>.<source>` */
+	matrixConnectionParametersPath(matrix: ElementOf<Matrix>, target: number, source: number): RelativeOID | undefined {
+		const base = this.matrixParametersPath(matrix)
+		return base === undefined ? undefined : childPath(childPath(childPath(base, 3), target), source)
+	}
+	/**
+	 * The path of a connection's gain parameter (an n-to-n matrix's `gainParameterNumber`, in the connection's
+	 * parameters node). Undefined when the matrix has no parametersLocation or no gainParameterNumber.
+	 */
+	matrixConnectionGainPath(matrix: ElementOf<Matrix>, target: number, source: number): RelativeOID | undefined {
+		const connection = this.matrixConnectionParametersPath(matrix, target, source)
+		const gain = matrix.contents.gainParameterNumber
+		return connection === undefined || gain === undefined ? undefined : childPath(connection, gain)
+	}
+
 	// This function handles the fact that the path in the Ember+ tree is not always the same as the path in requested from the provider
 	getInternalNodePath(node: TreeElement<EmberElement>): string | undefined {
 		if ('path' in node && typeof node.path === 'string') {
@@ -589,6 +650,20 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		}
 
 		return undefined
+	}
+
+	/** The labels in a label set's targets or sources node: its string parameters' values, by number */
+	private async _labelsAt(path: RelativeOID): Promise<{ [signal: number]: string }> {
+		const request = await this.getDirectory(new QualifiedElementImpl(path, new EmberNodeImpl()))
+		if (!request.response) throw new Error(`The request for the labels at ${path} was not sent`)
+		const reply = await request.response
+		const labels: { [signal: number]: string } = {}
+		for (const label of Object.values<NumberedTreeNode<EmberElement>>(reply.children ?? {})) {
+			if (label.contents.type === ElementType.Parameter && typeof label.contents.value === 'string') {
+				labels[label.number] = label.contents.value
+			}
+		}
+		return labels
 	}
 
 	private async _matrixMutation(

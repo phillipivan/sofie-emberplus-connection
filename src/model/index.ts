@@ -17,7 +17,7 @@ import { EmberNode, EmberNodeImpl } from './EmberNode.js'
 import { FunctionArgument, FunctionArgumentImpl } from './FunctionArgument.js'
 import { Invocation } from './Invocation.js'
 import { InvocationResult } from './InvocationResult.js'
-import { Label } from './Label.js'
+import { Label, LabelSet } from './Label.js'
 import {
 	Connections,
 	isConnections,
@@ -73,6 +73,7 @@ export {
 	Invocation,
 	InvocationResult,
 	Label,
+	LabelSet,
 	Matrix,
 	MatrixType,
 	MatrixAddressingMode,

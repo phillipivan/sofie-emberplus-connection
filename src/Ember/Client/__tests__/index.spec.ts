@@ -27,7 +27,7 @@ import {
 	TreeElement,
 } from '../../../model/index.js'
 import { InvocationResultImpl } from '../../../model/InvocationResult.js'
-import { LabelImpl } from '../../../model/Label.js'
+import { LabelImpl, LabelSet } from '../../../model/Label.js'
 import { Parameter, ParameterAccess, TypedParameter } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl } from '../../../model/StreamDescription.js'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
@@ -1934,6 +1934,126 @@ describe('client', () => {
 				)
 
 				await expect(request.response).resolves.toBe(client.tree[1]?.children?.[4])
+			})
+		})
+	})
+
+	describe('matrix helpers', () => {
+		const labels = (kind: string, values: { [signal: number]: string | null }) =>
+			new NumberedTreeNodeImpl(
+				0,
+				new EmberNodeImpl(kind),
+				Object.fromEntries(
+					Object.entries<string | null>(values).map(([n, value]) => [
+						n,
+						new NumberedTreeNodeImpl(
+							Number(n),
+							new ParameterImpl(ParameterType.String, undefined, undefined, value)
+						),
+					])
+				)
+			)
+		// A provider holding the label nodes by path: each GetDirectory sent is answered with the node at its path
+		function answerLabelRequests(
+			socket: S101ClientMock,
+			nodes: { [path: string]: NumberedTreeNode<EmberElement> }
+		) {
+			const asked: Array<string> = []
+			onSocketWrite.mockImplementation((data: Buffer) => {
+				const request = firstElement(data)
+				if (!isQualified(request)) return true
+				asked.push(request.path)
+				const node = nodes[request.path]
+				if (node)
+					setImmediate(() =>
+						socket.mockData(createQualifiedNodeResponse(request.path, node.contents, node.children))
+					)
+				return true
+			})
+			return asked
+		}
+		afterEach(() => onSocketWrite.mockReset())
+
+		it('getMatrixLabels gives every label set, in the order the matrix lists them', async () => {
+			await runWithConnection(async (client, socket) => {
+				const matrix = new QualifiedElementImpl<Matrix>('1.4', {
+					type: ElementType.Matrix,
+					labels: [
+						{ basePath: '1.0', description: 'Primary' },
+						{ basePath: '1.5', description: 'Internal' },
+					],
+				})
+				const asked = answerLabelRequests(socket, {
+					'1.0.1': labels('targets', { 1: 'T1', 2: 'T2', 3: null }), // a null label is left out
+					'1.0.2': labels('sources', { 1: 'S1' }),
+					'1.5.1': labels('targets', { 1: '  Internal T1 ' }), // as reported, padding kept
+					'1.5.2': labels('sources', {}),
+				})
+
+				const sets: Array<LabelSet> = await client.getMatrixLabels(matrix)
+
+				expect(sets).toEqual([
+					{ basePath: '1.0', description: 'Primary', targets: { 1: 'T1', 2: 'T2' }, sources: { 1: 'S1' } },
+					{ basePath: '1.5', description: 'Internal', targets: { 1: '  Internal T1 ' }, sources: {} },
+				])
+				expect(asked).toEqual(['1.0.1', '1.0.2', '1.5.1', '1.5.2'])
+			})
+		})
+
+		it('getMatrixLabels gives none for a matrix without labels, sending nothing', async () => {
+			await runWithConnection(async (client) => {
+				const matrix = new QualifiedElementImpl<Matrix>('1.4', { type: ElementType.Matrix })
+
+				await expect(client.getMatrixLabels(matrix)).resolves.toEqual([])
+				expect(onSocketWrite).not.toHaveBeenCalled()
+			})
+		})
+
+		it('getMatrixLabels rejects when a request fails', async () => {
+			await runWithConnection(
+				async (client, socket) => {
+					const matrix = new QualifiedElementImpl<Matrix>('1.4', {
+						type: ElementType.Matrix,
+						labels: [{ basePath: '1.0', description: 'Primary' }],
+					})
+					answerLabelRequests(socket, { '1.0.1': labels('targets', { 1: 'T1' }) }) // no sources node
+
+					await expect(client.getMatrixLabels(matrix)).rejects.toThrow('Request timed out')
+				},
+				{ timeout: 300 }
+			)
+		})
+
+		describe('the paths of the parameters of signals and connections', () => {
+			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+			const matrix = (parametersLocation?: RelativeOID | number, gainParameterNumber?: number) => {
+				const contents: Matrix = { type: ElementType.Matrix, parametersLocation, gainParameterNumber }
+				return new NumberedTreeNodeImpl(4, contents, undefined, device)
+			}
+
+			test.each<[string, RelativeOID | number]>([
+				['a path', '1.2'],
+				["an inline number, after the matrix's own path", 7],
+			])('from %s', async (_, location) => {
+				await runWithConnection(async (client) => {
+					const base = typeof location === 'number' ? `1.4.${location}` : location
+					const m = matrix(location, 1)
+
+					expect(client.matrixParametersPath(m)).toBe(base)
+					expect(client.matrixTargetParametersPath(m, 3)).toBe(`${base}.1.3`)
+					expect(client.matrixSourceParametersPath(m, 6)).toBe(`${base}.2.6`)
+					expect(client.matrixConnectionParametersPath(m, 9, 12)).toBe(`${base}.3.9.12`)
+					expect(client.matrixConnectionGainPath(m, 9, 12)).toBe(`${base}.3.9.12.1`)
+				})
+			})
+
+			it('are undefined without a parametersLocation, and the gain without a gainParameterNumber', async () => {
+				await runWithConnection(async (client) => {
+					expect(client.matrixParametersPath(matrix())).toBeUndefined()
+					expect(client.matrixTargetParametersPath(matrix(), 3)).toBeUndefined()
+					expect(client.matrixConnectionParametersPath(matrix(), 9, 12)).toBeUndefined()
+					expect(client.matrixConnectionGainPath(matrix('1.2'), 9, 12)).toBeUndefined()
+				})
 			})
 		})
 	})
