@@ -4,6 +4,8 @@ import {
 	FieldFlags,
 	GetDirectory,
 	Invoke,
+	isGetDirectory,
+	isInvoke,
 	Subscribe,
 	UnknownCommand,
 	Unsubscribe,
@@ -17,7 +19,16 @@ import { Invocation } from './Invocation.js'
 import { InvocationResult } from './InvocationResult.js'
 import { Label } from './Label.js'
 import { Connections, Matrix, MatrixAddressingMode, MatrixImpl, MatrixType } from './Matrix.js'
-import { Parameter, ParameterAccess, ParameterImpl, ParameterType } from './Parameter.js'
+import {
+	fitsItsType,
+	isValueOfType,
+	Parameter,
+	ParameterAccess,
+	ParameterImpl,
+	ParameterType,
+	ParameterValue,
+	TypedParameter,
+} from './Parameter.js'
 import { StreamDescription, StreamFormat } from './StreamDescription.js'
 import { StreamEntry } from './StreamEntry.js'
 import { Template, TemplateImpl } from './Template.js'
@@ -43,6 +54,8 @@ export {
 	EmberElement,
 	ElementType,
 	isEmberElement,
+	isInvoke,
+	isGetDirectory,
 	EmberFunction,
 	EmberFunctionImpl,
 	EmberNode,
@@ -65,6 +78,10 @@ export {
 	ParameterType,
 	ParameterAccess,
 	ParameterImpl,
+	ParameterValue,
+	TypedParameter,
+	isValueOfType,
+	fitsItsType,
 	StreamDescription,
 	StreamFormat,
 	StreamEntry,

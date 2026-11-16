@@ -36,6 +36,21 @@ describe('the package exports', () => {
 		expect(Model.isEmberElement({ type: 'SOMETHING ELSE' })).toBe(false)
 	})
 
+	test('the parameter and command type helpers', () => {
+		const gain: Model.TypedParameter<Model.ParameterType.Integer> = new Model.ParameterImpl(
+			Model.ParameterType.Integer,
+			'gain',
+			undefined,
+			5
+		)
+		const value: Model.ParameterValue<Model.ParameterType.Integer> | undefined = gain.value
+
+		expect(Model.isValueOfType(Model.ParameterType.Integer, value)).toBe(true)
+		expect(Model.fitsItsType(gain)).toBe(true)
+		expect(Model.isInvoke({ type: Model.ElementType.Command, number: Model.CommandType.Invoke })).toBe(true)
+		expect(Model.isGetDirectory({ type: Model.ElementType.Command, number: Model.CommandType.Invoke })).toBe(false)
+	})
+
 	test('the tree element guards', () => {
 		const numbered: Types.RootElement = new Model.NumberedTreeNodeImpl(1, new Model.EmberNodeImpl())
 		const qualified: Types.RootElement = new Model.QualifiedElementImpl('1.2', new Model.EmberNodeImpl())
