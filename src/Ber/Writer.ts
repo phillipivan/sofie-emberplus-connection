@@ -97,13 +97,11 @@ class ExtendedWriter extends Writer {
 	writeValue(value: EmberValue, tag?: number): void
 	writeValue(typedValue: EmberTypedValue): void
 	writeValue(arg1: EmberValue | EmberTypedValue, tag?: number): void {
-		let value: EmberValue
 		if (arg1 && typeof arg1 === 'object' && 'type' in arg1) {
-			value = arg1.value
-			tag = parameterTypetoBERTAG(arg1.type)
-		} else {
-			value = arg1
+			this.writeTypedValue(arg1)
+			return
 		}
+		const value = arg1
 
 		if (tag === BERDataTypes.NULL && (value === null || value === undefined)) {
 			this.writeNull()
@@ -155,6 +153,41 @@ class ExtendedWriter extends Writer {
 		this.writeString(value.toString(), tag)
 	}
 
+	/**
+	 * Writes a value as its type says, as one of the DTD's Value types (integer, real, string, boolean, octets or null).
+	 * An enum's value is the integer it is. A trigger has no value type of its own: its value is written by its
+	 * JavaScript type. (The type used to give only the tag, and the JavaScript value how to write under it, so an
+	 * integer's fraction came out as a REAL under an INTEGER tag.)
+	 */
+	private writeTypedValue(typed: EmberTypedValue): void {
+		// Null's value, and any type's null value (TypeScript then leaves Null out of the cases below)
+		if (typed.value === null) {
+			this.writeNull()
+			return
+		}
+		switch (typed.type) {
+			case ParameterType.Integer:
+			case ParameterType.Enum:
+				this.writeInt(typed.value, BERDataTypes.INTEGER) // a fraction is dropped
+				break
+			case ParameterType.Real:
+				this.writeReal(typed.value, BERDataTypes.REAL)
+				break
+			case ParameterType.String:
+				this.writeString(typed.value, BERDataTypes.STRING)
+				break
+			case ParameterType.Boolean:
+				this.writeBoolean(typed.value, BERDataTypes.BOOLEAN)
+				break
+			case ParameterType.Octets:
+				this.writeValue(typed.value, BERDataTypes.OCTETSTRING) // an empty Buffer too
+				break
+			case ParameterType.Trigger:
+				this.writeValue(typed.value)
+				break
+		}
+	}
+
 	writeIfDefined<T>(
 		property: T | undefined,
 		writer: (value: T, tag: number) => void,
@@ -190,32 +223,4 @@ function shortenLong(value: Long): { size: number; value: Long } {
 	}
 
 	return { size, value }
-}
-
-/**
- * The BER type a value of a parameter type is written as: one of the DTD's Value (integer, real, string, boolean,
- * octets or null). An enum's value is the integer it is, as libember writes it. A trigger has no value type of its own,
- * so its value is written by its JavaScript type (undefined here).
- */
-function parameterTypetoBERTAG(parameterType: ParameterType): number | undefined {
-	switch (parameterType) {
-		case ParameterType.Integer:
-			return BERDataTypes.INTEGER
-		case ParameterType.Real:
-			return BERDataTypes.REAL
-		case ParameterType.String:
-			return BERDataTypes.STRING
-		case ParameterType.Boolean:
-			return BERDataTypes.BOOLEAN
-		case ParameterType.Trigger:
-			return undefined
-		case ParameterType.Enum:
-			return BERDataTypes.INTEGER
-		case ParameterType.Octets:
-			return BERDataTypes.OCTETSTRING
-		case ParameterType.Null:
-			return BERDataTypes.NULL
-		default:
-			throw new Error(``)
-	}
 }
