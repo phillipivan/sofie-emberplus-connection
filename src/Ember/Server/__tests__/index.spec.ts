@@ -82,7 +82,7 @@ describe('EmberServer subscriptions', () => {
 	// A device, 1, with a node, 1.1, holding a parameter, 1.1.1
 	let server: EmberServer
 	let node: NumberedTreeNode<EmberNodeImpl>
-	let parameter: NumberedTreeNode<ParameterImpl>
+	let parameter: NumberedTreeNode<ParameterImpl<ParameterType.Integer>>
 
 	beforeEach(async () => {
 		jest.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed

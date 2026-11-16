@@ -1,20 +1,23 @@
 import { berDecode, berEncode } from '../../../encodings/ber/index.js'
-import { ParameterImpl, ParameterType } from '../../../model/Parameter.js'
+import { ElementType } from '../../../model/EmberElement.js'
+import { Parameter, ParameterType } from '../../../model/Parameter.js'
 import { StreamDescription, StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { Collection, EmberTypedValue, EmberValue, RootType } from '../../../types/types.js'
 import { StreamManager } from '../StreamManager.js'
 
 // A parameter that reports its value in the stream `streamIdentifier`
-function streamParameter(type: ParameterType, streamIdentifier: number, streamDescriptor?: StreamDescription) {
-	const parameter = new ParameterImpl(type, 'meter')
-	parameter.streamIdentifier = streamIdentifier
-	parameter.streamDescriptor = streamDescriptor
-	return parameter
+function streamParameter(
+	type: ParameterType,
+	streamIdentifier: number,
+	streamDescriptor?: StreamDescription
+): Parameter {
+	// No value, so a parameter of any type
+	return { type: ElementType.Parameter, parameterType: type, identifier: 'meter', streamIdentifier, streamDescriptor }
 }
 
 // A StreamManager with the parameter registered at the path 1.1, and the values it reports for that path
-function register(parameter: ParameterImpl) {
+function register(parameter: Parameter) {
 	const manager = new StreamManager()
 	const updates: EmberValue[] = []
 	manager.on('streamUpdate', (_path, value) => updates.push(value))

@@ -131,27 +131,30 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 					: (parameterType ?? valueType)
 	parameterType = check(parameterType, 'decode parameter', 'parameterType', ParameterType.Null, errors, options)
 
+	// The value and default aren't checked against the type here: what the provider sent is kept as it is
 	return makeResult(
-		new ParameterImpl(
-			parameterType,
-			identifier,
-			description,
-			value,
-			maximum,
-			minimum,
-			access,
-			format,
-			enumeration,
-			factor,
-			isOnline,
-			formula,
-			step,
-			defaultValue,
-			streamIdentifier,
-			enumMap,
-			streamDescriptor,
-			schemaIdentifiers,
-			templateReference
+		<Parameter>(
+			new ParameterImpl(
+				parameterType,
+				identifier,
+				description,
+				value,
+				maximum,
+				minimum,
+				access,
+				format,
+				enumeration,
+				factor,
+				isOnline,
+				formula,
+				step,
+				defaultValue,
+				streamIdentifier,
+				enumMap,
+				streamDescriptor,
+				schemaIdentifiers,
+				templateReference
+			)
 		),
 		errors
 	)

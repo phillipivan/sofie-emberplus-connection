@@ -1,8 +1,9 @@
 import * as Ber from '../../../Ber/index.js'
 import { CommandType, FieldFlags, GetDirectoryImpl } from '../../../model/Command.js'
 import { ConnectionDisposition, ConnectionImpl, ConnectionOperation } from '../../../model/Connection.js'
+import { ElementType } from '../../../model/EmberElement.js'
 import { MatrixAddressingMode, MatrixImpl, MatrixType } from '../../../model/Matrix.js'
-import { ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Parameter.js'
+import { Parameter, ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
 import { Collection, EmberValue, RootElement } from '../../../types/types.js'
 import * as Constants from '../constants.js'
@@ -104,7 +105,7 @@ const raw = (bytes: string) => (writer: Ber.Writer) => {
 }
 
 const decodedParameter = (encoded: Buffer) => decodeParameter(new Ber.Reader(encoded)).value
-const encodedParameter = (parameter: ParameterImpl) => written((writer) => encodeParameter(parameter, writer))
+const encodedParameter = (parameter: Parameter) => written((writer) => encodeParameter(parameter, writer))
 
 describe('BER and Glow compared with libember', () => {
 	describe('as libember does', () => {
@@ -192,7 +193,8 @@ describe('BER and Glow compared with libember', () => {
 			[ParameterType.Enum, 6],
 			[ParameterType.Octets, 7],
 		])('codes the parameter type %s as %d', (type, number) => {
-			expect(intField(encodedParameter(new ParameterImpl(type, 'p')), 13, Ber.BERDataTypes.SET)).toBe(number)
+			const parameter: Parameter = { type: ElementType.Parameter, parameterType: type, identifier: 'p' }
+			expect(intField(encodedParameter(parameter), 13, Ber.BERDataTypes.SET)).toBe(number)
 			expect(decodedParameter(contents(Ber.BERDataTypes.SET, [13, int(number)])).parameterType).toBe(type)
 		})
 
@@ -474,8 +476,14 @@ describe('BER and Glow compared with libember', () => {
 			ParameterType.Octets,
 		]) {
 			it(`writes a null value of a parameter of the type ${type} as a NULL`, () => {
-				const parameter = new ParameterImpl(type, 'p', undefined, null as EmberValue)
-				parameter.defaultValue = null
+				// A null value and default, which a parameter of any type may have
+				const parameter: Parameter = {
+					type: ElementType.Parameter,
+					parameterType: type,
+					identifier: 'p',
+					value: null,
+					defaultValue: null,
+				}
 
 				const encoded = fields(encodedParameter(parameter), Ber.BERDataTypes.SET)
 				expect(encoded.get(2)?.toString('hex')).toBe('0500')

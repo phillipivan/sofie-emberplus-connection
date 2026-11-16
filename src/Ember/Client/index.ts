@@ -378,7 +378,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		// only decides how the value is encoded. The tree is updated when the provider replies.
 		const request = new QualifiedElementImpl<Parameter>(
 			getPath(node),
-			new ParameterImpl(node.contents.parameterType, undefined, undefined, value)
+			// The value isn't checked against the parameter's type here
+			<Parameter>new ParameterImpl(node.contents.parameterType, undefined, undefined, value)
 		)
 
 		return this._sendRequest<TreeElement<Parameter>>(

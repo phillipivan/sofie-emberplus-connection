@@ -516,20 +516,23 @@ describe('client', () => {
 			await runWithConnection(async (client) => {
 				const node = seedParameter(
 					client,
-					new ParameterImpl(
-						parameterType,
-						'param',
-						'Param',
-						undefined,
-						parameterType === ParameterType.String || parameterType === ParameterType.Boolean
-							? undefined
-							: 70,
-						parameterType === ParameterType.String || parameterType === ParameterType.Boolean
-							? undefined
-							: -20,
-						ParameterAccess.ReadWrite,
-						'%d',
-						parameterType === ParameterType.Enum ? 'a\nb\nc\nd' : undefined
+					// The table pairs each type with a value of its form
+					<Parameter>(
+						new ParameterImpl(
+							parameterType,
+							'param',
+							'Param',
+							undefined,
+							parameterType === ParameterType.String || parameterType === ParameterType.Boolean
+								? undefined
+								: 70,
+							parameterType === ParameterType.String || parameterType === ParameterType.Boolean
+								? undefined
+								: -20,
+							ParameterAccess.ReadWrite,
+							'%d',
+							parameterType === ParameterType.Enum ? 'a\nb\nc\nd' : undefined
+						)
 					)
 				)
 
