@@ -1506,7 +1506,7 @@ describe('client', () => {
 						value: { type: ParameterType.Real, value: 42.5 },
 					},
 				])
-				socket.mockData(streamData)
+				socket.mockStreamData(streamData) // as a socket hands on a stream collection
 
 				await new Promise(setImmediate)
 

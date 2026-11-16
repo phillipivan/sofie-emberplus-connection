@@ -812,10 +812,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		} else if (root.rootType === RootType.Elements) {
 			// walk tree (a stream collection holds no elements)
 			for (const rootElement of Object.values<RootElement>(root.value)) {
-				if ('identifier' in rootElement) {
-					// rootElement is a StreamEntry
-					continue
-				} else if ('path' in rootElement) {
+				if ('path' in rootElement) {
 					// element is qualified
 					// the top-level element's number, and the numbers below it ('' splits to [''], which is 0)
 					const numbers = rootElement.path.split('.').map(Number)
