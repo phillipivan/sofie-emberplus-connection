@@ -8,8 +8,10 @@ import { ParameterType } from '../../../model/Parameter.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, RelativeOID, Root, RootElement, RootType } from '../../../types/types.js'
-import { RootBERID } from '../constants.js'
-import { guarded } from '../decoder/DecodeResult.js'
+import { ElementCollectionBERID, QualifiedNodeBERID, RootBERID, RootElementsBERID } from '../constants.js'
+import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
+import { encodeQualifedElement } from '../encoder/Qualified.js'
+import { encodeNumberedElement } from '../encoder/Tree.js'
 import { berDecode, berEncode, EncodableRoot } from '../index.js'
 
 describe('encoders/Ber/index', () => {
@@ -75,6 +77,53 @@ describe('encoders/Ber/index', () => {
 		const decoded = berDecode(berEncode({ 0: numbered(4, 'a'), 1: qualified('1.1', 'q') }, RootType.Elements))
 
 		expect(decoded.value).toEqual({ 0: numbered(4, 'a'), 1: qualified('1.1', 'q') })
+	})
+
+	// The children are numbered elements (ElementCollection): a qualified element among them has no number to be
+	// kept by. It was kept under the key undefined, which the tree and the encoder then read as a child.
+	describe('a qualified element among the children', () => {
+		const message = () => {
+			const w = new Ber.Writer()
+			w.startSequence(RootBERID)
+			w.startSequence(RootElementsBERID)
+			w.startSequence(Ber.CONTEXT(0))
+			w.startSequence(QualifiedNodeBERID)
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeRelativeOID('1', Ber.BERDataTypes.RELATIVE_OID)
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(2))
+			w.startSequence(ElementCollectionBERID)
+			w.startSequence(Ber.CONTEXT(0))
+			encodeQualifedElement(qualified('1.2', 'stray'), w)
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(0))
+			encodeNumberedElement(numbered(3, 'kid'), w)
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence() // the qualified node
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			return w.buffer
+		}
+
+		test('is left out, with an error', () => {
+			const decoded = berDecode(message())
+			const kid = numbered(3, 'kid')
+			const parent = new QualifiedElementImpl('1', new EmberNodeImpl(), { 3: kid })
+			kid.parent = parent
+
+			expect(decoded.value).toEqual({ 0: parent })
+			expect(decoded.errors.map((e) => e.message)).toEqual([
+				'decode children: qualified element 1.2 is not a child: skipped',
+			])
+		})
+		test('throws when unexpected values are not skipped', () => {
+			expect(() => berDecode(message(), { ...defaultDecode, skipUnexpected: false })).toThrow(
+				'qualified element 1.2 is not a child'
+			)
+		})
 	})
 
 	test('InvocationResult', () => {

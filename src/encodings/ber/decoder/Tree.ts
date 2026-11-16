@@ -1,9 +1,9 @@
 import * as Ber from '../../../Ber/index.js'
 import { Command } from '../../../model/Command.js'
 import { ElementType, EmberElement } from '../../../model/EmberElement.js'
-import { EmberNodeImpl } from '../../../model/EmberNode.js'
-import { EmberFunctionImpl, ParameterImpl, ParameterType } from '../../../model/index.js'
-import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElementImpl, TreeElement } from '../../../model/Tree.js'
+import { EmberNode, EmberNodeImpl } from '../../../model/EmberNode.js'
+import { EmberFunction, EmberFunctionImpl, Parameter, ParameterImpl, ParameterType } from '../../../model/index.js'
+import { isNumbered, NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, RelativeOID, RootElement } from '../../../types/types.js'
 import {
 	CommandBERID,
@@ -51,11 +51,19 @@ export function decodeChildren(
 	while (reader.offset < endOffset) {
 		const tag = reader.readSequence()
 		if (tag === 0) continue
-		const kidEl = decodeGenericElement(reader, options) as DecodeResult<NumberedTreeNode<EmberElement>>
-		safeSet(kidEl, kids, (x, y) => {
-			y[x.number] = x
-			return y
-		})
+		const kid = appendErrors(decodeGenericElement(reader, options), kids)
+		// The children are numbered elements (the DTD's ElementCollection): a qualified one has no number to go by
+		if (!isNumbered(kid)) {
+			unexpected(
+				kids,
+				'decode children',
+				`qualified element ${kid.path} is not a child: skipped`,
+				kids.value,
+				options
+			)
+			continue
+		}
+		kids.value[kid.number] = kid
 	}
 
 	return kids
@@ -64,7 +72,7 @@ export function decodeChildren(
 export function decodeGenericElement(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
-): DecodeResult<TreeElement<EmberElement>> {
+): DecodeResult<RootElement> {
 	const tag = reader.peek()
 	const errors = new Array<Error>()
 
@@ -92,7 +100,7 @@ export function decodeGenericElement(
 	reader.readSequence(tag)
 	let path: RelativeOID | null = null
 	let number: number | null = null
-	let contents: EmberElement | undefined = undefined
+	let contents: EmberNode | Parameter | EmberFunction | undefined = undefined
 	let children: Collection<NumberedTreeNode<EmberElement>> | undefined
 
 	const endOffset = reader.offset + reader.length
@@ -170,7 +178,7 @@ export function decodeGenericElement(
 		}
 	}
 
-	let el: TreeElement<EmberElement>
+	let el: RootElement
 	if (isQualified) {
 		path = check(path, 'decode generic element', 'path', '', errors, options)
 		el = new QualifiedElementImpl(path, contents, children)
@@ -181,11 +189,11 @@ export function decodeGenericElement(
 
 	if (children) {
 		for (const kid of Object.values<NumberedTreeNode<EmberElement>>(children)) {
-			kid.parent = el as RootElement
+			kid.parent = el
 		}
 	}
 
-	return makeResult<TreeElement<EmberElement>>(el, errors)
+	return makeResult(el, errors)
 }
 
 export function decodeRootElements(
@@ -204,7 +212,7 @@ export function decodeRootElements(
 			skipNext(reader)
 			continue
 		}
-		const rootEl = decodeGenericElement(reader, options) as DecodeResult<NumberedTreeNode<EmberElement>>
+		const rootEl = decodeGenericElement(reader, options)
 		// Keyed by place, in the order they came: an element's number or path is in the element. (Keyed by number, one
 		// could replace another with that key, and the collection lost the order the provider reported them in.)
 		safeSet(rootEl, rootEls, (x, y) => {

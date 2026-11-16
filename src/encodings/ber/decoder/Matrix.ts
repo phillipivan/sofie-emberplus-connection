@@ -2,13 +2,7 @@ import * as Ber from '../../../Ber/index.js'
 import { EmberElement } from '../../../model/EmberElement.js'
 import { Label } from '../../../model/Label.js'
 import { Connections, Matrix, MatrixAddressingMode, MatrixImpl, MatrixType } from '../../../model/Matrix.js'
-import {
-	NumberedTreeNode,
-	NumberedTreeNodeImpl,
-	QualifiedElement,
-	QualifiedElementImpl,
-	TreeElement,
-} from '../../../model/Tree.js'
+import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, EmberTreeNode, RelativeOID } from '../../../types/types.js'
 import { MatrixBERID, QualifiedMatrixBERID, SourceBERID, TargetBERID } from '../constants.js'
 import { decodeConnection } from './Connection.js'
@@ -32,7 +26,7 @@ function decodeMatrix(
 	reader: Ber.Reader,
 	isQualified = false,
 	options: DecodeOptions = defaultDecode
-): DecodeResult<TreeElement<Matrix>> {
+): DecodeResult<QualifiedElement<Matrix> | NumberedTreeNode<Matrix>> {
 	reader.readSequence(isQualified ? QualifiedMatrixBERID : MatrixBERID)
 	let number: number | null = null
 	let path: RelativeOID | null = null
