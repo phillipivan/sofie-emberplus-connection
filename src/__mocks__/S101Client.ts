@@ -3,7 +3,8 @@ import { EventEmitter } from 'eventemitter3'
 import { ConnectionStatus } from '../Ember/Client/ConnectionStatus.js'
 import { S101SocketEvents } from '../Ember/Socket/S101Socket.js'
 import { DecodeResult } from '../encodings/ber/decoder/DecodeResult.js'
-import { Root } from '../types/index.js'
+import { DecodedRoot } from '../encodings/ber/index.js'
+import { Root, RootType } from '../types/index.js'
 import type OrigS101Client from '../Ember/Socket/S101Client.js'
 
 const sockets: Array<S101Client> = []
@@ -91,12 +92,13 @@ export default class S101Client
 	public mockClose(): void {
 		this.setDisconnected()
 	}
-	public mockData(tree: DecodeResult<Root>): void {
-		this.emit('emberTree', tree)
+	/** A decoded message arrives, with its RootType as berDecode gives it: told from the value when not given */
+	public mockData(tree: DecodeResult<Root> | DecodedRoot): void {
+		this.emit('emberTree', withRootType(tree, 'id' in tree.value ? RootType.InvocationResult : RootType.Elements))
 	}
 	/** A stream collection arrives */
-	public mockStreamData(tree: DecodeResult<Root>): void {
-		this.emit('emberStreamTree', tree)
+	public mockStreamData(tree: DecodeResult<Root> | DecodedRoot): void {
+		this.emit('emberStreamTree', withRootType(tree, RootType.Streams))
 	}
 
 	public destroy(): void {
@@ -114,4 +116,9 @@ export default class S101Client
 		this.emit('disconnected')
 		if (this.onClose) this.onClose()
 	}
+}
+
+/** A decoded message with its RootType: the one it has, or else the one given */
+function withRootType(tree: DecodeResult<Root> | DecodedRoot, rootType: RootType): DecodedRoot {
+	return ('rootType' in tree ? tree : { ...tree, rootType }) as DecodedRoot
 }

@@ -5,19 +5,56 @@ import { EmberNodeImpl } from '../../../model/EmberNode.js'
 import { InvocationResultImpl } from '../../../model/InvocationResult.js'
 import { Matrix } from '../../../model/Matrix.js'
 import { ParameterType } from '../../../model/Parameter.js'
+import { StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, Root, RootElement, RootType } from '../../../types/types.js'
 import { RootBERID } from '../constants.js'
 import { guarded } from '../decoder/DecodeResult.js'
-import { berDecode, berEncode } from '../index.js'
+import { berDecode, berEncode, EncodableRoot } from '../index.js'
 
 describe('encoders/Ber/index', () => {
-	function roundTrip(res: Root, type: RootType): void {
-		const encoded = berEncode(res, type)
-		const decoded = guarded(berDecode(encoded))
+	function roundTrip(...root: EncodableRoot): void {
+		const encoded = berEncode(...root)
+		const decoded = guarded<Root>(berDecode(encoded))
 
-		expect(decoded).toEqual(res)
+		expect(decoded).toEqual(root[0])
 	}
+	// berDecode says which kind of root it decoded, so a caller can tell them apart without a cast
+	describe('the kind of root', () => {
+		const element = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+		const entry = new StreamEntryImpl(4, { type: ParameterType.Integer, value: 9 })
+		const result = new InvocationResultImpl(3, true)
+
+		test.each<[string, EncodableRoot]>([
+			['elements', [{ 1: element }, RootType.Elements]], // decoded elements are keyed by their number
+			['a stream collection', [[entry], RootType.Streams]],
+			['an invocation result', [result, RootType.InvocationResult]],
+		])('berDecode gives %s its RootType', (_, root) => {
+			const decoded = berDecode(berEncode(...root))
+
+			expect(decoded.rootType).toBe(root[1])
+			expect(decoded.value).toEqual(root[0])
+		})
+
+		test('berDecode gives a message it cannot read the RootType of elements, with an error', () => {
+			const decoded = berDecode(Buffer.from('3000', 'hex'))
+
+			expect(decoded.rootType).toBe(RootType.Elements)
+			expect(decoded.errors).toHaveLength(1)
+		})
+
+		test('berEncode takes only a root of the RootType it is given', () => {
+			// Not called: it only has to compile, or not
+			const mismatched = () => {
+				// @ts-expect-error a stream collection is not elements
+				berEncode([entry], RootType.Elements)
+				// @ts-expect-error an invocation result is not a stream collection
+				berEncode(result, RootType.Streams)
+			}
+			expect(typeof mismatched).toBe('function')
+		})
+	})
+
 	test('InvocationResult', () => {
 		const res = new InvocationResultImpl(64, true, [{ value: 6, type: ParameterType.Integer }])
 
@@ -97,7 +134,7 @@ describe('encoders/Ber/index', () => {
 			'60806b80a0807180a0050d03000502a5803080a0807080a00302010aa1040d02812ca30302010100000000000000000000000000000000',
 			'hex'
 		)
-		const decoded = guarded(berDecode(report)) as Collection<RootElement>
+		const decoded = guarded<Root>(berDecode(report)) as Collection<RootElement>
 		const matrix = decoded[0] as QualifiedElement<Matrix>
 
 		expect(matrix.path).toBe('0.5.2')

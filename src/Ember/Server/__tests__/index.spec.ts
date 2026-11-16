@@ -8,7 +8,7 @@ import {
 	RootBERID,
 	RootElementsBERID,
 } from '../../../encodings/ber/constants.js'
-import { berDecode } from '../../../encodings/ber/index.js'
+import { berDecode, berEncode } from '../../../encodings/ber/index.js'
 import {
 	Command,
 	CommandType,
@@ -35,7 +35,16 @@ import {
 	ParameterType,
 	QualifiedElementImpl,
 } from '../../../model/index.js'
-import { Collection, EmberValue, NumberedTreeNode, QualifiedElement, RootElement } from '../../../types/types.js'
+import { InvocationResultImpl } from '../../../model/InvocationResult.js'
+import { StreamEntryImpl } from '../../../model/StreamEntry.js'
+import {
+	Collection,
+	EmberValue,
+	NumberedTreeNode,
+	QualifiedElement,
+	RootElement,
+	RootType,
+} from '../../../types/types.js'
 import { S101Server } from '../../Socket/S101Server.js'
 import { EmberServer } from '../index.js'
 import type S101Socket from '../../Socket/S101Socket.js'
@@ -57,7 +66,7 @@ class FakeConnection extends EventEmitter {
 		const element = new QualifiedElementImpl<EmberElement>(path, new EmberNodeImpl(), {
 			0: new NumberedTreeNodeImpl(0, command),
 		})
-		this.emit('emberTree', { value: { 0: element } })
+		this.emit('emberTree', { rootType: RootType.Elements, value: { 0: element } })
 	}
 
 	/** How many messages the server sends this connection while `fn` runs */
@@ -176,6 +185,22 @@ describe('EmberServer subscriptions', () => {
 		expect(await consumer.countSent(changeParameter)).toBe(1)
 	})
 
+	// A provider takes elements from a consumer. A stream collection or an invocation result was walked as if it held
+	// elements, and threw.
+	it.each<[string, () => Buffer]>([
+		[
+			'a stream collection',
+			() => berEncode([new StreamEntryImpl(1, { type: ParameterType.Integer, value: 5 })], RootType.Streams),
+		],
+		['an invocation result', () => berEncode(new InvocationResultImpl(1, true), RootType.InvocationResult)],
+	])('passes over %s from a consumer', async (_, message) => {
+		const consumer = await connect()
+
+		expect(() => consumer.emit('emberTree', berDecode(message()))).not.toThrow()
+		await new Promise(setImmediate)
+		expect(consumer.sent).toBe(0)
+	})
+
 	// A command whose number the DTD doesn't define, or without a number, decodes as CommandType.Unknown, which the
 	// server ignores, as a libember provider does. It was taken for a Subscribe (#52).
 	describe('commands it does not know', () => {
@@ -258,6 +283,7 @@ describe('EmberServer subscriptions', () => {
 		async function requestValue(consumer: FakeConnection) {
 			consumer.received.length = 0
 			consumer.emit('emberTree', {
+				rootType: RootType.Elements,
 				value: {
 					0: new QualifiedElementImpl(
 						'1.1.1',
@@ -369,7 +395,11 @@ describe('EmberServer invocations', () => {
 		s101Server.emit('connection', consumer as unknown as S101Socket)
 		const command = new InvokeImpl({ id, args: [] })
 		if (path) consumer.request(path, command)
-		else consumer.emit('emberTree', { value: { 0: new NumberedTreeNodeImpl(0, command) } })
+		else
+			consumer.emit('emberTree', {
+				rootType: RootType.Elements,
+				value: { 0: new NumberedTreeNodeImpl(0, command) },
+			})
 		await new Promise(setImmediate)
 
 		expect(consumer.received).toHaveLength(1)
@@ -587,6 +617,7 @@ describe('EmberServer matrices', () => {
 		async function requestConnect(consumer: FakeConnection) {
 			consumer.received.length = 0
 			consumer.emit('emberTree', {
+				rootType: RootType.Elements,
 				value: {
 					0: new QualifiedElementImpl(
 						'1.1',

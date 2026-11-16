@@ -1,7 +1,6 @@
 import { EventEmitter } from 'eventemitter3'
 
-import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult.js'
-import { berEncode } from '../../encodings/ber/index.js'
+import { berEncode, DecodedRoot } from '../../encodings/ber/index.js'
 import {
 	Command,
 	CommandType,
@@ -21,7 +20,6 @@ import { EmberFunction } from '../../model/EmberFunction.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
 import { Connections, Matrix } from '../../model/Matrix.js'
 import { Parameter, ParameterImpl } from '../../model/Parameter.js'
-import { StreamEntry } from '../../model/StreamEntry.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
 import {
 	Collection,
@@ -163,14 +161,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._timer = setInterval(() => this._resendTimer(), findGcd(this._timeout, this._resendTimeout))
 
 		this._client = new S101Client(this.host, this.port, true)
-		this._client.on('emberTree', (tree: DecodeResult<Root>) => {
+		this._client.on('emberTree', (tree) => {
 			// Regular ember tree
 			this._handleIncoming(tree)
 		})
-		this._client.on('emberStreamTree', (tree: DecodeResult<Root>) => {
-			// Ember Tree with Stream
-			const entries = tree.value as Collection<StreamEntry>
-			this._streamManager.updateStreamValues(entries)
+		this._client.on('emberStreamTree', (tree) => {
+			// Ember Tree with Stream (the codec tells it from the others by the tags berDecode decides by)
+			if (tree.rootType === RootType.Streams) this._streamManager.updateStreamValues(tree.value)
 		})
 
 		this._client.on('error', (e) => this.emit('error', e))
@@ -698,11 +695,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		}
 	}
 
-	private _handleIncoming(incoming: DecodeResult<Root>) {
-		const node = incoming.value
-
+	private _handleIncoming(incoming: DecodedRoot) {
 		// update tree:
-		const changes = this._applyRootToTree(node)
+		const changes = this._applyRootToTree(incoming)
 
 		// check for subscriptiions:
 		for (const change of changes) {
@@ -762,11 +757,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		incoming.errors?.forEach((e) => this.emit('warn', e))
 	}
 
-	private _applyRootToTree(node: Root): Array<Change> {
+	private _applyRootToTree(root: DecodedRoot): Array<Change> {
 		const changes: Array<Change> = []
 
-		if ('id' in node) {
-			// node is an InvocationResult
+		if (root.rootType === RootType.InvocationResult) {
+			const node = root.value
 			this._requests.forEach((req) => {
 				if (req.node.contents.type === ElementType.Function) {
 					if (req.node.children && req.node.children[0]) {
@@ -780,11 +775,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					}
 				}
 			})
-		} else {
-			// EmberNode is not an InvocationResult
-
-			// walk tree
-			for (const rootElement of Object.values<RootElement>(node as Collection<RootElement>)) {
+		} else if (root.rootType === RootType.Elements) {
+			// walk tree (a stream collection holds no elements)
+			for (const rootElement of Object.values<RootElement>(root.value)) {
 				if ('identifier' in rootElement) {
 					// rootElement is a StreamEntry
 					continue

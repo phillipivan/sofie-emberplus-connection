@@ -1,11 +1,14 @@
 import {
 	berDecode,
+	berEncode,
 	ConnectionStatus,
+	DecodedRoot,
 	DecodeOptions,
 	DecodeResult,
 	EmberClient,
 	EmberClientOptions,
 	EmberServer,
+	EncodableRoot,
 	Model,
 	RequestPromise,
 	RequestPromiseArguments,
@@ -45,8 +48,12 @@ describe('the package exports', () => {
 			skipUnexpected: true,
 		}
 		const decoded: DecodeResult<Types.Root> = berDecode(Buffer.from([0x60, 0x00]), options)
+		const typed: DecodedRoot = berDecode(Buffer.from([0x60, 0x00]))
+		const root: EncodableRoot = [[], Types.RootType.Elements]
 
 		expect(decoded).toHaveProperty('value')
+		expect(typed.rootType).toBe(Types.RootType.Elements)
+		expect(berEncode(...root)).toBeInstanceOf(Buffer)
 	})
 
 	test('the types of the client, server, socket and codec signatures', () => {

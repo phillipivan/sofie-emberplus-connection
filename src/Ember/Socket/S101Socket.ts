@@ -2,18 +2,16 @@ import { Socket } from 'net'
 
 import { EventEmitter } from 'eventemitter3'
 
-import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult.js'
-import { berDecode } from '../../encodings/ber/index.js'
+import { berDecode, DecodedRoot } from '../../encodings/ber/index.js'
 import { S101OversizedFrameError } from '../../Errors.js'
 import { S101Codec } from '../../S101/index.js'
-import { Root } from '../../types/index.js'
 import { ConnectionStatus } from '../Client/ConnectionStatus.js'
 import { normalizeError } from '../Lib/util.js'
 
 export type S101SocketEvents = {
 	error: [Error]
-	emberTree: [root: DecodeResult<Root>]
-	emberStreamTree: [root: DecodeResult<Root>]
+	emberTree: [root: DecodedRoot]
+	emberStreamTree: [root: DecodedRoot]
 	connecting: []
 	connected: []
 	disconnected: []

@@ -12,7 +12,7 @@ import { S101Client } from './Ember/Socket/index.js'
 import S101Socket, { S101SocketEvents } from './Ember/Socket/S101Socket.js'
 import { DecodeOptions, DecodeResult } from './encodings/ber/decoder/DecodeResult.js'
 // import { EmberTreeNode, TreeElement } from './types/types'
-import { berDecode, berEncode } from './encodings/ber/index.js'
+import { berDecode, berEncode, DecodedRoot, EncodableRoot } from './encodings/ber/index.js'
 import * as Model from './model/index.js'
 import { S101Codec } from './S101/index.js'
 import { S101CodecEvents } from './S101/S101Codec.js'
@@ -66,7 +66,9 @@ export {
 	S101Socket,
 	S101SocketEvents,
 	berEncode,
+	EncodableRoot,
 	berDecode,
+	DecodedRoot,
 	DecodeResult,
 	DecodeOptions,
 	// isValid,

@@ -1126,7 +1126,7 @@ describe('client', () => {
 				})
 
 				//@ts-expect-error - private method under regression test
-				const changes = client._applyRootToTree(update.value)
+				const changes = client._applyRootToTree({ ...update, rootType: RootType.Elements })
 
 				expect(changes.filter((change) => change.path === '1')).toHaveLength(1)
 				expect(client.tree[1].children?.[2]?.parent).toBe(client.tree[1])
