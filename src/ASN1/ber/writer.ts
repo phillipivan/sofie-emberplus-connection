@@ -216,7 +216,8 @@ export class Writer {
 		if (typeof s !== 'string') throw new TypeError('argument must be a string')
 		if (typeof tag !== 'number') tag = Types.OID
 
-		if (!/^([0-9]+\.)*[0-9]+$/.test(s)) throw new Error('argument is not a valid OID string')
+		// at least two arcs, which the first byte holds (a single one was written as NaN)
+		if (!/^[0-9]+(\.[0-9]+)+$/.test(s)) throw new Error('argument is not a valid OID string')
 
 		function encodeOctet(bytes: number[], octet: number) {
 			if (octet < 128) {

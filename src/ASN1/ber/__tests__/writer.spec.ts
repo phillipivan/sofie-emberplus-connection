@@ -1,7 +1,5 @@
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 
-import util from 'util'
-
 import { Writer } from '../writer.js'
 
 test('write byte', () => {
@@ -312,10 +310,12 @@ test('Write OID', () => {
 	const writer = new Writer()
 	writer.writeOID(oid)
 
-	const ber = writer.buffer
-	expect(ber).toBeInstanceOf(Buffer)
-	console.log(util.inspect(ber))
-	console.log(util.inspect(Buffer.from([0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01])))
+	expect(writer.buffer).toEqual(Buffer.from([0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01]))
+})
+
+// The first byte holds the first two arcs: a single arc was written as NaN
+test('Write OID refuses a single arc', () => {
+	expect(() => new Writer().writeOID('1')).toThrow('argument is not a valid OID string')
 })
 
 test('write empty buffer', () => {
