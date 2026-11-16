@@ -62,7 +62,9 @@ function decodeStringIntegerPair(
 				break
 		}
 	}
-	key = check(key, 'decode string integer pair', 'key', `key${(Math.random() * 1000000) | 0}`, errors, options)
+	// An entry without a name is named '', as libember names it (GlowStringIntegerPair::name()); it was given a made-up
+	// `key<random number>`. The error is kept.
+	key = check(key, 'decode string integer pair', 'key', '', errors, options)
 	value = check(value, 'decode string integer pair', 'value', -1, errors, options)
 	return makeResult({ key, value }, errors)
 }

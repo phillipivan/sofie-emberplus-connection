@@ -24,8 +24,8 @@ import { berDecode } from '../index.js'
 // (libember/Headers/ember/ber/traits), the Glow DTD's tags and types (glow/GlowTags, GlowType and the enumerations)
 // and what its accessors give for a field (glow/impl). The integer helpers port libember's coder for `long long`.
 //
-// A test marked `failing` states libember's behaviour where this library differs from it: it passes while the
-// difference remains, and fails once the library behaves as libember does, to be made an ordinary test.
+// The differences the comparison found (#47–#53, #57, #58) have been fixed. A new one would go in as a `failing` test
+// stating libember's behaviour, which passes while the difference remains and fails once it is gone.
 
 const hex = (s: string) => Buffer.from(s.replace(/ /g, ''), 'hex')
 
@@ -602,19 +602,19 @@ describe('BER and Glow compared with libember', () => {
 		expect(reader.readInt()).toBe(7)
 	})
 
-	describe('where the library differs from libember', () => {
-		// glow/impl/GlowStringIntegerPair.ipp: name() is "" when the field is left out. The library makes up a name.
-		it.failing('names an enumeration map entry without a name ""', () => {
-			const pair = contents(Constants.StringIntegerPairBERID, [1, int(3)])
-			const collection = written((w) => {
-				w.startSequence(Constants.StringIntegerCollectionBERID)
-				w.startSequence(Ber.CONTEXT(0))
-				for (const b of pair) w.writeByte(b)
-				w.endSequence()
-				w.endSequence()
-			})
-
-			expect([...decodeStringIntegerCollection(new Ber.Reader(collection)).value]).toEqual([['', 3]])
+	// glow/impl/GlowStringIntegerPair.ipp: name() is "" when the field is left out (#57: the library made up a name)
+	it('names an enumeration map entry without a name "", with an error', () => {
+		const pair = contents(Constants.StringIntegerPairBERID, [1, int(3)])
+		const collection = written((w) => {
+			w.startSequence(Constants.StringIntegerCollectionBERID)
+			w.startSequence(Ber.CONTEXT(0))
+			for (const b of pair) w.writeByte(b)
+			w.endSequence()
+			w.endSequence()
 		})
+
+		const decoded = decodeStringIntegerCollection(new Ber.Reader(collection))
+		expect([...decoded.value]).toEqual([['', 3]])
+		expect(decoded.errors?.map(String)).toEqual([expect.stringContaining("required property 'key'")])
 	})
 })

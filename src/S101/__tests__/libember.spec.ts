@@ -9,8 +9,8 @@ import S101Codec from '../S101Codec.js'
 // glowtx.c). The helpers below port libs101's StreamEncoder and StreamDecoder, so the codec's frames are compared with
 // theirs rather than with bytes worked out by hand.
 //
-// A test marked `failing` states libember's behaviour where the codec differs from it: it passes while the difference
-// remains, and fails once the codec behaves as libember does, to be made an ordinary test.
+// The differences the comparison found (#54, #55, #56) have been dealt with. A new one would go in as a `failing` test
+// stating libember's behaviour, which passes while the difference remains and fails once it is gone.
 
 const BOF = 0xfe
 const EOF = 0xff
