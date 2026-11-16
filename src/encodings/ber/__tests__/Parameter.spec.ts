@@ -335,6 +335,39 @@ describe('encodings/ber/Parameter', () => {
 		})
 	})
 
+	// A value or default that doesn't fit the parameter's type, from a caller that doesn't check types, is refused. It was
+	// coerced (Number(), + ''), written as NaN for a real, thrown on by the writer, or written as a NULL for a Null
+	// parameter whatever it was.
+	describe('encoding a value of the wrong form', () => {
+		test.each<[string, unknown]>([
+			["an integer parameter's string value", { ...base, parameterType: ParameterType.Integer, value: '5' }],
+			["a real parameter's string value", { ...base, parameterType: ParameterType.Real, value: 'x' }],
+			["a string parameter's number value", { ...base, parameterType: ParameterType.String, value: 5 }],
+			["a Null parameter's number value", { ...base, parameterType: ParameterType.Null, value: 5 }],
+			[
+				"a boolean parameter's number default",
+				{ ...base, parameterType: ParameterType.Boolean, defaultValue: 1 },
+			],
+		])('refuses %s', (_, parameter) => {
+			expect(() => encodeParameter(parameter as Parameter, new Ber.Writer())).toThrow(/doesn't fit a parameter/)
+		})
+
+		test("writes a trigger's value by its own type, and an enum's as an integer", () => {
+			const fieldTag = (param: Parameter, field: number): number => {
+				const writer = new Ber.Writer()
+				encodeParameter(param, writer)
+				return writer.buffer[writer.buffer.indexOf(Ber.CONTEXT(field)) + 2]
+			}
+
+			expect(fieldTag({ ...base, parameterType: ParameterType.Trigger, value: 'go' }, 2)).toBe(
+				Ber.BERDataTypes.STRING
+			)
+			expect(fieldTag({ ...base, parameterType: ParameterType.Enum, value: 2, defaultValue: 0 }, 12)).toBe(
+				Ber.BERDataTypes.INTEGER
+			)
+		})
+	})
+
 	describe('minimum and maximum', () => {
 		const parameterTypes = [
 			ParameterType.Integer,

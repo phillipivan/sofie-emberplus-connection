@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import * as Ber from '../../../Ber/index.js'
-import { Parameter, ParameterAccess, ParameterType } from '../../../model/Parameter.js'
-import { EmberValue, MinMax } from '../../../types/types.js'
+import { InvalidEmberNode } from '../../../Errors.js'
+import { isValueOfType, Parameter, ParameterAccess, ParameterType } from '../../../model/Parameter.js'
+import { EmberTypedValue, MinMax } from '../../../types/types.js'
 import { encodeStreamDescription } from './StreamDescription.js'
 import { encodeStringIntegerCollection } from './StringIntegerCollection.js'
 
@@ -10,41 +11,8 @@ import { encodeStringIntegerCollection } from './StringIntegerCollection.js'
 export const encodeParameter = (parameter: Parameter, writer: Ber.Writer): void => {
 	writer.startSequence(Ber.BERDataTypes.SET)
 
-	const writeValue = (value: EmberValue): void => {
-		// A null value (Glow 2.50) is a NULL whatever the parameter's type, as libember's setValue(ber::Null) writes it
-		if (value === null) {
-			writer.writeNull()
-			return
-		}
-		switch (parameter.parameterType) {
-			case ParameterType.Null:
-				writer.writeNull()
-				break
-			case ParameterType.Integer:
-				writer.writeInt(Number(value), Ber.BERDataTypes.INTEGER)
-				break
-			case ParameterType.Real:
-				writer.writeReal(Number(value), Ber.BERDataTypes.REAL)
-				break
-			case ParameterType.String:
-				writer.writeString(value + '', Ber.BERDataTypes.STRING)
-				break
-			case ParameterType.Boolean:
-				writer.writeBoolean(value as boolean, Ber.BERDataTypes.BOOLEAN)
-				break
-			// case ParameterType.Trigger:
-			// 	break
-			case ParameterType.Enum:
-				// value is encoded as Int64, it refers to the line number of the enumeration
-				writer.writeInt(value as number, Ber.BERDataTypes.INTEGER)
-				break
-			case ParameterType.Octets:
-				writer.writeBuffer(value as Buffer, Ber.BERDataTypes.OCTETSTRING)
-				break
-			default:
-				writer.writeValue(value)
-		}
-	}
+	// The value or default, written as the parameter's type says (Writer.writeValue with a typed value)
+	const writeValue = (key: 'value' | 'defaultValue'): void => writer.writeValue(typedValue(parameter, key))
 
 	const writeMinMax = (value: MinMax | undefined, tag: number): void => {
 		// MinMax is a CHOICE of integer, real or null whatever the parameter type. Anything else, such as a
@@ -65,7 +33,7 @@ export const encodeParameter = (parameter: Parameter, writer: Ber.Writer): void 
 	writer.writeIfDefined(parameter.description, writer.writeString, 1, Ber.BERDataTypes.STRING)
 	if (parameter.value !== undefined) {
 		writer.startSequence(Ber.CONTEXT(2))
-		writeValue(parameter.value)
+		writeValue('value')
 		writer.endSequence()
 	}
 	writeMinMax(parameter.minimum, Ber.CONTEXT(3))
@@ -85,7 +53,7 @@ export const encodeParameter = (parameter: Parameter, writer: Ber.Writer): void 
 
 	if (parameter.defaultValue !== undefined) {
 		writer.startSequence(Ber.CONTEXT(12))
-		writeValue(parameter.defaultValue)
+		writeValue('defaultValue')
 		writer.endSequence()
 	}
 
@@ -152,4 +120,38 @@ const parameterTypeToInt = (pt: ParameterType): number => {
 	}
 
 	return paramTypeToInt[pt]
+}
+
+/**
+ * A parameter's value or default with its type, for the writer to write as that type says. A value that doesn't fit
+ * the type, from a caller that doesn't check types, is refused: it was coerced (Number(), + ''), written as NaN for a
+ * real, thrown on by the writer, or, for a Null parameter, written as a NULL whatever it was.
+ */
+function typedValue(parameter: Parameter, key: 'value' | 'defaultValue'): EmberTypedValue {
+	const value = parameter[key] ?? null
+	if (!isValueOfType(parameter.parameterType, value)) {
+		throw new InvalidEmberNode(
+			parameter.identifier,
+			`a ${key} ${String(value)} doesn't fit a parameter of the type ${parameter.parameterType}`
+		)
+	}
+	switch (parameter.parameterType) {
+		case ParameterType.Integer:
+			return { type: ParameterType.Integer, value: parameter[key] ?? null }
+		case ParameterType.Real:
+			return { type: ParameterType.Real, value: parameter[key] ?? null }
+		case ParameterType.Enum:
+			// an enum's value is the index of its entry, written as an integer
+			return { type: ParameterType.Enum, value: parameter[key] ?? null }
+		case ParameterType.String:
+			return { type: ParameterType.String, value: parameter[key] ?? null }
+		case ParameterType.Boolean:
+			return { type: ParameterType.Boolean, value: parameter[key] ?? null }
+		case ParameterType.Octets:
+			return { type: ParameterType.Octets, value: parameter[key] ?? null }
+		case ParameterType.Null:
+			return { type: ParameterType.Null, value: null }
+		case ParameterType.Trigger:
+			return { type: ParameterType.Trigger, value: parameter[key] ?? null }
+	}
 }
