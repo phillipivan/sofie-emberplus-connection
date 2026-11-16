@@ -1,7 +1,7 @@
 import Long from 'long'
 
 import { Writer, WriterOptions } from '../ASN1/ber/writer.js'
-import { isParameter, Parameter, ParameterType } from '../model/Parameter.js'
+import { ParameterType } from '../model/Parameter.js'
 import { EmberTypedValue, EmberValue } from '../types/types.js'
 import { BERDataTypes } from './BERDataTypes.js'
 import { CONTEXT, UNIVERSAL } from './functions.js'
@@ -153,35 +153,6 @@ class ExtendedWriter extends Writer {
 			tag = BERDataTypes.STRING
 		}
 		this.writeString(value.toString(), tag)
-	}
-
-	writeEmberParameter(value: Parameter): void {
-		if (isParameter(value)) {
-			switch (value.parameterType) {
-				case ParameterType.Real:
-					this.writeReal(value.value as number, BERDataTypes.REAL)
-					break
-				case ParameterType.Integer:
-					this.writeInt(value.value as number, BERDataTypes.INTEGER)
-					break
-				case ParameterType.Boolean:
-					this.writeBoolean(value.value as boolean, BERDataTypes.BOOLEAN)
-					break
-				case ParameterType.Octets:
-					if (!Buffer.isBuffer(value.value)) {
-						value.value = Buffer.from(`${value.value}`)
-					}
-					this.writeBuffer(value.value, BERDataTypes.OCTETSTRING)
-					break
-				case ParameterType.Null:
-					this.writeNull()
-					break
-				default:
-					this.writeString(value.value as string, BERDataTypes.STRING)
-			}
-		} else {
-			this.writeValue((value as any).value, undefined)
-		}
 	}
 
 	writeIfDefined<T>(

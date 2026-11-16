@@ -1,17 +1,7 @@
-import { ElementType } from '../../model/EmberElement.js'
-import { Parameter, ParameterType } from '../../model/Parameter.js'
+import { ParameterType } from '../../model/Parameter.js'
 import { BERDataTypes } from '../index.js'
 import { Reader } from '../Reader.js'
 import { Writer } from '../Writer.js'
-
-function octetsParameter(value: Buffer): Parameter {
-	return {
-		type: ElementType.Parameter,
-		parameterType: ParameterType.Octets,
-		templateReference: '1.2.3',
-		value,
-	}
-}
 
 describe('BER', () => {
 	describe('Roundtrip', () => {
@@ -45,16 +35,16 @@ describe('BER', () => {
 			const s = r.readValue()
 			expect(s).toEqual({ value: 8.32, type: ParameterType.Real })
 		})
-		test('writeEmberParameter - readValue (octets)', () => {
+		test('writeValue - readValue (octets)', () => {
 			const w = new Writer()
-			w.writeEmberParameter(octetsParameter(Buffer.from([1, 2, 3])))
+			w.writeValue({ value: Buffer.from([1, 2, 3]), type: ParameterType.Octets })
 
 			const r = new Reader(w.buffer)
 			expect(r.readValue()).toEqual({ value: Buffer.from([1, 2, 3]), type: ParameterType.Octets })
 		})
-		test('writeEmberParameter - readValue (empty octets)', () => {
+		test('writeValue - readValue (empty octets)', () => {
 			const w = new Writer()
-			w.writeEmberParameter(octetsParameter(Buffer.alloc(0)))
+			w.writeValue({ value: Buffer.alloc(0), type: ParameterType.Octets })
 
 			const r = new Reader(w.buffer)
 			expect(r.readValue()).toEqual({ value: Buffer.alloc(0), type: ParameterType.Octets })
