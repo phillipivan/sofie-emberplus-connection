@@ -580,6 +580,15 @@ describe('BER and Glow compared with libember', () => {
 		})
 	})
 
+	// ber/traits/Integral.hpp reads an INTEGER without contents as 0 (#57: the library took the sign from the byte after
+	// it, and gave -1 when that byte's top bit was set)
+	it.each(['a1 00', '02 01 85', ''])('reads an INTEGER without contents as 0, before %j', (next) => {
+		const reader = new Ber.Reader(hex(`02 00 ${next}`))
+
+		expect(reader.readInt()).toBe(0)
+		expect(reader.offset).toBe(2)
+	})
+
 	describe('where the library differs from libember', () => {
 		// glow/impl/GlowStringIntegerPair.ipp: name() is "" when the field is left out. The library makes up a name.
 		it.failing('names an enumeration map entry without a name ""', () => {
@@ -593,12 +602,6 @@ describe('BER and Glow compared with libember', () => {
 			})
 
 			expect([...decodeStringIntegerCollection(new Ber.Reader(collection)).value]).toEqual([['', 3]])
-		})
-
-		// ber/traits/Integral.hpp reads an INTEGER without contents as 0. The library reads the byte after it for the
-		// sign, so it gives -1 when that byte's top bit is set.
-		it.failing('reads an INTEGER without contents as 0', () => {
-			expect(new Ber.Reader(hex('02 00 a1 00')).readInt()).toBe(0)
 		})
 
 		// ber/traits/Boolean.hpp reads the first contents byte only. The library reads them all as an integer.

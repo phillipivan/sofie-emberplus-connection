@@ -323,6 +323,9 @@ export class Reader {
 		if (this.length > this._size - o) return null
 		this._offset = o
 
+		// No contents: 0, as libember reads it (ber/traits/Integral.hpp). The sign was taken from the next element's byte.
+		if (this.length === 0) return 0
+
 		if (this.length > 4) {
 			// Five to eight bytes, an Integer64 beyond what the 32-bit arithmetic below holds (ber/traits/Integral.hpp).
 			// Exact within ±2^53; a larger value gives the nearest double.
