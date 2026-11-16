@@ -2,6 +2,7 @@ import {
 	berDecode,
 	berEncode,
 	ConnectionStatus,
+	DebugLog,
 	DecodedRoot,
 	DecodeOptions,
 	DecodeResult,
@@ -16,6 +17,7 @@ import {
 	S101CodecEvents,
 	S101Socket,
 	S101SocketEvents,
+	setDebugLogging,
 	Types,
 } from '../index.js'
 
@@ -89,6 +91,14 @@ describe('the package exports', () => {
 		const identifiers: Types.RelativeOID = 'Ruby.Sums'
 
 		expect([path, identifiers]).toHaveLength(2)
+	})
+
+	test("switching the library's debug logging on and off, to a log of the caller's", () => {
+		const log: DebugLog = jest.fn()
+
+		setDebugLogging(true, log)
+		setDebugLogging(false)
+		expect(log).not.toHaveBeenCalled()
 	})
 
 	test('the socket class S101Client is built on', () => {

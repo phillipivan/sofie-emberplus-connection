@@ -1,14 +1,13 @@
-import Debug from 'debug'
 import { EventEmitter } from 'eventemitter3'
 
+import { makeDebug } from '../../lib/debug.js'
 import { StreamEntry } from '../../model/index.js'
 import { isValueOfType, Parameter, ParameterType } from '../../model/Parameter.js'
 import { StreamFormat } from '../../model/StreamDescription.js'
 import { EmberValue } from '../../types/index.js'
 import { Collection } from '../../types/types.js'
 
-const debug = Debug('emberplus-connection:StreamManager')
-debug.log = console.log.bind(console)
+const debug = makeDebug('StreamManager')
 
 export type StreamManagerEvents = {
 	streamUpdate: [path: string, value: EmberValue]

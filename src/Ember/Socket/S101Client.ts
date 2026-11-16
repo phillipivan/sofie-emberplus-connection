@@ -1,14 +1,12 @@
 import net from 'net'
 
-import Debug from 'debug'
-
 import { S101OversizedFrameError } from '../../Errors.js'
+import { makeDebug } from '../../lib/debug.js'
 import { ConnectionStatus } from '../Client/ConnectionStatus.js'
 import { normalizeError } from '../Lib/util.js'
 import S101Socket from './S101Socket.js'
 
-const debug = Debug('emberplus-connection:S101Client')
-debug.log = console.log.bind(console)
+const debug = makeDebug('S101Client')
 
 const DEFAULT_PORT = 9000
 const DEFAULT_CONNECT_TIMEOUT = 5 // seconds

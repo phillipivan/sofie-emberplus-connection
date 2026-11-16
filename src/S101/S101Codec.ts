@@ -1,6 +1,5 @@
 import { format } from 'util'
 
-import Debug from 'debug'
 import { EventEmitter } from 'eventemitter3'
 import { SmartBuffer } from 'smart-buffer'
 
@@ -8,9 +7,9 @@ import { readTagAt } from '../ASN1/ber/tag.js'
 import { RootBERID, StreamEntriesBERID } from '../encodings/ber/constants.js'
 import { S101OversizedFrameError } from '../Errors.js'
 import { at } from '../lib/at.js'
+import { makeDebug } from '../lib/debug.js'
 
-const debug = Debug('emberplus-connection:S101Codec')
-debug.log = console.log.bind(console)
+const debug = makeDebug('S101Codec')
 
 const S101_BOF = 0xfe
 /** End of Frame!!! NOT end of file! */

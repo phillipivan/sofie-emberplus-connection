@@ -13,6 +13,7 @@ import S101Socket, { S101SocketEvents } from './Ember/Socket/S101Socket.js'
 import { DecodeOptions, DecodeResult } from './encodings/ber/decoder/DecodeResult.js'
 // import { EmberTreeNode, TreeElement } from './types/types'
 import { berDecode, berEncode, DecodedRoot, EncodableRoot } from './encodings/ber/index.js'
+import { DebugLog, setDebugLogging } from './lib/debug.js'
 import * as Model from './model/index.js'
 import { S101Codec } from './S101/index.js'
 import { S101CodecEvents } from './S101/S101Codec.js'
@@ -76,4 +77,6 @@ export {
 	// fromJSON,
 	Types,
 	Model,
+	setDebugLogging,
+	DebugLog,
 }
