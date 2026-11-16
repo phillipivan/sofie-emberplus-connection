@@ -363,9 +363,12 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			this._subscribe(path, client) // send updates to client
 			this._handleGetDirectory(tree, el.contents.dirFieldMask || FieldFlags.Default, client)
 		} else if (isInvokeElement(el)) {
+			// Only a function can be invoked. An Invoke on anything else (or on the root) fails, as one without a handler
+			// does, rather than handing the handler something that isn't a function.
+			const fn = 'contents' in tree && isElementOfType(tree, ElementType.Function) ? tree : undefined
 			let result: InvocationResult
-			if (this.onInvocation) {
-				result = await this.onInvocation(tree as NumberedTreeNode<EmberFunction>, el)
+			if (this.onInvocation && fn) {
+				result = await this.onInvocation(fn, el)
 			} else {
 				result = new InvocationResultImpl(el.contents.invocation?.id || -1, false)
 			}

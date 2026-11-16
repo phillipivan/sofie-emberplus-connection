@@ -9,14 +9,23 @@ import {
 	RootElementsBERID,
 } from '../../../encodings/ber/constants.js'
 import { berDecode } from '../../../encodings/ber/index.js'
-import { Command, CommandType, GetDirectoryImpl, SubscribeImpl, UnsubscribeImpl } from '../../../model/Command.js'
+import {
+	Command,
+	CommandType,
+	GetDirectoryImpl,
+	InvokeImpl,
+	SubscribeImpl,
+	UnsubscribeImpl,
+} from '../../../model/Command.js'
 import { ConnectionOperation } from '../../../model/Connection.js'
 import {
 	Connection,
 	ConnectionImpl,
 	Connections,
 	EmberElement,
+	EmberFunctionImpl,
 	EmberNodeImpl,
+	InvocationResult,
 	Matrix,
 	MatrixImpl,
 	MatrixType,
@@ -327,6 +336,57 @@ describe('EmberServer subscriptions', () => {
 			const [report] = Object.values<RootElement>(berDecode(data).value as Collection<RootElement>)
 			return [(report as QualifiedElement<Parameter>).path, (report.contents as Parameter).value]
 		}
+	})
+})
+
+// Only a function can be invoked: an Invoke on anything else is answered as a failure, without the handler, which was
+// handed whatever was at the path (for the root, the whole tree) as if it were a function
+describe('EmberServer invocations', () => {
+	// A device, 1, with a node, 1.1, and a function, 1.2
+	let server: EmberServer
+	let invoked: string[]
+
+	beforeEach(async () => {
+		jest.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		const node = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'))
+		const fn = new NumberedTreeNodeImpl(2, new EmberFunctionImpl('reset'))
+		server = new EmberServer(9000)
+		await server.init({ 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: node, 2: fn }) })
+		invoked = []
+		server.onInvocation = async (emberFunction, invocation) => {
+			invoked.push(emberFunction.contents.identifier ?? '?')
+			return Promise.resolve({ id: invocation.contents.invocation?.id ?? -1, success: true })
+		}
+	})
+	afterEach(() => {
+		jest.restoreAllMocks()
+	})
+
+	/** Sends an Invoke with the given id to the element at `path` ('' for the root); gives the result the server sent */
+	async function invoke(path: string, id: number): Promise<InvocationResult> {
+		const consumer = new FakeConnection()
+		const s101Server = (server as unknown as { _server: S101Server })._server
+		s101Server.emit('connection', consumer as unknown as S101Socket)
+		const command = new InvokeImpl({ id, args: [] })
+		if (path) consumer.request(path, command)
+		else consumer.emit('emberTree', { value: { 0: new NumberedTreeNodeImpl(0, command) } })
+		await new Promise(setImmediate)
+
+		expect(consumer.received).toHaveLength(1)
+		return berDecode(consumer.received[0]).value as InvocationResult
+	}
+
+	it('hands an Invoke on a function to the handler, and sends its result', async () => {
+		expect(await invoke('1.2', 7)).toMatchObject({ id: 7, success: true })
+		expect(invoked).toEqual(['reset'])
+	})
+
+	it.each([
+		['a node', '1.1'],
+		['the root', ''],
+	])('answers an Invoke on %s as a failure, without the handler', async (_, path) => {
+		expect(await invoke(path, 8)).toMatchObject({ id: 8, success: false })
+		expect(invoked).toEqual([])
 	})
 })
 
