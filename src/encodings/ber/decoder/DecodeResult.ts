@@ -49,8 +49,8 @@ const defaultDecode = literal<DecodeOptions>({
 interface DecodeResult<T> {
 	/** Candicate decoded value. */
 	value: T
-	/** List of errors, if any, found during decoding. */
-	errors?: Array<Error>
+	/** Errors found during decoding: always there, empty when there were none. */
+	errors: Array<Error>
 }
 
 /**
@@ -87,7 +87,7 @@ class DecodeError extends Error {
  * @throws Summary when errors exists.
  */
 function guarded<T>(decres: DecodeResult<T>): T {
-	if (decres.errors && decres.errors.length > 0) {
+	if (decres.errors.length > 0) {
 		throw new DecodeError(decres.errors)
 	}
 	return decres.value
@@ -118,18 +118,8 @@ function unknownContext<T>(
 	options: DecodeOptions = defaultDecode
 ): void {
 	const err = new Error(`${context}: Unexpected BER context tag '${tag}'`)
-	let errors = Array.isArray(decres) ? decres : decres.errors
-	if (options.skipContextTags) {
-		if (!errors) {
-			errors = []
-		}
-		errors.push(err)
-		if (!Array.isArray(decres)) {
-			decres.errors = errors
-		}
-	} else {
-		throw err
-	}
+	if (!options.skipContextTags) throw err
+	addError(decres, err)
 }
 
 /**
@@ -146,18 +136,8 @@ function unknownApplication<T>(
 	options: DecodeOptions = defaultDecode
 ): void {
 	const err = new Error(`${context}: Unexpected BER application tag '${tag}'`)
-	let errors = Array.isArray(decres) ? decres : decres.errors
-	if (options.skipApplicationTags) {
-		if (!errors) {
-			errors = []
-		}
-		errors.push(err)
-		if (!Array.isArray(decres)) {
-			decres.errors = errors
-		}
-	} else {
-		throw err
-	}
+	if (!options.skipApplicationTags) throw err
+	addError(decres, err)
 }
 
 /**
@@ -167,9 +147,7 @@ function unknownApplication<T>(
  * @param fn Function to use to update a value with the result.
  */
 function safeSet<S, T>(result: DecodeResult<S>, update: DecodeResult<T>, fn: (s: S, t: T) => T): DecodeResult<T> {
-	if (result.errors && result.errors.length > 0) {
-		update.errors = update.errors ? update.errors.concat(result.errors) : result.errors
-	}
+	if (result.errors.length > 0) update.errors = update.errors.concat(result.errors)
 	update.value = fn(result.value, update.value)
 	return update
 }
@@ -197,19 +175,9 @@ function check<T>(
 ): T {
 	if (value === null || value === undefined) {
 		const errMsg = `${context}: For required property '${propertyName}', value is missing.`
-		if (options.substituteForRequired) {
-			let errors = Array.isArray(decres) ? decres : decres.errors
-			if (!errors) {
-				errors = []
-			}
-			errors.push(new Error(errMsg + ` Substituting '${substitute}'`))
-			if (!Array.isArray(decres)) {
-				decres.errors = errors
-			}
-			return substitute
-		} else {
-			throw new Error(errMsg)
-		}
+		if (!options.substituteForRequired) throw new Error(errMsg)
+		addError(decres, new Error(errMsg + ` Substituting '${substitute}'`))
+		return substitute
 	}
 	return value
 }
@@ -223,11 +191,11 @@ function check<T>(
  * @returns The value embedded in the source.
  */
 function appendErrors<T, U>(source: DecodeResult<T>, decres: DecodeResult<U> | Array<Error>): T {
-	if (source.errors && source.errors.length > 0) {
+	if (source.errors.length > 0) {
 		if (Array.isArray(decres)) {
 			decres.push(...source.errors)
 		} else {
-			decres.errors = decres.errors ? decres.errors.concat(source.errors) : source.errors
+			decres.errors = decres.errors.concat(source.errors)
 		}
 	}
 	return source.value
@@ -250,23 +218,15 @@ function unexpected<T>(
 	substitute: T,
 	options: DecodeOptions = defaultDecode
 ): DecodeResult<T> {
-	let errors = Array.isArray(decres) ? decres : decres.errors
 	const err = new Error(`${context}${message ? ': ' + message : ''}`)
-	if (options.skipUnexpected) {
-		if (!errors) {
-			errors = []
-		}
-		errors.push(err)
-		if (Array.isArray(decres)) {
-			return makeResult(substitute, errors)
-		} else {
-			decres.errors = errors
-			decres.value = substitute
-			return decres
-		}
-	} else {
-		throw err
+	if (!options.skipUnexpected) throw err
+	if (Array.isArray(decres)) {
+		decres.push(err)
+		return makeResult(substitute, decres)
 	}
+	addError(decres, err)
+	decres.value = substitute
+	return decres
 }
 
 /**
@@ -278,4 +238,13 @@ function skipNext(reader: Ber.Reader): void {
 	if (skipTag) {
 		reader.readStringAsBuffer(skipTag)
 	}
+}
+
+/**
+ * Adds an error: to the list given, which is the caller's to collect into, or to a decoding result, as a new list (so
+ * a list two results share isn't changed under the other)
+ */
+function addError<T>(decres: DecodeResult<T> | Array<Error>, err: Error): void {
+	if (Array.isArray(decres)) decres.push(err)
+	else decres.errors = [...decres.errors, err]
 }

@@ -93,11 +93,11 @@ export default class S101Client
 		this.setDisconnected()
 	}
 	/** A decoded message arrives, with its RootType as berDecode gives it: told from the value when not given */
-	public mockData(tree: DecodeResult<Root> | DecodedRoot): void {
+	public mockData(tree: MockedRoot): void {
 		this.emit('emberTree', withRootType(tree, 'id' in tree.value ? RootType.InvocationResult : RootType.Elements))
 	}
 	/** A stream collection arrives */
-	public mockStreamData(tree: DecodeResult<Root> | DecodedRoot): void {
+	public mockStreamData(tree: MockedRoot): void {
 		this.emit('emberStreamTree', withRootType(tree, RootType.Streams))
 	}
 
@@ -118,7 +118,10 @@ export default class S101Client
 	}
 }
 
-/** A decoded message with its RootType: the one it has, or else the one given */
-function withRootType(tree: DecodeResult<Root> | DecodedRoot, rootType: RootType): DecodedRoot {
-	return ('rootType' in tree ? tree : { ...tree, rootType }) as DecodedRoot
+/** A decoded message as a test gives it: its errors (none) and RootType may be left out */
+type MockedRoot = Omit<DecodeResult<Root>, 'errors'> & { errors?: Array<Error>; rootType?: RootType }
+
+/** The message as berDecode gives it: no errors unless given, and the RootType it has, or else the one given */
+function withRootType(tree: MockedRoot, rootType: RootType): DecodedRoot {
+	return { errors: [], rootType, ...tree } as DecodedRoot
 }

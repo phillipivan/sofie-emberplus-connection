@@ -760,7 +760,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		}
 
 		// at last, emit the errors for logging purposes
-		incoming.errors?.forEach((e) => this.emit('warn', e))
+		incoming.errors.forEach((e) => this.emit('warn', e))
 	}
 
 	private _applyRootToTree(root: DecodedRoot): Array<Change> {

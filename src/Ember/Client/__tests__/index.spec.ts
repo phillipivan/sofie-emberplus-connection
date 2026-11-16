@@ -130,6 +130,7 @@ describe('client', () => {
 			value: {
 				0: parent as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
 			},
+			errors: [],
 		}
 	}
 
@@ -1757,7 +1758,10 @@ describe('client', () => {
 		// A reply to a GetDirectory on the root lists the top-level elements without their children: numbered, or
 		// qualified as a test device sends them
 		test.each<[string, () => DecodeResult<Root>]>([
-			['numbered', () => ({ value: { 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')) } })],
+			[
+				'numbered',
+				() => ({ value: { 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')) }, errors: [] }),
+			],
 			['qualified', () => createQualifiedNodeResponse('1', new EmberNodeImpl('device'), undefined)],
 		])('resolves, and keeps what is loaded below, when the reply is %s', async (_, reply) => {
 			await runWithConnection(async (client, socket) => {

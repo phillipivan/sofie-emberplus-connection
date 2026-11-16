@@ -15,8 +15,10 @@ import {
 } from '../decoder/DecodeResult.js'
 
 describe('encodings/ver/DecodeResult - default settings', () => {
+	// No errors: an empty list, as makeResult gives it (a decoding result always has one)
 	const goodResult = literal<DecodeResult<number>>({
 		value: 42,
+		errors: [],
 	})
 	const resultEmptyErrors = literal<DecodeResult<number>>({
 		value: 42,
@@ -170,7 +172,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 			})
 		).toEqual({
 			value: [41, 42],
-			errors: [new Error(`Second error`), resultWithError.errors![0]], // eslint-disable-line @typescript-eslint/no-non-null-assertion
+			errors: [new Error(`Second error`), resultWithError.errors[0]],
 		})
 		expect(resultWithError.errors).toHaveLength(1)
 	})
@@ -180,7 +182,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 		const result = Object.assign({}, goodResult)
 		id = check(id, 'decode wibbly wobble', 'id', -1, result, defaultDecode)
 		expect(id).toBe(84)
-		expect(result.errors).toBeUndefined()
+		expect(result.errors).toEqual([]) // still none
 	})
 
 	test('check - decode result, null value', () => {
@@ -231,7 +233,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 		expect(appendErrors(source, base)).toBe(42)
 		expect(source).toEqual(resultWithError)
 		expect(base.errors).toHaveLength(2)
-		expect(base.errors![0]).toEqual(base.errors![1]) // eslint-disable-line @typescript-eslint/no-non-null-assertion
+		expect(base.errors[0]).toEqual(base.errors[1])
 	})
 
 	test('unexpected - decode result', () => {
@@ -249,7 +251,7 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 	})
 
 	test('all equal in the end', () => {
-		expect(goodResult).toEqual(literal<DecodeResult<number>>({ value: 42 }))
+		expect(goodResult).toEqual(literal<DecodeResult<number>>({ value: 42, errors: [] }))
 		expect(resultEmptyErrors).toEqual(
 			literal<DecodeResult<number>>({
 				value: 42,
@@ -266,8 +268,10 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 })
 
 describe('encodings/ver/DecodeResult - expect to throw', () => {
+	// No errors: an empty list, as makeResult gives it (a decoding result always has one)
 	const goodResult = literal<DecodeResult<number>>({
 		value: 42,
+		errors: [],
 	})
 
 	const triggerThrow = literal<DecodeOptions>({
@@ -280,13 +284,13 @@ describe('encodings/ver/DecodeResult - expect to throw', () => {
 	test('unknownContext - decode result, number tag', () => {
 		const updateMe = Object.assign({}, goodResult)
 		expect(() => unknownContext(updateMe, 'decode wibbly wobble', 42, triggerThrow)).toThrow()
-		expect(updateMe.errors).toBeUndefined()
+		expect(updateMe.errors).toEqual([]) // still none
 	})
 
 	test('unknownContext - decode result, null tag', () => {
 		const updateMe = Object.assign({}, goodResult)
 		expect(() => unknownContext(updateMe, 'decode wibbly wobble', null, triggerThrow)).toThrow()
-		expect(updateMe.errors).toBeUndefined()
+		expect(updateMe.errors).toEqual([]) // still none
 	})
 
 	test('unknownContext - error array, number tag', () => {
@@ -304,13 +308,13 @@ describe('encodings/ver/DecodeResult - expect to throw', () => {
 	test('unknownApplication - decode result, number tag', () => {
 		const updateMe = Object.assign({}, goodResult)
 		expect(() => unknownApplication(updateMe, 'decode wibbly wobble', 42, triggerThrow)).toThrow()
-		expect(updateMe.errors).toBeUndefined()
+		expect(updateMe.errors).toEqual([]) // still none
 	})
 
 	test('unknownApplication - decode result, null tag', () => {
 		const updateMe = Object.assign({}, goodResult)
 		expect(() => unknownApplication(updateMe, 'decode wibbly wobble', null, triggerThrow)).toThrow()
-		expect(updateMe.errors).toBeUndefined()
+		expect(updateMe.errors).toEqual([]) // still none
 	})
 
 	test('unknownApplication - error array, number tag', () => {
@@ -330,7 +334,7 @@ describe('encodings/ver/DecodeResult - expect to throw', () => {
 		const result = Object.assign({}, goodResult)
 		id = check(id, 'decode wibbly wobble', 'id', -1, result, triggerThrow)
 		expect(id).toBe(84)
-		expect(result.errors).toBeUndefined()
+		expect(result.errors).toEqual([]) // still none
 	})
 
 	test('check - decode result, null value', () => {
@@ -340,7 +344,7 @@ describe('encodings/ver/DecodeResult - expect to throw', () => {
 			id = check(id, 'decode wibbly wobble', 'id', -1, result, triggerThrow)
 		}).toThrow()
 		expect(id).toBe(null)
-		expect(result.errors).toBeUndefined()
+		expect(result.errors).toEqual([]) // still none
 	})
 
 	test('check - error array, good value', () => {
