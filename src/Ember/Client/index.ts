@@ -722,8 +722,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		// iterate over requests, check path, if Invocation check id
 		// resolve requests
 		for (const change of changes) {
+			// (An Invoke is answered by its invocation's result, not by a report on the function.)
 			const reqs = Array.from(this._requests.values()).filter(
-				(s) => (!('path' in s.node) && !change.path) || ('path' in s.node && s.node.path === change.path)
+				(s) =>
+					!('command' in s.node && isInvoke(s.node.command)) &&
+					((!('path' in s.node) && !change.path) || ('path' in s.node && s.node.path === change.path))
 			)
 			for (const req of reqs) {
 				if (req.connectionTarget !== undefined) {

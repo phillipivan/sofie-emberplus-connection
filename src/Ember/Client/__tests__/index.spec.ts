@@ -24,6 +24,7 @@ import {
 	TemplateImpl,
 	TreeElement,
 } from '../../../model/index.js'
+import { InvocationResultImpl } from '../../../model/InvocationResult.js'
 import { LabelImpl } from '../../../model/Label.js'
 import { Parameter, ParameterAccess, TypedParameter } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl } from '../../../model/StreamDescription.js'
@@ -1070,6 +1071,31 @@ describe('client', () => {
 				expect(sent.path).toBe(`1.${number}`)
 				expect(sent.fields).toEqual([Ber.CONTEXT(2)])
 				expect(sent.commands).toMatchObject([{ type: ElementType.Command, ...command }])
+			})
+		})
+	})
+
+	describe('invoke', () => {
+		// An Invoke is answered by the result of its invocation. Requests were matched to changes by path alone, so a
+		// report on the function while it ran resolved the Invoke with the function, as the result.
+		it('resolves with the invocation result, not with a report on the function', async () => {
+			await runWithConnection(async (client, socket) => {
+				const fn = new NumberedTreeNodeImpl(1, new EmberFunctionImpl('add', 'Add'))
+				client.tree[1] = fn
+				const request = await client.invoke(fn, { type: ParameterType.Integer, value: 1 })
+				let response: unknown = 'pending'
+				request.response?.then((r) => (response = r)).catch(() => null)
+
+				socket.mockData(
+					createQualifiedNodeResponse('1', new EmberFunctionImpl('add', 'Add, changed'), undefined)
+				)
+				await new Promise(setImmediate)
+				expect(response).toBe('pending')
+
+				const result = new InvocationResultImpl(1, true, [{ type: ParameterType.Integer, value: 2 }])
+				socket.mockData({ value: result, errors: [] })
+				await new Promise(setImmediate)
+				expect(response).toBe(result)
 			})
 		})
 	})
