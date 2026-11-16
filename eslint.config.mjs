@@ -10,7 +10,6 @@ const customConfig = [
 
 	{
 		rules: {
-			'@typescript-eslint/no-explict-any': 'off',
 			'jest/expect-expect': 'off',
 		},
 	},
