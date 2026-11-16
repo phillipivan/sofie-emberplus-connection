@@ -26,6 +26,13 @@ describe('the package exports', () => {
 		expect(ConnectionStatus.Connected).toBe(3)
 	})
 
+	test('the element type guard', () => {
+		const contents: unknown = { type: Model.ElementType.Parameter }
+
+		expect(Model.isEmberElement(contents)).toBe(true)
+		expect(Model.isEmberElement({ type: 'SOMETHING ELSE' })).toBe(false)
+	})
+
 	test('the socket class S101Client is built on', () => {
 		expect(new S101Client('localhost', 9000, false)).toBeInstanceOf(S101Socket)
 	})

@@ -23,6 +23,13 @@ interface EmberBaseElement {
 	type: ElementType
 }
 
+/**
+ * Type guard for an element's contents: true for an object whose `type` is one of the ElementType values. It checks
+ * that field only, not the rest of the element.
+ *
+ * @param obj - value to check
+ * @returns whether the value is an EmberElement
+ */
 function isEmberElement(obj: unknown): obj is EmberElement {
 	if (obj === undefined || obj === null) {
 		return false

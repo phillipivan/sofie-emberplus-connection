@@ -9,7 +9,7 @@ import {
 	Unsubscribe,
 } from './Command.js'
 import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation } from './Connection.js'
-import { ElementType, EmberElement } from './EmberElement.js'
+import { ElementType, EmberElement, isEmberElement } from './EmberElement.js'
 import { EmberFunction, EmberFunctionImpl } from './EmberFunction.js'
 import { EmberNode, EmberNodeImpl } from './EmberNode.js'
 import { FunctionArgument, FunctionArgumentImpl } from './FunctionArgument.js'
@@ -34,6 +34,7 @@ export {
 	Unsubscribe,
 	EmberElement,
 	ElementType,
+	isEmberElement,
 	EmberFunction,
 	EmberFunctionImpl,
 	EmberNode,
