@@ -64,7 +64,13 @@ export class Reader {
 		return b
 	}
 
-	readBlock(offset: number): number | null {
+	/**
+	 * Measures the indefinite-length block starting at `offset`, its end-of-contents included.
+	 * @throws {InvalidAsn1Error} if the block is cut short. The data is a whole message (S101 joins a multi-packet one
+	 * before it is decoded), so a block without its end is malformed, not incomplete. It was read as empty, so a message
+	 * cut short decoded as an empty tree without errors.
+	 */
+	readBlock(offset: number): number {
 		if (offset === undefined) {
 			offset = this._offset
 		}
@@ -98,15 +104,13 @@ export class Reader {
 
 				if (lenB == 0) {
 					this._blocklevel++
-					const nested = this.readBlock(currOffset)
+					lenB = this.readBlock(currOffset)
 					this._blocklevel--
-					if (nested === null) return null
-					lenB = nested
 				} else {
 					if (lenB === 0x7f) throw newInvalidAsn1Error(RESERVED_LENGTH)
 
 					if (this._size - currOffset < lenB) {
-						return null
+						throw newInvalidAsn1Error('truncated length in block at offset ' + offset)
 					}
 
 					for (let i = 0; i < lenB; i++) {
@@ -121,8 +125,7 @@ export class Reader {
 			}
 		}
 
-		// Ran out of buffer without finding the end-of-block marker
-		return null
+		throw newInvalidAsn1Error('unterminated indefinite-length block at offset ' + offset)
 	}
 
 	/** The next tag, without moving on: null when the data ends before the tag does */
@@ -152,7 +155,7 @@ export class Reader {
 			lenB &= 0x7f
 
 			if (lenB === 0) {
-				this._len = this.readBlock(offset) ?? 0
+				this._len = this.readBlock(offset)
 			} else {
 				if (lenB === 0x7f) throw newInvalidAsn1Error(RESERVED_LENGTH)
 

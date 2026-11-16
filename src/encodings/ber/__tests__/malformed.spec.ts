@@ -40,6 +40,20 @@ describe('decoding a malformed message ends', () => {
 		expect(hanging).toEqual([])
 	})
 
+	// Nor is a message cut short taken for a whole one: it throws, or decodes with errors. A message of indefinite
+	// lengths cut short decoded as an empty tree without errors, its blocks read as empty when their end was missing.
+	it.each(allMessages())('%s, cut short at any length, is not taken as whole', (_, message) => {
+		const takenAsWhole: number[] = []
+		for (let length = 0; length < message.length; length++) {
+			try {
+				if (berDecode(message.subarray(0, length)).errors.length === 0) takenAsWhole.push(length)
+			} catch {
+				// refused, as it should be
+			}
+		}
+		expect(takenAsWhole).toEqual([])
+	})
+
 	// Any one byte wrong: a tag, a length (too long, too short, long form, indefinite) or contents
 	it.each(allMessages())('%s, with any one byte changed', (_, message) => {
 		const hanging: string[] = []
