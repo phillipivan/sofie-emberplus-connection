@@ -3,15 +3,17 @@ import {
 	ElementType,
 	EmberElement,
 	EmberNodeImpl,
+	Matrix,
 	MatrixImpl,
 	NumberedTreeNode,
 	NumberedTreeNodeImpl,
 	ParameterImpl,
 	ParameterType,
+	QualifiedElement,
 	QualifiedElementImpl,
 	TreeElement,
 } from '../../../model/index.js'
-import { childPath, isElementOfType, isInvokeElement, isNumbered, parentPath } from '../util.js'
+import { childPath, isElementOfType, isInvokeElement, isNumbered, parentPath, toQualifiedEmberNode } from '../util.js'
 
 describe('element type guards', () => {
 	const elements: Array<[ElementType, TreeElement<EmberElement>]> = [
@@ -64,5 +66,22 @@ describe('numeric paths', () => {
 		['', ''],
 	] as const)("parentPath('%s') is '%s'", (path, parent) => {
 		expect(parentPath(path)).toBe(parent)
+	})
+})
+
+describe('toQualifiedEmberNode', () => {
+	// The qualified element keeps the contents' type, which was lost to a cast to any qualified element
+	test('gives a numbered element its path, with its contents of the same type', () => {
+		const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+		const matrix = new NumberedTreeNodeImpl(2, new MatrixImpl('matrix'), undefined, device)
+
+		const qualified: QualifiedElement<Matrix> = toQualifiedEmberNode(matrix)
+
+		expect(qualified).toEqual(new QualifiedElementImpl('1.2', matrix.contents))
+	})
+	test('refuses a command, which has no path of its own', () => {
+		expect(() => toQualifiedEmberNode(new NumberedTreeNodeImpl(0, new GetDirectoryImpl()))).toThrow(
+			'Cannot convert a command to a qualified node'
+		)
 	})
 })

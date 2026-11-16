@@ -2,7 +2,7 @@ import { Command, Invoke, isInvoke } from '../../model/Command.js'
 import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberNode } from '../../model/index.js'
 import { isNumbered, isQualified, NumberedTreeNodeImpl, QualifiedElementImpl, TreeElement } from '../../model/Tree.js'
-import { isRelativeOID, NumberedTreeNode, RelativeOID, RootElement } from '../../types/types.js'
+import { isRelativeOID, NumberedTreeNode, QualifiedElement, RelativeOID, RootElement } from '../../types/types.js'
 
 export function assertQualifiedEmberNode(node: RootElement): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
 	if ('path' in node) {
@@ -28,20 +28,24 @@ export function getPath(node: RootElement): RelativeOID {
 	return ''
 }
 
-export function toQualifiedEmberNode(
-	EmberNode: NumberedTreeNode<EmberElement>
-): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
-	const path = getPath(EmberNode)
+/** A numbered element as a qualified one, given by its path, with the same contents and children */
+export function toQualifiedEmberNode<T extends EmberElement>(
+	node: NumberedTreeNode<T>
+): QualifiedElement<Exclude<T, Command>> {
+	const { contents } = node
+	// A command is sent within an element, never given by a path of its own
+	if (!isNotCommand(contents)) throw new Error('Cannot convert a command to a qualified node')
 
-	if (EmberNode.contents.type === ElementType.Command) {
-		throw new Error('Cannot convert a command to a qualified node')
-	}
+	return new QualifiedElementImpl(
+		getPath(node),
+		contents,
+		node.children // TODO - do we want the children?
+	)
+}
 
-	return new QualifiedElementImpl<EmberElement>(
-		path,
-		EmberNode.contents,
-		EmberNode.children // TODO - do we want the children?
-	) as Exclude<RootElement, NumberedTreeNode<EmberElement>>
+/** Whether an element's contents are anything but a command (narrowing a generic type, which checking `type` doesn't) */
+function isNotCommand<T extends EmberElement>(contents: T): contents is Exclude<T, Command> {
+	return contents.type !== ElementType.Command
 }
 
 export function insertCommand(

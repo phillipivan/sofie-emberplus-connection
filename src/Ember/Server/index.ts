@@ -246,7 +246,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 
 	/** The matrix with only the given connections, encoded as a report for consumers */
 	private _encodeMatrixConnections(element: NumberedTreeNode<Matrix>, connections: Connections): Buffer {
-		const qualified = toQualifiedEmberNode(element) as QualifiedElement<Matrix>
+		const qualified = toQualifiedEmberNode(element)
 		qualified.contents = new MatrixImpl(qualified.contents.identifier, undefined, undefined, connections)
 		return berEncode([qualified], RootType.Elements)
 	}
