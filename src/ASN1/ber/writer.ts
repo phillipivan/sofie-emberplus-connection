@@ -28,9 +28,10 @@ export class Writer {
 	}
 
 	constructor(options?: Partial<WriterOptions>) {
+		// `||`, so that 0 means the default, as in the asn1 library: a size or growth factor of 0 is never of use
 		this._options = {
-			size: options?.size ?? 1024,
-			growthFactor: options?.growthFactor ?? 8,
+			size: options?.size || 1024,
+			growthFactor: options?.growthFactor || 8,
 		}
 
 		this._buf = Buffer.alloc(this._options.size)
@@ -321,8 +322,9 @@ export class Writer {
 		assert.ok(len)
 
 		if (this._size - this._offset < len) {
-			let sz = this._size * this._options.growthFactor
-			if (sz - this._offset < len) sz += len
+			// The growth factor alone may leave too little room (a factor below 1 could leave less than had been
+			// written), so the buffer never grows to less than is needed
+			const sz = Math.max(Math.ceil(this._size * this._options.growthFactor), this._offset + len)
 
 			const buf = Buffer.alloc(sz)
 

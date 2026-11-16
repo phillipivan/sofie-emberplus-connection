@@ -318,6 +318,27 @@ test('Write OID refuses a single arc', () => {
 	expect(() => new Writer().writeOID('1')).toThrow('argument is not a valid OID string')
 })
 
+// A size or growth factor of 0 means the default, as in the asn1 library, and the buffer grows by at least what is
+// needed: with a growth factor below 1 it could grow to less than had been written, losing the rest
+test.each([{ growthFactor: 0 }, { growthFactor: 0.5 }, { growthFactor: 1 }, { size: 0 }, { size: 1 }])(
+	'grows correctly with options %j',
+	(options) => {
+		// the first string fills most of the default 1024 bytes, so the second grows the buffer from nearly full
+		const first = 'a'.repeat(1000)
+		const second = 'x'.repeat(3000)
+		const writer = new Writer(options)
+		writer.writeString(first)
+		writer.writeString(second)
+
+		const ber = writer.buffer
+		expect(ber.length).toEqual(4 + first.length + 4 + second.length)
+		expect(ber.subarray(0, 4)).toEqual(Buffer.from([0x04, 0x82, 0x03, 0xe8]))
+		expect(ber.subarray(4, 1004).toString('utf8')).toEqual(first)
+		expect(ber.subarray(1004, 1008)).toEqual(Buffer.from([0x04, 0x82, 0x0b, 0xb8]))
+		expect(ber.subarray(1008).toString('utf8')).toEqual(second)
+	}
+)
+
 test('write empty buffer', () => {
 	const writer = new Writer()
 	writer.writeBuffer(Buffer.alloc(0), 0x04)
