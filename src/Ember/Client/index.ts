@@ -19,7 +19,7 @@ import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberFunction } from '../../model/EmberFunction.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
 import { Connections, Matrix } from '../../model/Matrix.js'
-import { Parameter, ParameterImpl } from '../../model/Parameter.js'
+import { isValueOfType, Parameter, ParameterImpl } from '../../model/Parameter.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
 import {
 	Collection,
@@ -894,11 +894,30 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					if (update.contents.type !== ElementType.Parameter) break
 					// Not the type: when a provider leaves it out, the decoder infers one from the value (an
 					// enumeration's value is an integer), so the type in an update can't be told from a guess
-					updateProps<Parameter>(
-						tree.contents,
-						update.contents,
-						propertiesOf(update.contents).filter((key) => key !== 'parameterType')
-					)
+					{
+						// Nor a value or default that doesn't fit the parameter's type: the parameter would no longer match
+						// its own type. (They were stored as they came.)
+						const { parameterType } = tree.contents
+						const updated = update.contents // (narrowed above; a callback would lose it)
+						const misfits = (['value', 'defaultValue'] as const).filter(
+							(key) => updated[key] !== undefined && !isValueOfType(parameterType, updated[key])
+						)
+						for (const key of misfits) {
+							this.emit(
+								'warn',
+								new Error(
+									`${getPath(tree)}: a ${key} ${String(updated[key])} doesn't fit a parameter of the type ${parameterType}; not applied`
+								)
+							)
+						}
+						updateProps<Parameter>(
+							tree.contents,
+							updated,
+							propertiesOf(updated).filter(
+								(key) => key !== 'parameterType' && !(misfits as string[]).includes(key)
+							)
+						)
+					}
 					this._followStreamIdentifier(getPath(tree), tree.contents)
 					break
 				case ElementType.Matrix:

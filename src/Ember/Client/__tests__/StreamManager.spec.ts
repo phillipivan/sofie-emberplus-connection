@@ -153,5 +153,17 @@ describe('StreamManager', () => {
 			expect(updates).toEqual([blob])
 			expect(parameter.value).toEqual(blob)
 		})
+
+		// A numeric parameter's value is a number: the octets are reported, but not stored as its value
+		it('reports, but does not store, octets for a numeric parameter without a descriptor', () => {
+			const parameter = streamParameter(ParameterType.Real, 5)
+			const { manager, updates } = register(parameter)
+			const blob = Buffer.from('010203040506', 'hex')
+
+			manager.updateStreamValues(received([new StreamEntryImpl(5, octets(blob))]))
+
+			expect(updates).toEqual([blob])
+			expect(parameter.value).toBeUndefined()
+		})
 	})
 })

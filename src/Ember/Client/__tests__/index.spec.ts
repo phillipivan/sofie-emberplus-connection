@@ -1933,6 +1933,45 @@ describe('client', () => {
 			})
 		})
 
+		// A parameter's value is of its type's form: an update's value or default that doesn't fit the cached parameter's
+		// type is not applied, with a warning. Both were stored as they came.
+		it("doesn't apply a value or default that doesn't fit the parameter's type, and warns", async () => {
+			await runWithConnection(async (client, socket) => {
+				const { contents } = seed(client, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 5))
+				const warnings: string[] = []
+				client.on('warn', (e) => warnings.push(e.message))
+
+				const update = new ParameterImpl(ParameterType.String, undefined, 'Gain', 'loud')
+				update.defaultValue = 'quiet'
+				socket.mockData(createQualifiedNodeResponse('1.1', update, undefined))
+				await new Promise(setImmediate)
+
+				expect(contents).toMatchObject({ parameterType: ParameterType.Integer, value: 5, description: 'Gain' })
+				expect(contents.defaultValue).toBeUndefined()
+				expect(warnings).toEqual([
+					expect.stringContaining("1.1: a value loud doesn't fit a parameter of the type INTEGER"),
+					expect.stringContaining("1.1: a defaultValue quiet doesn't fit a parameter of the type INTEGER"),
+				])
+			})
+		})
+
+		it('applies a null value to a parameter of any type', async () => {
+			await runWithConnection(async (client, socket) => {
+				const { contents } = seed(client, new ParameterImpl(ParameterType.Boolean, 'mute', undefined, true))
+
+				socket.mockData(
+					createQualifiedNodeResponse(
+						'1.1',
+						new ParameterImpl(ParameterType.Null, undefined, undefined, null),
+						undefined
+					)
+				)
+				await new Promise(setImmediate)
+
+				expect(contents).toMatchObject({ parameterType: ParameterType.Boolean, value: null })
+			})
+		})
+
 		it('takes the properties of a node update', async () => {
 			await runWithConnection(async (client, socket) => {
 				const { contents } = seed(client, new EmberNodeImpl('input', 'Input', undefined, true))

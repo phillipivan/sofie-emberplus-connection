@@ -2,7 +2,7 @@ import Debug from 'debug'
 import { EventEmitter } from 'eventemitter3'
 
 import { StreamEntry } from '../../model/index.js'
-import { Parameter, ParameterType } from '../../model/Parameter.js'
+import { isValueOfType, Parameter, ParameterType } from '../../model/Parameter.js'
 import { StreamFormat } from '../../model/StreamDescription.js'
 import { EmberValue } from '../../types/index.js'
 import { Collection } from '../../types/types.js'
@@ -172,7 +172,13 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 		if (path) {
 			const streamInfo = this.registeredStreams.get(path)
 			if (streamInfo) {
-				streamInfo.parameter.value = value
+				// Stored only when it fits the parameter's type (raw octets, with no descriptor to read them by, don't fit
+				// a numeric parameter); passed on either way
+				if (isValueOfType(streamInfo.parameter.parameterType, value)) {
+					streamInfo.parameter.value = value
+				} else {
+					debug('Stream value does not fit the parameter type, not stored:', { path, value })
+				}
 				this.emit('streamUpdate', path, value)
 			}
 		}
