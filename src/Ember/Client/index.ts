@@ -30,6 +30,7 @@ import {
 	EmberValue,
 	NumberedTreeNode,
 	QualifiedCommand,
+	QualifiedElement,
 	RelativeOID,
 	RootElement,
 	RootType,
@@ -827,12 +828,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						} else {
 							const number = Number(rootElement.path)
 							// Insert node into root
-							this.tree[number] = new NumberedTreeNodeImpl(
-								number,
-								rootElement.contents,
-								rootElement.children
-							)
-							changes.push({ path: undefined, node: this.tree[number] })
+							const inserted = toTreeElement(rootElement, number)
+							this.tree[number] = inserted
+							changes.push({ path: undefined, node: inserted })
 							continue
 						}
 					}
@@ -848,11 +846,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						}
 						if (!child) {
 							tree.children ??= {}
-							tree.children[number] = {
-								...rootElement,
-								number,
-								parent: tree,
-							}
+							tree.children[number] = toTreeElement(rootElement, number, tree)
 							changes.push({
 								path: rootElement.path.split('.').slice(0, -1).join('.'),
 								node: tree,
@@ -1067,6 +1061,20 @@ function findConnection(connections: Connections | undefined, target: number): C
 /** The names of an element's contents' properties */
 function propertiesOf<T extends object>(contents: T): Array<keyof T> {
 	return Object.keys(contents) as Array<keyof T>
+}
+
+/**
+ * A qualified element, as the provider reported it, as the numbered element the tree keeps it as: the parent of its
+ * children, as the tree's elements are
+ */
+function toTreeElement(
+	element: QualifiedElement<Exclude<EmberElement, Command>>,
+	number: number,
+	parent?: NumberedTreeNode<EmberElement>
+): NumberedTreeNode<EmberElement> {
+	const numbered = new NumberedTreeNodeImpl<EmberElement>(number, element.contents, element.children, parent)
+	for (const child of Object.values<NumberedTreeNode<EmberElement>>(element.children ?? {})) child.parent = numbered
+	return numbered
 }
 
 /** What answers a request: an element, as the provider reported it (or as the tree has it), or an invocation's result */

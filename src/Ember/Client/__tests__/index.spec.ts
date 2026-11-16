@@ -1821,6 +1821,34 @@ describe('client', () => {
 		})
 	})
 
+	// A reported qualified element that isn't in the tree yet goes into it as a numbered element. It went in as a copy
+	// of the qualified one, keeping its path, and its children kept the reported element as their parent: walking up
+	// from them left the tree there.
+	describe('a qualified element put into the tree', () => {
+		const reported = (path: RelativeOID) =>
+			createQualifiedNodeResponse(path, new EmberNodeImpl('channel'), {
+				3: new NumberedTreeNodeImpl(3, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0)),
+			})
+
+		test.each<[string, RelativeOID, (client: EmberClient) => NumberedTreeNode<EmberElement> | undefined]>([
+			['below a loaded element', '1.2', (client) => client.tree[1]?.children?.[2]],
+			['at the top', '2', (client) => client.tree[2]],
+		])('%s is a numbered element, the parent of its children', async (_, path, inserted) => {
+			await runWithConnection(async (client, socket) => {
+				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {})
+				socket.mockData(reported(path))
+				await new Promise(setImmediate)
+
+				const element = inserted(client)
+				if (!element) throw new Error('Expected the element in the tree')
+				expect(isQualified(element)).toBe(false)
+				const child = at(element.children ?? {}, 3)
+				expect(child.parent).toBe(element)
+				expect(client.getInternalNodePath(child)).toBe(`${path}.3`)
+			})
+		})
+	})
+
 	describe('GetDirectory on the root of a loaded tree', () => {
 		// A device, 1, with a parameter, 1.1, already loaded
 		function seedDevice(client: EmberClient) {
