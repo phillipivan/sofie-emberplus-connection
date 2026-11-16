@@ -261,6 +261,80 @@ describe('encodings/ber/Parameter', () => {
 
 	// In the Glow DTD, minimum and maximum are MinMax: a CHOICE of integer, real or null, whatever the
 	// parameter type.
+	// A parameter's value and default are of its type's form. One that doesn't fit is left out, with an error; both were
+	// kept as they came. (The type comes from the value, unless it is a trigger, or an enum by its enumeration.)
+	describe('value and default checked against the type', () => {
+		/** A parameter's contents: a SET of context fields, each written by the function given */
+		const contents = (...fields: Array<[number, (w: Ber.Writer) => void]>) => {
+			const writer = new Ber.Writer()
+			writer.startSequence(Ber.BERDataTypes.SET)
+			for (const [n, write] of fields) {
+				writer.startSequence(Ber.CONTEXT(n))
+				write(writer)
+				writer.endSequence()
+			}
+			writer.endSequence()
+			return new Ber.Reader(writer.buffer)
+		}
+		const str = (v: string) => (w: Ber.Writer) => w.writeString(v, Ber.BERDataTypes.STRING)
+		const int = (v: number) => (w: Ber.Writer) => w.writeInt(v)
+		const real = (v: number) => (w: Ber.Writer) => w.writeReal(v, Ber.BERDataTypes.REAL)
+
+		test("leaves out an enum's value that isn't an index, with an error", () => {
+			const decoded = decodeParameter(contents([2, str('On')], [7, str('Off\nOn')]))
+
+			expect(decoded.value).toMatchObject({ parameterType: ParameterType.Enum, enumeration: 'Off\nOn' })
+			expect(decoded.value.value).toBeUndefined()
+			expect(decoded.errors?.map(String)).toEqual([
+				expect.stringContaining("a value of the type STRING doesn't fit a parameter of the type ENUM"),
+			])
+		})
+
+		test("leaves out a default that doesn't fit the type, with an error, and keeps the value", () => {
+			const decoded = decodeParameter(contents([2, str('a')], [12, int(0)], [13, int(3)]))
+
+			expect(decoded.value).toMatchObject({ parameterType: ParameterType.String, value: 'a' })
+			expect(decoded.value.defaultValue).toBeUndefined()
+			expect(decoded.errors?.map(String)).toEqual([
+				expect.stringContaining("a default of the type INTEGER doesn't fit a parameter of the type STRING"),
+			])
+		})
+
+		test.each<[string, Ber.Reader, Partial<Parameter>]>([
+			[
+				'an integer parameter with a real default',
+				contents([2, int(3)], [12, real(1.5)], [13, int(1)]),
+				{ parameterType: ParameterType.Integer, value: 3, defaultValue: 1.5 },
+			],
+			[
+				'a trigger with a string value and an integer default',
+				contents([2, str('go')], [12, int(1)], [13, int(5)]),
+				{ parameterType: ParameterType.Trigger, value: 'go', defaultValue: 1 },
+			],
+			[
+				'a null value and default of any type',
+				contents([2, (w) => w.writeNull()], [12, (w) => w.writeNull()], [13, int(4)]),
+				{ parameterType: ParameterType.Boolean, value: null, defaultValue: null },
+			],
+		])('keeps %s', (_, reader, expected) => {
+			const decoded = decodeParameter(reader)
+
+			expect(decoded.value).toMatchObject(expected)
+			expect(decoded.errors).toEqual([])
+		})
+
+		test('refuses a value that does not fit when unexpected values are not to be skipped', () => {
+			expect(() =>
+				decodeParameter(contents([2, str('On')], [7, str('Off\nOn')]), {
+					skipApplicationTags: true,
+					skipContextTags: true,
+					substituteForRequired: true,
+					skipUnexpected: false,
+				})
+			).toThrow(/doesn't fit a parameter of the type ENUM/)
+		})
+	})
+
 	describe('minimum and maximum', () => {
 		const parameterTypes = [
 			ParameterType.Integer,

@@ -1,5 +1,5 @@
 import * as Ber from '../../../Ber/index.js'
-import { Parameter, ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Parameter.js'
+import { isValueOfType, Parameter, ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Parameter.js'
 import { StreamDescription } from '../../../model/StreamDescription.js'
 import { EmberValue, MinMax, RelativeOID, StringIntegerCollection } from '../../../types/types.js'
 import {
@@ -35,6 +35,7 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 	let formula: string | undefined = undefined
 	let step: number | undefined = undefined
 	let defaultValue: EmberValue | undefined = undefined
+	let defaultType: ParameterType | undefined = undefined
 	let parameterType: ParameterType | undefined = undefined
 	let streamIdentifier: number | undefined = undefined
 	let enumMap: StringIntegerCollection | undefined = undefined
@@ -86,9 +87,12 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 			case Ber.CONTEXT(11):
 				step = reader.readInt() ?? step
 				break
-			case Ber.CONTEXT(12):
-				defaultValue = reader.readValue().value // Write value uses type
+			case Ber.CONTEXT(12): {
+				const decodedDefault = reader.readValue()
+				defaultValue = decodedDefault.value
+				defaultType = decodedDefault.type
 				break
+			}
 			case Ber.CONTEXT(13):
 				parameterType = appendErrors(readParameterType(reader.readInt(), options), errors)
 				break
@@ -131,7 +135,17 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 					: (parameterType ?? valueType)
 	parameterType = check(parameterType, 'decode parameter', 'parameterType', ParameterType.Null, errors, options)
 
-	// The value and default aren't checked against the type here: what the provider sent is kept as it is
+	// The value and default must be of the parameter type's form. The type is the value's own unless the parameter is a
+	// trigger (any value), or an enum by its enumeration (its value an index); a default may be of any type. One that
+	// doesn't fit is left out, with an error. (Both were kept as they came.)
+	if (value !== undefined && !isValueOfType(parameterType, value)) {
+		value = appendErrors(misfit(parameterType, 'value', valueType, options), errors)
+	}
+	if (defaultValue !== undefined && !isValueOfType(parameterType, defaultValue)) {
+		defaultValue = appendErrors(misfit(parameterType, 'default', defaultType, options), errors)
+	}
+
+	// The value and default fit the type, checked above
 	return makeResult(
 		<Parameter>(
 			new ParameterImpl(
@@ -165,6 +179,22 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
  * provider that wrote it with the parameter's type) is left out, with an error. It was kept as it was, typed as a
  * number. (libember's MinMax reads any other type as the integer 0, which would make up a limit.)
  */
+/** A value or default that doesn't fit the parameter's type: left out, with an error (or thrown) */
+function misfit(
+	parameterType: ParameterType,
+	name: string,
+	type: ParameterType | undefined,
+	options: DecodeOptions
+): DecodeResult<undefined> {
+	return unexpected(
+		[],
+		'decode parameter',
+		`a ${name} of the type ${type} doesn't fit a parameter of the type ${parameterType}; left out`,
+		undefined,
+		options
+	)
+}
+
 function readMinMax(reader: Ber.Reader, name: string, options: DecodeOptions): DecodeResult<MinMax | undefined> {
 	const { type, value } = reader.readValue()
 	if (value === null || typeof value === 'number') return makeResult(value)
