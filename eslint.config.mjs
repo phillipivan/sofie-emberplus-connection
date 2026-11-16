@@ -13,6 +13,16 @@ const customConfig = [
 			'jest/expect-expect': 'off',
 		},
 	},
+
+	// No `any` in the library's code (the preset turns the rule off). Tests and mocks still use it, to reach private
+	// members and build malformed input.
+	{
+		files: ['src/**/*.ts'],
+		ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.spec.ts'],
+		rules: {
+			'@typescript-eslint/no-explicit-any': 'error',
+		},
+	},
 ]
 
 export default customConfig
