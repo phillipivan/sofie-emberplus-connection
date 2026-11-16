@@ -9,6 +9,7 @@ import {
 	RootElementsBERID,
 } from '../../../encodings/ber/constants.js'
 import { berDecode, berEncode } from '../../../encodings/ber/index.js'
+import { at } from '../../../lib/at.js'
 import {
 	Command,
 	CommandType,
@@ -22,10 +23,12 @@ import {
 	Connection,
 	ConnectionImpl,
 	Connections,
+	ElementType,
 	EmberElement,
 	EmberFunctionImpl,
 	EmberNodeImpl,
 	InvocationResult,
+	isQualified,
 	Matrix,
 	MatrixImpl,
 	MatrixType,
@@ -37,15 +40,7 @@ import {
 } from '../../../model/index.js'
 import { InvocationResultImpl } from '../../../model/InvocationResult.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
-import {
-	Collection,
-	EmberValue,
-	NumberedTreeNode,
-	QualifiedElement,
-	RelativeOID,
-	RootElement,
-	RootType,
-} from '../../../types/types.js'
+import { EmberValue, NumberedTreeNode, RelativeOID, RootElement, RootType } from '../../../types/types.js'
 import { S101Server } from '../../Socket/S101Server.js'
 import { EmberServer } from '../index.js'
 import type S101Socket from '../../Socket/S101Socket.js'
@@ -77,6 +72,15 @@ class FakeConnection extends EventEmitter {
 		await new Promise(setImmediate)
 		return this.sent - before
 	}
+}
+
+/** The one element a message reports */
+function onlyElement(data: Buffer): RootElement {
+	const decoded = berDecode(data)
+	if (decoded.rootType !== RootType.Elements) throw new Error('Expected elements')
+	const elements = Object.values<RootElement>(decoded.value)
+	expect(elements).toHaveLength(1)
+	return at(elements, 0)
 }
 
 describe('EmberServer subscriptions', () => {
@@ -360,8 +364,11 @@ describe('EmberServer subscriptions', () => {
 
 		/** The path and value of the parameter a message reports */
 		function reportedValue(data: Buffer) {
-			const [report] = Object.values<RootElement>(berDecode(data).value as Collection<RootElement>)
-			return [(report as QualifiedElement<Parameter>).path, (report.contents as Parameter).value]
+			const report = onlyElement(data)
+			if (!isQualified(report) || report.contents.type !== ElementType.Parameter) {
+				throw new Error('Expected a qualified parameter')
+			}
+			return [report.path, report.contents.value]
 		}
 	})
 })
@@ -404,7 +411,9 @@ describe('EmberServer invocations', () => {
 		await new Promise(setImmediate)
 
 		expect(consumer.received).toHaveLength(1)
-		return berDecode(consumer.received[0]).value as InvocationResult
+		const decoded = berDecode(at(consumer.received, 0))
+		if (decoded.rootType !== RootType.InvocationResult) throw new Error('Expected an invocation result')
+		return decoded.value
 	}
 
 	it('hands an Invoke on a function to the handler, and sends its result', async () => {
@@ -728,8 +737,9 @@ describe('EmberServer matrices', () => {
 
 	/** The sources of each target a matrix report lists */
 	function reportedConnections(data: Buffer) {
-		const [report] = Object.values<RootElement>(berDecode(data).value as Collection<RootElement>)
-		const connections = (report.contents as Matrix).connections ?? {}
+		const report = onlyElement(data)
+		if (report.contents.type !== ElementType.Matrix) throw new Error('Expected a matrix')
+		const connections = report.contents.connections ?? {}
 		return Object.fromEntries(Object.values<Connection>(connections).map((c) => [c.target, c.sources]))
 	}
 })

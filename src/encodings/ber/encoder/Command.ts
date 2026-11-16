@@ -34,7 +34,7 @@ function isGetDirectory(command: Command): command is GetDirectory {
 }
 
 function writeDirFieldMask(fieldMask: FieldFlags, writer: Ber.Writer): void {
-	const maskToInt: { [flag: string]: number } = {
+	const maskToInt: Record<FieldFlags, number> = {
 		[FieldFlags.Sparse]: -2,
 		[FieldFlags.All]: -1,
 		[FieldFlags.Default]: 0,

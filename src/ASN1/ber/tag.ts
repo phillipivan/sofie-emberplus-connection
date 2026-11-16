@@ -1,3 +1,4 @@
+import { at } from '../../lib/at.js'
 import { newInvalidAsn1Error } from './errors.js'
 
 // X.690 8.1.2: a tag is a class (bits 8-7 of its first byte), a constructed bit (bit 6) and a number. A number below
@@ -23,14 +24,14 @@ export function makeTag(preamble: number, number: number): number {
 /** The tag at `offset` and how many bytes it takes; null when the data ends before the tag does */
 export function readTagAt(buf: Buffer, offset: number, end = buf.length): { tag: number; size: number } | null {
 	if (offset >= end) return null
-	const first = buf[offset]
+	const first = at(buf, offset)
 	if ((first & 0x1f) !== 0x1f) return { tag: first, size: 1 }
 
 	let number = 0
 	let next = offset + 1
 	for (;;) {
 		if (next >= end) return null
-		const b = buf[next++]
+		const b = at(buf, next++)
 		number = number * 0x80 + (b & 0x7f)
 		if (number > MAX_TAG_NUMBER)
 			throw newInvalidAsn1Error('The tag number at offset ' + offset + ' takes more than 32 bits')

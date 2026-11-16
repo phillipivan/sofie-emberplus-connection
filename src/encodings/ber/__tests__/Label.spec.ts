@@ -1,4 +1,5 @@
 import * as Ber from '../../../Ber/index.js'
+import { at } from '../../../lib/at.js'
 import { Label } from '../../../model/Label.js'
 import { guarded } from '../decoder/DecodeResult.js'
 import { decodeLabel } from '../decoder/Label.js'
@@ -25,7 +26,7 @@ describe('encodings/ber/Label', () => {
 		const badLabel: Label = { basePath: '5.4.3.2.1', description: '' }
 		encodeLabel(badLabel, writer)
 		const badBuffer = writer.buffer.slice(0, writer.buffer.length - 4)
-		badBuffer[1] = badBuffer[1] - 4
+		badBuffer[1] = at(badBuffer, 1) - 4
 		const reader = new Ber.Reader(badBuffer)
 		const decoded = decodeLabel(reader)
 

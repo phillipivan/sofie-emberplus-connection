@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events'
 
 import { berDecode, berEncode } from '../../../encodings/ber/index.js'
+import { at } from '../../../lib/at.js'
 import { GetDirectoryImpl } from '../../../model/Command.js'
 import { NumberedTreeNodeImpl } from '../../../model/index.js'
 import S101Codec from '../../../S101/S101Codec.js'
@@ -109,7 +110,7 @@ function track(promise: Promise<Error | void>): { result: Error | void | 'pendin
 
 /** The time between each pair of consecutive attempts. */
 function gaps(times: number[]): number[] {
-	return times.slice(1).map((time, i) => time - times[i])
+	return times.slice(1).map((time, i) => time - at(times, i))
 }
 
 describe('S101Client connection attempts', () => {
@@ -548,11 +549,12 @@ describe('S101Client a rejected frame', () => {
 		connection.succeed()
 
 		const codec = new S101Codec()
-		const good = codec.encodeBER(
-			berEncode([new NumberedTreeNodeImpl(0, new GetDirectoryImpl())], RootType.Elements)
-		)[0]
+		const good = at(
+			codec.encodeBER(berEncode([new NumberedTreeNodeImpl(0, new GetDirectoryImpl())], RootType.Elements)),
+			0
+		)
 		const bad = Buffer.from(good)
-		bad[good.length - 4] ^= 0x01 // the last byte before the CRC: the CRC no longer matches (neither byte is BOF, EOF or escape)
+		bad[good.length - 4] = at(bad, good.length - 4) ^ 0x01 // the last byte before the CRC: the CRC no longer matches (neither byte is BOF, EOF or escape)
 		connection.emit('data', Buffer.concat([bad, good]))
 
 		expect(errors.map((e) => e.message)).toEqual([expect.stringMatching(/invalid CRC/)])

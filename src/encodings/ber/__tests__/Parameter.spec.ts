@@ -1,4 +1,5 @@
 import * as Ber from '../../../Ber/index.js'
+import { at } from '../../../lib/at.js'
 import { ElementType } from '../../../model/EmberElement.js'
 import { Parameter, ParameterAccess, ParameterType, TypedParameter } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
@@ -370,7 +371,7 @@ describe('encodings/ber/Parameter', () => {
 			const fieldTag = (param: Parameter, field: number): number => {
 				const writer = new Ber.Writer()
 				encodeParameter(param, writer)
-				return writer.buffer[writer.buffer.indexOf(Ber.CONTEXT(field)) + 2]
+				return at(writer.buffer, writer.buffer.indexOf(Ber.CONTEXT(field)) + 2)
 			}
 
 			expect(fieldTag({ ...base, parameterType: ParameterType.Trigger, value: 'go' }, 2)).toBe(
@@ -406,7 +407,7 @@ describe('encodings/ber/Parameter', () => {
 			const maximumTag = (param: Parameter): number => {
 				const writer = new Ber.Writer()
 				encodeParameter(param, writer)
-				return writer.buffer[writer.buffer.indexOf(Ber.CONTEXT(4)) + 2]
+				return at(writer.buffer, writer.buffer.indexOf(Ber.CONTEXT(4)) + 2)
 			}
 
 			expect(maximumTag({ ...base, parameterType: ParameterType.String, maximum: 2048 })).toBe(

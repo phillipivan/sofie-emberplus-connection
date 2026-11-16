@@ -21,9 +21,9 @@ export function encodeFunction(el: EmberFunction, writer: Ber.Writer): void {
 	if (el.args != null) {
 		writer.startSequence(Ber.CONTEXT(2))
 		writer.startSequence(Ber.BERDataTypes.SEQUENCE)
-		for (let i = 0; i < el.args.length; i++) {
+		for (const arg of el.args) {
 			writer.startSequence(Ber.CONTEXT(0))
-			encodeFunctionArgument(el.args[i], writer)
+			encodeFunctionArgument(arg, writer)
 			writer.endSequence()
 		}
 		writer.endSequence()
@@ -33,9 +33,9 @@ export function encodeFunction(el: EmberFunction, writer: Ber.Writer): void {
 	if (el.result != null && el.result.length > 0) {
 		writer.startSequence(Ber.CONTEXT(3))
 		writer.startSequence(Ber.BERDataTypes.SEQUENCE)
-		for (let i = 0; i < el.result.length; i++) {
+		for (const result of el.result) {
 			writer.startSequence(Ber.CONTEXT(0))
-			encodeFunctionArgument(el.result[i], writer)
+			encodeFunctionArgument(result, writer)
 			writer.endSequence()
 		}
 		writer.endSequence()

@@ -1,3 +1,5 @@
+import { at } from '../../../lib/at.js'
+
 interface Tlv {
 	start: number
 	tag: number
@@ -7,13 +9,13 @@ interface Tlv {
 
 function readTlv(buf: Buffer, offset: number): Tlv {
 	const start = offset
-	const tag = buf[offset++]
+	const tag = at(buf, offset++)
 	if ((tag & 0x1f) === 0x1f) throw new Error(`Multi-byte tag 0x${tag.toString(16)} is not supported`)
-	let length = buf[offset++]
+	let length = at(buf, offset++)
 	if (length & 0x80) {
 		const lengthBytes = length & 0x7f
 		length = 0
-		for (let i = 0; i < lengthBytes; i++) length = length * 256 + buf[offset++]
+		for (let i = 0; i < lengthBytes; i++) length = length * 256 + at(buf, offset++)
 	}
 	return { start, tag, contents: buf.subarray(offset, offset + length), end: offset + length }
 }

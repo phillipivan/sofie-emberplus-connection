@@ -11,9 +11,9 @@ export function encodeInvocation(invocation: Invocation, writer: Ber.Writer): vo
 	}
 	writer.startSequence(Ber.CONTEXT(1))
 	writer.startSequence(Ber.BERDataTypes.SEQUENCE)
-	for (let i = 0; i < invocation.args.length; i++) {
+	for (const arg of invocation.args) {
 		writer.startSequence(Ber.CONTEXT(0))
-		writer.writeValue(invocation.args[i])
+		writer.writeValue(arg)
 		writer.endSequence()
 	}
 	writer.endSequence()

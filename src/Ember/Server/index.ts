@@ -180,7 +180,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		const connections = (element.contents.connections ??= {})
 		const matrixType = element.contents.matrixType ?? MatrixType.OneToN
 		const oneSourcePerTarget = matrixType !== MatrixType.NToN
-		let connection = connections[update.target] as Connection | undefined
+		let connection = connections[update.target]
 		if (!connection) {
 			connection = new ConnectionImpl(update.target, [])
 			connections[update.target] = connection

@@ -171,8 +171,8 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 		if (this.isConnected() && this.socket) {
 			try {
 				const frames = this.codec.encodeBER(data)
-				for (let i = 0; i < frames.length; i++) {
-					this.socket.write(frames[i])
+				for (const frame of frames) {
+					this.socket.write(frame)
 				}
 				return true
 			} catch (_e) {

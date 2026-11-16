@@ -21,7 +21,7 @@ export function encodeFunctionArgument(arg: FunctionArgument, writer: Ber.Writer
 }
 
 function writeParameterType(type: ParameterType, writer: Ber.Writer): void {
-	const typeToInt: { [flag: string]: number } = {
+	const typeToInt: Record<ParameterType, number> = {
 		[ParameterType.Null]: 0,
 		[ParameterType.Integer]: 1,
 		[ParameterType.Real]: 2,

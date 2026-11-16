@@ -1,5 +1,6 @@
 import vm from 'vm'
 
+import { at } from '../../../lib/at.js'
 import { berDecode } from '../index.js'
 import { withTwoByteTags } from './encodingForms.js'
 import { messages } from './messages.js'
@@ -43,7 +44,7 @@ describe('decoding a malformed message ends', () => {
 	it.each(allMessages())('%s, with any one byte changed', (_, message) => {
 		const hanging: string[] = []
 		for (let i = 0; i < message.length; i++) {
-			for (const value of [0x00, 0x01, 0x7f, 0x80, 0x81, 0x84, 0xff, message[i] ^ 0x01]) {
+			for (const value of [0x00, 0x01, 0x7f, 0x80, 0x81, 0x84, 0xff, at(message, i) ^ 0x01]) {
 				const changed = Buffer.from(message)
 				changed[i] = value
 				if (decodeEnds(changed) === 'did not end') hanging.push(`byte ${i} = 0x${value.toString(16)}`)

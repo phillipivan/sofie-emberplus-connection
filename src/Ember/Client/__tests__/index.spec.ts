@@ -2,6 +2,7 @@ import S101ClientMock from '../../../__mocks__/S101Client.js'
 import * as Ber from '../../../Ber/index.js'
 import { DecodeResult } from '../../../encodings/ber/decoder/DecodeResult.js'
 import { berDecode, berEncode } from '../../../encodings/ber/index.js'
+import { at } from '../../../lib/at.js'
 import { CommandType } from '../../../model/Command.js'
 import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation } from '../../../model/Connection.js'
 import {
@@ -10,6 +11,7 @@ import {
 	EmberFunctionImpl,
 	EmberNodeImpl,
 	FunctionArgumentImpl,
+	isQualified,
 	Matrix,
 	MatrixAddressingMode,
 	MatrixImpl,
@@ -46,6 +48,13 @@ import { EmberClient, EmberClientOptions } from '../index.js'
 
 // eslint-disable-next-line
 jest.mock('../../Socket/S101Client', () => require('../../../__mocks__/S101Client'))
+
+/** The first element of a message the client sent */
+function firstElement(data: Buffer): RootElement {
+	const decoded = berDecode(data)
+	if (decoded.rootType !== RootType.Elements) throw new Error('Expected elements')
+	return at(Object.values<RootElement>(decoded.value), 0)
+}
 
 describe('client', () => {
 	const onSocketCreate = jest.fn()
@@ -106,7 +115,7 @@ describe('client', () => {
 			expect(sockets).toHaveLength(1)
 			expect(onSocketWrite).toHaveBeenCalledTimes(0)
 
-			await fn(client, sockets[0])
+			await fn(client, at(sockets, 0))
 		} finally {
 			// Ensure cleaned up
 			await client.disconnect()
@@ -378,7 +387,7 @@ describe('client', () => {
 			await getRootDirReq.response
 
 			// Request the empty node
-			const req = await client.getDirectory(client.tree[1])
+			const req = await client.getDirectory(at(client.tree, 1))
 
 			// Returns empty node
 			expect(onSocketWrite).toHaveBeenCalledTimes(1)
@@ -445,7 +454,7 @@ describe('client', () => {
 			const getByPathRes = await getByPathPromise
 			expect(getByPathRes).toBeTruthy()
 
-			const node = client.tree[1].children?.[1].children?.[1]
+			const node = client.tree[1]?.children?.[1]?.children?.[1]
 			if (!node) throw new Error('Empty res') // really just a typeguard
 
 			// Request the empty node
@@ -766,7 +775,7 @@ describe('client', () => {
 				socket.mockData(report(1, [4], ConnectionDisposition.Modified))
 				await new Promise(setImmediate)
 				expect(response.settled).toBe('pending')
-				expect(node.contents.connections?.[1].sources).toEqual([4])
+				expect(node.contents.connections?.[1]?.sources).toEqual([4])
 
 				socket.mockData(report(2, [3], ConnectionDisposition.Modified))
 				await new Promise(setImmediate)
@@ -784,7 +793,7 @@ describe('client', () => {
 				socket.mockData(report(2, [2], ConnectionDisposition.Locked))
 
 				await expect(request.response).rejects.toThrow('Matrix 1.1: target 2 is locked')
-				expect(node.contents.connections?.[2].sources).toEqual([2])
+				expect(node.contents.connections?.[2]?.sources).toEqual([2])
 			})
 		})
 
@@ -798,7 +807,7 @@ describe('client', () => {
 				socket.mockData(report(2, [3], ConnectionDisposition.Pending))
 
 				await expect(request.response).resolves.toBe(node)
-				expect(node.contents.connections?.[2].sources).toEqual([2])
+				expect(node.contents.connections?.[2]?.sources).toEqual([2])
 			})
 		})
 
@@ -867,7 +876,7 @@ describe('client', () => {
 
 				expect(found).toBe(node)
 				expect(onSocketWrite).toHaveBeenCalledTimes(1)
-				const request = (berDecode(onSocketWrite.mock.calls[0][0]).value as Collection<RootElement>)[0]
+				const request = firstElement(at(onSocketWrite.mock.calls, 0)[0])
 				expect(request).toMatchObject({ path: '1.1', contents: { type: ElementType.Parameter } })
 				expect(Object.values<NumberedTreeNode<EmberElement>>(request.children ?? {})).toMatchObject([
 					{ contents: { type: ElementType.Command, number: CommandType.GetDirectory } },
@@ -999,7 +1008,7 @@ describe('client', () => {
 				const inner = reader.peek()
 				if (inner !== null) reader.readStringAsBuffer(inner)
 			}
-			const element = (berDecode(data).value as Collection<RootElement>)[0]
+			const element = firstElement(data)
 			const commands = Object.values<NumberedTreeNode<EmberElement>>(element.children ?? {}).map(
 				(child) => child.contents
 			)
@@ -1078,7 +1087,7 @@ describe('client', () => {
 			await runWithConnection(async (client) => {
 				const elements = seedDevice(client)
 
-				const request = await send(client, elements[number])
+				const request = await send(client, at(elements, number))
 				request.response?.catch(() => null) // no reply here, so the request is cancelled on disconnect
 
 				expect(onSocketWrite).toHaveBeenCalledTimes(1)
@@ -1188,7 +1197,7 @@ describe('client', () => {
 				expect(() => socket.mockData(update)).not.toThrow()
 				await new Promise(setImmediate)
 
-				expect(client.tree[1].children?.[2]).toBeDefined()
+				expect(client.tree[1]?.children?.[2]).toBeDefined()
 			})
 		})
 
@@ -1247,7 +1256,7 @@ describe('client', () => {
 				)
 				await new Promise(setImmediate)
 
-				const matrix = client.tree[1].children?.[1]?.contents as Matrix
+				const matrix = client.tree[1]?.children?.[1]?.contents as Matrix
 				expect(matrix.connections).toEqual({
 					0: { target: 0, sources: [1] },
 					1: { target: 1, sources: [3] },
@@ -1299,7 +1308,7 @@ describe('client', () => {
 					await new Promise(setImmediate)
 				}
 
-				const matrix = client.tree[0].children?.[5]?.children?.[2]?.contents as Matrix
+				const matrix = client.tree[0]?.children?.[5]?.children?.[2]?.contents as Matrix
 				expect(Object.values<Connection>(matrix.connections ?? {}).map((c) => [c.target, c.sources])).toEqual([
 					[10, [173]],
 					[11, [171]],
@@ -1338,7 +1347,7 @@ describe('client', () => {
 				)
 				await new Promise(setImmediate)
 
-				expect(connections[1500].sources).toEqual([7])
+				expect(connections[1500]?.sources).toEqual([7])
 				expect(reads).toBeLessThan(10)
 			})
 		})
@@ -1393,7 +1402,7 @@ describe('client', () => {
 
 					// a later report without a disposition is a tally
 					socket.mockData(report({ target: 2, sources: [4] }))
-					expect(matrix.connections?.[2].disposition).toBeUndefined()
+					expect(matrix.connections?.[2]?.disposition).toBeUndefined()
 				})
 			})
 
@@ -1730,7 +1739,7 @@ describe('client', () => {
 					client.on('streamUpdate', events)
 
 					await client.subscribe(node, cb)
-					await client.unsubscribe(client.tree[1])
+					await client.unsubscribe(at(client.tree, 1))
 					socket.mockStreamData(level(-18))
 
 					expect(cb).not.toHaveBeenCalled()
@@ -2167,12 +2176,13 @@ describe('client', () => {
 		// What each write asked the provider for: the path ('' for the root) and the command
 		function sentCommands(): Array<[string, CommandType]> {
 			return onSocketWrite.mock.calls.map(([data]: [Buffer]) => {
-				// a command on the root decodes keyed by its number, not 0
-				const element = Object.values<RootElement>(berDecode(data).value as Collection<RootElement>)[0]
+				const element = firstElement(data)
 				if (element.contents.type === ElementType.Command) return ['', element.contents.number]
-				const command = Object.values<NumberedTreeNode<EmberElement>>(element.children ?? {})[0].contents
-				if (command.type !== ElementType.Command) throw new Error('Expected a command request')
-				return [(element as QualifiedElement<EmberElement>).path, command.number]
+				const command = at(Object.values<NumberedTreeNode<EmberElement>>(element.children ?? {}), 0).contents
+				if (command.type !== ElementType.Command || !isQualified(element)) {
+					throw new Error('Expected a command request')
+				}
+				return [element.path, command.number]
 			})
 		}
 
@@ -2222,7 +2232,7 @@ describe('client', () => {
 				await new Promise(setImmediate)
 
 				expect(cb).toHaveBeenCalledWith(parameter)
-				expect(client.tree[1].children?.[1]).toBe(parameter)
+				expect(client.tree[1]?.children?.[1]).toBe(parameter)
 				expect((parameter.contents as Parameter).value).toBe(7)
 			})
 		})
@@ -2262,7 +2272,7 @@ describe('client', () => {
 			await runWithConnection(async (client, socket) => {
 				const parameter = await lookUpParameter(client, socket)
 				await client.subscribe(parameter)
-				await client.unsubscribe(client.tree[1])
+				await client.unsubscribe(at(client.tree, 1))
 				onSocketWrite.mockClear()
 
 				await reconnect(socket)

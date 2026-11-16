@@ -19,7 +19,7 @@ export const encodeStreamDescription = (description: StreamDescription, writer: 
 }
 
 const formatToInt = (format: StreamFormat): number => {
-	const formatToInt = {
+	const formatToInt: Record<StreamFormat, number> = {
 		[StreamFormat.UInt8]: 0,
 		[StreamFormat.UInt16BE]: 2,
 		[StreamFormat.UInt16LE]: 3,

@@ -335,6 +335,14 @@ test('write relative OID', () => {
 	expect(writer.buffer).toEqual(Buffer.from([0x0d, 0x03, 0x01, 0x02, 0x03]))
 })
 
+// Each arc in base 128, the most significant first, bit 8 set on every byte but its last
+test('write relative OID with arcs of more than one byte', () => {
+	const writer = new Writer()
+	writer.writeRelativeOID('0.127.128.300.16384', 0x0d)
+
+	expect(writer.buffer).toEqual(Buffer.from([0x0d, 0x09, 0x00, 0x7f, 0x81, 0x00, 0x82, 0x2c, 0x81, 0x80, 0x00]))
+})
+
 test('write empty relative OID', () => {
 	const writer = new Writer()
 	writer.writeRelativeOID('', 0x0d)

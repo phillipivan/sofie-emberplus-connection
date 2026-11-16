@@ -43,9 +43,9 @@ export const encodeMatrix = (matrix: Matrix, writer: Ber.Writer): void => {
 	if (matrix.labels != null) {
 		writer.startSequence(Ber.CONTEXT(10))
 		writer.startSequence(Ber.BERDataTypes.SEQUENCE)
-		for (let i = 0; i < matrix.labels.length; i++) {
+		for (const label of matrix.labels) {
 			writer.startSequence(Ber.CONTEXT(0))
-			encodeLabel(matrix.labels[i], writer)
+			encodeLabel(label, writer)
 			writer.endSequence()
 		}
 		writer.endSequence()
@@ -80,7 +80,7 @@ export const encodeSource = (source: number, writer: Ber.Writer): void => {
 }
 
 export const elementTypeToInt = (type: ElementType): number => {
-	const typeToInt = {
+	const typeToInt: Record<ElementType, number> = {
 		[ElementType.Parameter]: 0,
 		[ElementType.Node]: 1,
 		[ElementType.Command]: 2,
@@ -93,7 +93,7 @@ export const elementTypeToInt = (type: ElementType): number => {
 }
 
 export const matrixTypeToInt = (type: MatrixType): number => {
-	const typeToInt = {
+	const typeToInt: Record<MatrixType, number> = {
 		[MatrixType.OneToN]: 0,
 		[MatrixType.OneToOne]: 1,
 		[MatrixType.NToN]: 2,
@@ -103,7 +103,7 @@ export const matrixTypeToInt = (type: MatrixType): number => {
 }
 
 export const matrixModeToInt = (mode: MatrixAddressingMode): number => {
-	const modeToInt = {
+	const modeToInt: Record<MatrixAddressingMode, number> = {
 		[MatrixAddressingMode.Linear]: 0,
 		[MatrixAddressingMode.NonLinear]: 1,
 	}

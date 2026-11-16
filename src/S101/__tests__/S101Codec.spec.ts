@@ -2,6 +2,7 @@ import { SmartBuffer } from 'smart-buffer'
 
 import { withTwoByteTags } from '../../encodings/ber/__tests__/encodingForms.js'
 import { berEncode } from '../../encodings/ber/index.js'
+import { at } from '../../lib/at.js'
 import { GetDirectoryImpl } from '../../model/Command.js'
 import { NumberedTreeNodeImpl, ParameterImpl, ParameterType, QualifiedElementImpl } from '../../model/index.js'
 import { StreamEntryImpl } from '../../model/StreamEntry.js'
@@ -98,7 +99,7 @@ describe('S101Codec DoS hardening', () => {
 
 // A consumer's GetDirectory request on the root, as one S101 frame
 function getDirectoryFrame(codec: S101Codec): Buffer {
-	return codec.encodeBER(berEncode([new NumberedTreeNodeImpl(0, new GetDirectoryImpl())], RootType.Elements))[0]
+	return at(codec.encodeBER(berEncode([new NumberedTreeNodeImpl(0, new GetDirectoryImpl())], RootType.Elements)), 0)
 }
 
 function collectEvents(codec: S101Codec): string[] {
@@ -277,7 +278,7 @@ describe('S101Codec a rejected frame', () => {
 		const copy = Buffer.from(frame)
 		const special = (b: number) => b >= 0xfd
 		const i = copy.findIndex((b, index) => index > 4 && !special(b) && !special(b ^ 0x01))
-		copy[i] ^= 0x01
+		copy[i] = at(copy, i) ^ 0x01
 		return copy
 	}
 

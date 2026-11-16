@@ -1,4 +1,5 @@
 import * as Ber from '../../../Ber/index.js'
+import { at } from '../../../lib/at.js'
 import { ConnectionDisposition, ConnectionOperation } from '../../../model/Connection.js'
 import { ElementType } from '../../../model/EmberElement.js'
 import { Matrix, MatrixAddressingMode, MatrixImpl, MatrixType } from '../../../model/Matrix.js'
@@ -95,11 +96,11 @@ describe('encodings/ber/Matrix', () => {
 					},
 				}
 				roundtripMatrix(matrix, qualified)
-				matrix.connections[1].disposition = ConnectionDisposition.Modified
+				at(matrix.connections, 1).disposition = ConnectionDisposition.Modified
 				roundtripMatrix(matrix, qualified)
-				matrix.connections[1].disposition = ConnectionDisposition.Pending
+				at(matrix.connections, 1).disposition = ConnectionDisposition.Pending
 				roundtripMatrix(matrix, qualified)
-				matrix.connections[1].disposition = ConnectionDisposition.Tally
+				at(matrix.connections, 1).disposition = ConnectionDisposition.Tally
 				roundtripMatrix(matrix, qualified)
 			})
 		})

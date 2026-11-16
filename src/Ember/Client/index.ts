@@ -1,6 +1,7 @@
 import { EventEmitter } from 'eventemitter3'
 
 import { berEncode, DecodedRoot } from '../../encodings/ber/index.js'
+import { at } from '../../lib/at.js'
 import {
 	Command,
 	CommandType,
@@ -807,8 +808,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					continue
 				} else if ('path' in rootElement) {
 					// element is qualified
-					const path: Array<string> = rootElement.path.split('.')
-					let tree = this.tree[Number(path.shift())]
+					// the top-level element's number, and the numbers below it ('' splits to [''], which is 0)
+					const numbers = rootElement.path.split('.').map(Number)
+					const path = numbers.slice(1)
+					let tree = this.tree[at(numbers, 0)]
 					const topLevel = !path.length
 					let inserted = false
 
@@ -836,17 +839,18 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 					let notLoaded = false
 					for (const [i, number] of path.entries()) {
-						if (!tree.children?.[Number(number)] && i < path.length - 1) {
+						const child: NumberedTreeNode<EmberElement> | undefined = tree.children?.[number]
+						if (!child && i < path.length - 1) {
 							// A node above the element isn't loaded, so there is no place for it in the tree: report it
 							// as it came, as when the device itself isn't loaded
 							notLoaded = true
 							break
 						}
-						if (!tree.children) tree.children = {}
-						if (!tree.children[Number(number)]) {
-							tree.children[Number(number)] = {
+						if (!child) {
+							tree.children ??= {}
+							tree.children[number] = {
 								...rootElement,
-								number: Number(number),
+								number,
 								parent: tree,
 							}
 							changes.push({
@@ -856,7 +860,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 							inserted = true
 							break
 						}
-						tree = tree.children[Number(number)]
+						tree = child
 					}
 
 					if (inserted) continue
@@ -873,7 +877,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					// as when it was inserted, which is what resolves that request
 					if (topLevel) changes.push({ path: undefined, node: tree })
 				} else {
-					const cached = this.tree[rootElement.number] as NumberedTreeNode<EmberElement> | undefined
+					const cached = this.tree[rootElement.number]
 					if (!rootElement.children && isEmptyNode(rootElement)) {
 						// empty node on the root of the tree must mean we have done a getDir on that specific node
 						changes.push({ path: rootElement.number + '', node: rootElement, emptyNode: true })
@@ -1002,7 +1006,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			const connections = (matrix.connections ??= {})
 			for (const connection of Object.values<Connection>(update.connections)) {
 				// (connections are kept by their target: no need to go through them all to find it)
-				const cached = connections[connection.target] as Connection | undefined
+				const cached = connections[connection.target]
 
 				if (connection.disposition === ConnectionDisposition.Pending) {
 					// The change is queued: "sources contains future state". The target's connection stays as it

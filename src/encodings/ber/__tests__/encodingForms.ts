@@ -5,6 +5,8 @@
 // five least significant bits of the first byte all set to '1'." and "The encoder is free to use the definite long
 // length form [X.690 8.1.3.5] even for lengths smaller than 128."
 
+import { at } from '../../../lib/at.js'
+
 interface Tlv {
 	/** The first tag byte's class and constructed bits */
 	preamble: number
@@ -15,17 +17,17 @@ interface Tlv {
 }
 
 function readTlv(buf: Buffer, offset: number): Tlv {
-	const lead = buf[offset++]
+	const lead = at(buf, offset++)
 	let number = lead & 0x1f
 	if (number === 0x1f) {
 		number = 0
 		let b: number
 		do {
-			b = buf[offset++]
+			b = at(buf, offset++)
 			number = number * 0x80 + (b & 0x7f)
 		} while (b & 0x80)
 	}
-	let length = buf[offset++]
+	let length = at(buf, offset++)
 	if (length === 0x80) {
 		// indefinite: the contents run to the end-of-contents marker that closes this element
 		const start = offset
@@ -41,7 +43,7 @@ function readTlv(buf: Buffer, offset: number): Tlv {
 	if (length & 0x80) {
 		const lengthBytes = length & 0x7f
 		length = 0
-		for (let i = 0; i < lengthBytes; i++) length = length * 0x100 + buf[offset++]
+		for (let i = 0; i < lengthBytes; i++) length = length * 0x100 + at(buf, offset++)
 	}
 	return {
 		preamble: lead & 0xe0,

@@ -1,4 +1,5 @@
 import * as Ber from '../../../Ber/index.js'
+import { at } from '../../../lib/at.js'
 import { CommandType, FieldFlags, GetDirectoryImpl } from '../../../model/Command.js'
 import { ConnectionDisposition, ConnectionImpl, ConnectionOperation } from '../../../model/Connection.js'
 import { ElementType } from '../../../model/EmberElement.js'
@@ -49,7 +50,7 @@ function libemberInteger(value: bigint): Buffer {
 /** ber/traits/Integral.hpp, IntegerDecodingTraits for a `long long`: the first byte's top bit is the sign */
 function libemberReadInteger(tlv: Buffer): bigint {
 	let value = 0n
-	tlv.subarray(2, 2 + tlv[1]).forEach((byte, index) => {
+	tlv.subarray(2, 2 + at(tlv, 1)).forEach((byte, index) => {
 		if (index === 0 && byte & 0x80) value = -1n
 		value = BigInt.asIntN(64, (value << 8n) | BigInt(byte))
 	})

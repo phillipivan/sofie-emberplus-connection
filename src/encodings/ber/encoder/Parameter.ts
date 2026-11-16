@@ -97,7 +97,7 @@ export const encodeParameter = (parameter: Parameter, writer: Ber.Writer): void 
 }
 
 const parameterAccessToInt = (parameter: ParameterAccess): number => {
-	const paramToInt = {
+	const paramToInt: Record<ParameterAccess, number> = {
 		[ParameterAccess.None]: 0,
 		[ParameterAccess.Read]: 1,
 		[ParameterAccess.Write]: 2,
@@ -108,7 +108,7 @@ const parameterAccessToInt = (parameter: ParameterAccess): number => {
 }
 
 const parameterTypeToInt = (pt: ParameterType): number => {
-	const paramTypeToInt = {
+	const paramTypeToInt: Record<ParameterType, number> = {
 		[ParameterType.Null]: 0,
 		[ParameterType.Integer]: 1,
 		[ParameterType.Real]: 2,

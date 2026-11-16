@@ -1,4 +1,5 @@
 import * as Ber from '../../../Ber/index.js'
+import { at } from '../../../lib/at.js'
 import { ConnectionImpl, ConnectionOperation } from '../../../model/Connection.js'
 import { ElementType } from '../../../model/EmberElement.js'
 import { EmberNodeImpl } from '../../../model/EmberNode.js'
@@ -148,7 +149,7 @@ describe('encoders/Ber/index', () => {
 		if (!res[0].children) {
 			throw new Error(`Tree must have children`)
 		}
-		res[0].children[0].parent = res[0]
+		at(res[0].children, 0).parent = res[0]
 		roundTrip(res, RootType.Elements)
 	})
 	test('Qualified tree', () => {
@@ -160,7 +161,7 @@ describe('encoders/Ber/index', () => {
 		if (!res[0].children) {
 			throw new Error(`Tree must have children`)
 		}
-		res[0].children[0].parent = res[0]
+		at(res[0].children, 0).parent = res[0]
 		roundTrip(res, RootType.Elements)
 	})
 	// A connect request as the specification's examples, Lawo's libember and Ember+ Viewer send it: a QualifiedMatrix
@@ -184,7 +185,7 @@ describe('encoders/Ber/index', () => {
 		const decoded = berDecode(testBuffer)
 
 		expect(decoded.value).toHaveLength(1)
-		expect((decoded.value as Collection<RootElement>)[0].contents.type).toBe(ElementType.Node)
+		expect(decoded.value).toMatchObject({ 0: { contents: { type: ElementType.Node } } })
 		expect(decoded.errors).toHaveLength(1)
 		expect(decoded.errors?.toString()).toMatch(/Unexpected BER application tag '126'/)
 	})
@@ -194,7 +195,7 @@ describe('encoders/Ber/index', () => {
 		const decoded = berDecode(testBuffer)
 
 		expect(decoded.value).toHaveLength(1)
-		expect((decoded.value as Collection<RootElement>)[0].contents.type).toBe(ElementType.Node)
+		expect(decoded.value).toMatchObject({ 0: { contents: { type: ElementType.Node } } })
 		expect(decoded.errors).toHaveLength(1)
 		expect(decoded.errors?.toString()).toMatch(/Unexpected BER application tag '126'/)
 	})

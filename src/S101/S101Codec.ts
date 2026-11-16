@@ -7,6 +7,7 @@ import { SmartBuffer } from 'smart-buffer'
 import { readTagAt } from '../ASN1/ber/tag.js'
 import { RootBERID, StreamEntriesBERID } from '../encodings/ber/constants.js'
 import { S101OversizedFrameError } from '../Errors.js'
+import { at } from '../lib/at.js'
 
 const debug = Debug('emberplus-connection:S101Codec')
 debug.log = console.log.bind(console)
@@ -179,7 +180,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			this.escaped = false
 
 			while (chunkOffset < frameEnd) {
-				const b = buf[chunkOffset]
+				const b = at(buf, chunkOffset)
 
 				if (this.escaped) {
 					this.inbuf.writeUInt8(b ^ S101_XOR)
@@ -212,8 +213,9 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		}
 
 		// One error per read, as before: the frame's own error, or all of them when several were rejected
-		if (errors.length === 1) throw errors[0]
-		if (errors.length > 1) throw new AggregateError(errors, format('dropped %d S101 frames', errors.length))
+		const [error, ...others] = errors
+		if (error && !others.length) throw error
+		if (others.length) throw new AggregateError(errors, format('dropped %d S101 frames', errors.length))
 	}
 
 	/** Clears the state, so the next read starts clean, and reports a frame too large to take */
@@ -233,7 +235,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			const root = readTagAt(buffer, 0)
 			if (!root || root.size >= buffer.length) return { root: root?.tag ?? null, collection: null }
 			// the root's length: one byte, or 0x80 | n followed by n bytes (0x80 alone is indefinite)
-			const lengthByte = buffer[root.size]
+			const lengthByte = at(buffer, root.size)
 			const collectionOffset = root.size + 1 + (lengthByte & 0x80 ? lengthByte & 0x7f : 0)
 			return { root: root.tag, collection: readTagAt(buffer, collectionOffset)?.tag ?? null }
 		} catch {
@@ -510,7 +512,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		let crc = 0xffff
 		for (let i = 0; i < buf.length; i++) {
 			const b = buf.readUInt8(i)
-			crc = ((crc >> 8) ^ CRC_TABLE[(crc ^ b) & 0xff]) & 0xffff
+			crc = ((crc >> 8) ^ at(CRC_TABLE, (crc ^ b) & 0xff)) & 0xffff
 		}
 		return crc
 	}
@@ -522,7 +524,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			if (b == S101_CE) {
 				b = S101_XOR ^ buf.readUInt8(++i)
 			}
-			crc = ((crc >> 8) ^ CRC_TABLE[(crc ^ b) & 0xff]) & 0xffff
+			crc = ((crc >> 8) ^ at(CRC_TABLE, (crc ^ b) & 0xff)) & 0xffff
 		}
 		return crc
 	}
@@ -539,11 +541,11 @@ function readNonEscapingFrame(
 	start: number
 ): { message: Buffer; end: number } | { oversized: number } | null {
 	if (start + 1 >= buf.length) return null
-	const lengthLength = buf[start + 1] & 0x07
+	const lengthLength = at(buf, start + 1) & 0x07
 	const messageStart = start + 2 + lengthLength
 	if (messageStart > buf.length) return null
 	let length = 0
-	for (let i = start + 2; i < messageStart; i++) length = length * 0x100 + buf[i] // not `<< 8`: up to seven bytes
+	for (let i = start + 2; i < messageStart; i++) length = length * 0x100 + at(buf, i) // not `<< 8`: up to seven bytes
 	if (length > MAX_FRAME_BUFFER_SIZE) return { oversized: length }
 	if (messageStart + length > buf.length) return null
 	return { message: buf.subarray(messageStart, messageStart + length), end: messageStart + length }

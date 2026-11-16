@@ -2,6 +2,7 @@
 
 import assert from 'assert'
 
+import { at } from '../../lib/at.js'
 import { newInvalidAsn1Error } from './errors.js'
 import { readTagAt } from './tag.js'
 import { Types } from './types.js'
@@ -56,7 +57,7 @@ export class Reader {
 	readByte(peek?: boolean): number | null {
 		if (this._size - this._offset < 1) return null
 
-		const b = this._buf[this._offset] & 0xff
+		const b = at(this._buf, this._offset) & 0xff
 
 		if (!peek) this._offset += 1
 
@@ -83,7 +84,7 @@ export class Reader {
 			if (tag === null || currOffset + tag.size >= this._size) break
 			currOffset += tag.size
 			b = tag.tag
-			lenB = this._buf[currOffset++]
+			lenB = at(this._buf, currOffset++)
 
 			if (b == 0 && lenB == 0) {
 				// end of block
@@ -109,7 +110,7 @@ export class Reader {
 					}
 
 					for (let i = 0; i < lenB; i++) {
-						len = len * 0x100 + (this._buf[currOffset++] & 0xff) // not `<< 8`, as in readLength
+						len = len * 0x100 + (at(this._buf, currOffset++) & 0xff) // not `<< 8`, as in readLength
 					}
 					lenB = len
 				}
@@ -145,8 +146,7 @@ export class Reader {
 
 		if (offset >= this._size) return null
 
-		let lenB = this._buf[offset++] & 0xff
-		if (lenB === null) return null
+		let lenB = at(this._buf, offset++) & 0xff
 
 		if ((lenB & 0x80) === 0x80) {
 			lenB &= 0x7f
@@ -162,7 +162,7 @@ export class Reader {
 				// Not `<< 8`, which is signed: four length bytes from 0x80000000 up would give a negative length. In
 				// doubles, 126 bytes stay finite (under 2^1008); past 2^53 the value is rounded, but is then far more
 				// than any data, which the callers refuse.
-				for (let i = 0; i < lenB; i++) this._len = this._len * 0x100 + (this._buf[offset++] & 0xff)
+				for (let i = 0; i < lenB; i++) this._len = this._len * 0x100 + (at(this._buf, offset++) & 0xff)
 			}
 		} else {
 			// Wasn't a variable length
@@ -266,9 +266,7 @@ export class Reader {
 		const values = []
 		let value = 0
 
-		for (let i = 0; i < b.length; i++) {
-			const byte = b[i] & 0xff
-
+		for (const byte of b) {
 			value += byte & 0x7f
 			if ((byte & 0x80) == 0x80) {
 				value <<= 7
@@ -290,9 +288,7 @@ export class Reader {
 		const values: number[] = []
 		let value = 0
 
-		for (let i = 0; i < b.length; i++) {
-			const byte = b[i] & 0xff
-
+		for (const byte of b) {
 			value <<= 7
 			value += byte & 0x7f
 			if ((byte & 0x80) === 0) {
@@ -331,18 +327,18 @@ export class Reader {
 		if (this.length > 4) {
 			// Five to eight bytes, an Integer64 beyond what the 32-bit arithmetic below holds (ber/traits/Integral.hpp).
 			// Exact within ±2^53; a larger value gives the nearest double.
-			let value = this._buf[this._offset] & 0x80 ? -1n : 0n
-			for (let i = 0; i < this.length; i++) value = (value << 8n) | BigInt(this._buf[this._offset++])
+			let value = at(this._buf, this._offset) & 0x80 ? -1n : 0n
+			for (let i = 0; i < this.length; i++) value = (value << 8n) | BigInt(at(this._buf, this._offset++))
 			return Number(BigInt.asIntN(64, value))
 		}
 
-		const fb = this._buf[this._offset]
+		const fb = at(this._buf, this._offset)
 		let value = 0
 
 		let i: number
 		for (i = 0; i < this.length; i++) {
 			value <<= 8
-			value |= this._buf[this._offset++] & 0xff
+			value |= at(this._buf, this._offset++) & 0xff
 		}
 
 		if ((fb & 0x80) === 0x80 && i !== 4) value -= 1 << (i * 8)

@@ -1,4 +1,5 @@
 import { berEncode } from '../../encodings/ber/index.js'
+import { at } from '../../lib/at.js'
 import { GetDirectoryImpl } from '../../model/Command.js'
 import { EmberNodeImpl, NumberedTreeNodeImpl, ParameterImpl, ParameterType } from '../../model/index.js'
 import { RootType } from '../../types/types.js'
@@ -24,7 +25,7 @@ const CRC_TABLE = Array.from({ length: 256 }, (_, i) => {
 	for (let bit = 0; bit < 8; bit++) c = c & 1 ? (c >> 1) ^ 0x8408 : c >> 1
 	return c
 })
-const crcAdd = (crc: number, byte: number) => 0xffff & ((crc >> 8) ^ CRC_TABLE[(crc ^ byte) & 0xff])
+const crcAdd = (crc: number, byte: number) => 0xffff & ((crc >> 8) ^ at(CRC_TABLE, (crc ^ byte) & 0xff))
 
 /** StreamEncoder.hpp: BOF, the message with every byte from 0xF8 up escaped, the inverted CRC (low byte first), EOF */
 function libs101Encode(message: number[] | Buffer): Buffer {
@@ -128,9 +129,8 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 
 			const frames = new S101Codec().encodeBER(message)
 			expect(frames).toHaveLength(1)
-			const [decoded] = libs101Decode(frames[0])
+			const decoded = at(libs101Decode(at(frames, 0)), 0)
 
-			expect(decoded).toBeDefined()
 			// slot, message, command, version, flags (single packet), DTD, app bytes count; then the DTD version
 			expect([...decoded.subarray(0, 7)]).toEqual([0x00, 0x0e, 0x00, 0x01, 0xc0, 0x01, 0x02])
 			expect(decoded.subarray(9)).toEqual(message)
@@ -146,8 +146,8 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 		// GlowDtd.hpp: LIBEMBER_GLOWDTD_VERSION_MAJOR 2, LIBEMBER_GLOWDTD_VERSION_MINOR 50; libember_slim's
 		// GLOW_SCHEMA_VERSION is 0x0232 (#54: the codec gave 2.31)
 		it('gives the Glow DTD version as 2.50 in the app bytes, minor first', () => {
-			const [frame] = new S101Codec().encodeBER(payload())
-			const [message] = libs101Decode(frame)
+			const frame = at(new S101Codec().encodeBER(payload()), 0)
+			const message = at(libs101Decode(frame), 0)
 
 			expect([...message.subarray(6, 9)]).toEqual([0x02, 0x32, 0x02])
 		})
@@ -160,7 +160,7 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			const frames = new S101Codec().encodeBER(message)
 			expect(frames.length).toBeGreaterThan(2)
 
-			const decoded = frames.map((f) => libs101Decode(f)[0])
+			const decoded = frames.map((f) => at(libs101Decode(f), 0))
 			expect(decoded.map((m) => m[4])).toEqual([0x80, ...frames.slice(2).map(() => 0x00), 0x40])
 			expect(Buffer.concat(decoded.map((m) => m.subarray(9)))).toEqual(message)
 		})
@@ -219,7 +219,7 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 
 		it('drops a frame whose CRC is wrong, as libs101 does', () => {
 			const frame = libs101Encode([...header(0xc0), ...payload()])
-			frame[frame.length - 2] ^= 0x01 // the CRC's high byte (below 0xF8 either way)
+			frame[frame.length - 2] = at(frame, frame.length - 2) ^ 0x01 // the CRC's high byte (below 0xF8 either way)
 			const { packets } = received(new S101Codec(), frame)
 
 			expect(libs101Decode(frame)).toEqual([])

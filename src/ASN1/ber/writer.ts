@@ -2,6 +2,7 @@
 
 import assert from 'assert'
 
+import { at } from '../../lib/at.js'
 import { newInvalidAsn1Error } from './errors.js'
 import { Types } from './types.js'
 
@@ -183,24 +184,15 @@ export class Writer {
 
 		const tmp = s === '' ? [] : s.split('.')
 		const bytes: number[] = []
-		for (let i = 0; i < tmp.length; i++) {
-			let val = parseInt(tmp[i])
-			const encodedBytes = []
+		for (const arc of tmp) {
+			// base 128, the most significant first, bit 8 set on every byte but the last
+			let val = parseInt(arc)
+			const encodedBytes = [val & 0x7f]
 			while (val > 0x7f) {
-				const res = val & 0x7f
-				encodedBytes.push(res)
 				val = val >> 7
+				encodedBytes.unshift((val & 0x7f) | 0x80)
 			}
-			encodedBytes.push(val)
-			let j = encodedBytes.length - 1
-			while (j >= 0) {
-				if (j > 0) {
-					bytes.push(encodedBytes[j] | 0x80)
-				} else {
-					bytes.push(encodedBytes[j])
-				}
-				j--
-			}
+			bytes.push(...encodedBytes)
 		}
 
 		this._ensure(2 + bytes.length)
@@ -243,12 +235,9 @@ export class Writer {
 			}
 		}
 
-		const tmp = s.split('.')
-		const bytes: number[] = []
-		bytes.push(parseInt(tmp[0], 10) * 40 + parseInt(tmp[1], 10))
-		tmp.slice(2).forEach(function (b) {
-			encodeOctet(bytes, parseInt(b, 10))
-		})
+		const arcs = s.split('.').map((arc) => parseInt(arc, 10))
+		const bytes: number[] = [at(arcs, 0) * 40 + at(arcs, 1)]
+		arcs.slice(2).forEach((arc) => encodeOctet(bytes, arc))
 
 		this._ensure(2 + bytes.length)
 		this.writeTag(tag)

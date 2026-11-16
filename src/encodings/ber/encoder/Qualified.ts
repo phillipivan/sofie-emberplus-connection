@@ -35,7 +35,7 @@ export function encodeQualifiedCommand(request: QualifiedCommand, writer: Ber.Wr
 
 /** Starts a qualified element of the kind, with its path */
 function startQualified(type: Exclude<ElementType, ElementType.Command>, path: RelativeOID, writer: Ber.Writer): void {
-	const tags = {
+	const tags: Record<Exclude<ElementType, ElementType.Command>, number> = {
 		[ElementType.Function]: QualifiedFunctionBERID,
 		[ElementType.Matrix]: QualifiedMatrixBERID,
 		[ElementType.Node]: QualifiedNodeBERID,

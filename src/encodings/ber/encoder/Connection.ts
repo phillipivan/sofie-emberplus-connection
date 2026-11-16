@@ -28,7 +28,7 @@ export function encodeConnection(connection: Connection, writer: Ber.Writer): vo
 }
 
 function writeConnectionOperation(operation: ConnectionOperation, writer: Ber.Writer): void {
-	const operationToInt: { [flag: string]: number } = {
+	const operationToInt: Record<ConnectionOperation, number> = {
 		[ConnectionOperation.Absolute]: 0,
 		[ConnectionOperation.Connect]: 1,
 		[ConnectionOperation.Disconnect]: 2,
@@ -38,7 +38,7 @@ function writeConnectionOperation(operation: ConnectionOperation, writer: Ber.Wr
 }
 
 function writeConnectionDisposition(operation: ConnectionDisposition, writer: Ber.Writer): void {
-	const operationToInt: { [flag: string]: number } = {
+	const operationToInt: Record<ConnectionDisposition, number> = {
 		[ConnectionDisposition.Tally]: 0,
 		[ConnectionDisposition.Modified]: 1,
 		[ConnectionDisposition.Pending]: 2,

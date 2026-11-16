@@ -17,9 +17,9 @@ export function encodeInvocationResult(result: InvocationResult, writer: Ber.Wri
 	if (result.result != null && result.result.length) {
 		writer.startSequence(Ber.CONTEXT(2))
 		writer.startSequence(Ber.BERDataTypes.SEQUENCE)
-		for (let i = 0; i < result.result.length; i++) {
+		for (const value of result.result) {
 			writer.startSequence(Ber.CONTEXT(0))
-			writer.writeValue(result.result[i])
+			writer.writeValue(value)
 			writer.endSequence()
 		}
 		writer.endSequence()
