@@ -209,9 +209,11 @@ export class Reader {
 	}
 
 	readBoolean(): boolean | null {
-		const value = this._readTag(Types.Boolean)
-		if (value === null) return null // not enough data, which is not the same as `true`
-		return value !== 0
+		// X.690 8.2 gives a BOOLEAN one contents byte; the first decides, as libember reads it (ber/traits/Boolean.hpp).
+		// All of them were read as one integer, so `00 01` was true.
+		const contents = this.readStringAsBuffer(Types.Boolean)
+		if (contents === null) return null // not enough data, which is not the same as `true`
+		return contents.length > 0 && contents[0] !== 0
 	}
 
 	readEnumeration(): number | null {

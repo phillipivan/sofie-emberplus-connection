@@ -589,6 +589,19 @@ describe('BER and Glow compared with libember', () => {
 		expect(reader.offset).toBe(2)
 	})
 
+	// ber/traits/Boolean.hpp reads the first contents byte only (#57: the library read them all as one integer)
+	it.each<[string, boolean]>([
+		['00 01', false],
+		['01 00', true],
+		['00 00 00 00 00 00 00 00 00 ff', false],
+	])('reads a BOOLEAN with the contents %s from its first byte: %s', (contents, value) => {
+		const bytes = hex(contents)
+		const reader = new Ber.Reader(Buffer.concat([Buffer.from([0x01, bytes.length]), bytes, hex('02 01 07')]))
+
+		expect(reader.readBoolean()).toBe(value)
+		expect(reader.readInt()).toBe(7)
+	})
+
 	describe('where the library differs from libember', () => {
 		// glow/impl/GlowStringIntegerPair.ipp: name() is "" when the field is left out. The library makes up a name.
 		it.failing('names an enumeration map entry without a name ""', () => {
@@ -602,11 +615,6 @@ describe('BER and Glow compared with libember', () => {
 			})
 
 			expect([...decodeStringIntegerCollection(new Ber.Reader(collection)).value]).toEqual([['', 3]])
-		})
-
-		// ber/traits/Boolean.hpp reads the first contents byte only. The library reads them all as an integer.
-		it.failing('reads a BOOLEAN from its first contents byte', () => {
-			expect(new Ber.Reader(hex('01 02 00 01')).readBoolean()).toBe(false)
 		})
 	})
 })
