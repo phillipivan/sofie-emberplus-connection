@@ -25,10 +25,10 @@ import {
 	TreeElement,
 } from '../../../model/index.js'
 import { LabelImpl } from '../../../model/Label.js'
-import { Parameter, ParameterAccess } from '../../../model/Parameter.js'
+import { Parameter, ParameterAccess, TypedParameter } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl } from '../../../model/StreamDescription.js'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
-import { Collection, EmberTypedValue, Root, RootElement, RootType } from '../../../types/types.js'
+import { Collection, EmberTypedValue, EmberValue, Root, RootElement, RootType } from '../../../types/types.js'
 import { EmberClient, EmberClientOptions } from '../index.js'
 
 // import { EmberTreeNode, RootElement } from '../../../types/types.js'
@@ -550,6 +550,34 @@ describe('client', () => {
 				expect(node.contents.value).toBeUndefined()
 				expect(node.contents.identifier).toBe('param')
 			})
+		})
+
+		// A value of the parameter type's form: a caller that doesn't check types is refused before anything is sent (such
+		// a value was sent, coerced by the encoder or not)
+		it.each<[ParameterType, unknown]>([
+			[ParameterType.Integer, '20'],
+			[ParameterType.Boolean, 1],
+			[ParameterType.String, 5],
+		])("refuses a value that doesn't fit a %s parameter, and sends nothing", async (parameterType, value) => {
+			await runWithConnection(async (client) => {
+				const node = seedParameter(client, <Parameter>new ParameterImpl(parameterType, 'param'))
+
+				await expect(client.setValue(node, value as EmberValue)).rejects.toThrow(
+					`doesn't fit a parameter of the type ${parameterType}`
+				)
+				expect(onSocketWrite).not.toHaveBeenCalled()
+			})
+		})
+
+		it("takes only a value of a narrowed parameter's form", () => {
+			// Not called: it only has to compile, or not
+			const typed = (client: EmberClient, gain: NumberedTreeNode<TypedParameter<ParameterType.Integer>>) => {
+				void client.setValue(gain, 20)
+				void client.setValue(gain, null)
+				// @ts-expect-error an integer parameter's value is a number
+				void client.setValue(gain, '20')
+			}
+			expect(typeof typed).toBe('function')
 		})
 
 		it('updates the tree when the provider replies', async () => {

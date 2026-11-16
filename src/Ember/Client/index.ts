@@ -363,29 +363,34 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	}
 
 	/** Sending ember+ values */
-	async setValue(
-		node: QualifiedElement<Parameter> | NumberedTreeNode<Parameter>,
-		value: EmberValue,
+	/**
+	 * Asks the provider to set a parameter's value. The value is of the parameter type's form (a number for an integer,
+	 * real or enum, and so on, or null); for a parameter whose type is narrowed, the types say which. A value that
+	 * doesn't fit the parameter's type is refused, before anything is sent.
+	 */
+	async setValue<P extends Parameter>(
+		node: QualifiedElement<P> | NumberedTreeNode<P>,
+		value: Exclude<P['value'], undefined>,
 		awaitResponse = true
-	): RequestPromise<TreeElement<Parameter>> {
+	): RequestPromise<TreeElement<P>> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
-
-		// TODO - validate value
+		const { parameterType } = node.contents
+		// For a caller that doesn't check types. (Such a value was sent, coerced to the type by the encoder, or not.)
+		if (!isValueOfType(parameterType, value)) {
+			throw new Error(`setValue: ${String(value)} doesn't fit a parameter of the type ${parameterType}`)
+		}
 
 		// Send only the path and the value, as the specification's examples and Lawo's libember do. The parameter type
 		// only decides how the value is encoded. The tree is updated when the provider replies.
 		const request = new QualifiedElementImpl<Parameter>(
 			getPath(node),
-			// The value isn't checked against the parameter's type here
-			<Parameter>new ParameterImpl(node.contents.parameterType, undefined, undefined, value)
+			// The value fits the type, checked above
+			<Parameter>new ParameterImpl(parameterType, undefined, undefined, value)
 		)
 
-		return this._sendRequest<TreeElement<Parameter>>(
-			request,
-			awaitResponse ? ExpectResponse.Any : ExpectResponse.None
-		)
+		return this._sendRequest<TreeElement<P>>(request, awaitResponse ? ExpectResponse.Any : ExpectResponse.None)
 	}
 	/**
 	 * Asks the provider to connect sources to a target, in addition to the sources already connected to it.
