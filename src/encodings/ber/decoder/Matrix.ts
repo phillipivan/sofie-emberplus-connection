@@ -71,7 +71,7 @@ function decodeMatrix(
 		}
 	}
 	// contents are optional, but the model keeps targets, sources and connections in them
-	if (!contents) contents = new MatrixImpl('')
+	if (!contents) contents = new MatrixImpl()
 	contents.targets = targets
 	contents.sources = sources
 	contents.connections = connections
@@ -179,7 +179,12 @@ function decodeMatrixContents(reader: Ber.Reader, options: DecodeOptions = defau
 				break
 		}
 	}
-	identifier = check(identifier, 'decode matrix contents', 'identifier', '', errors, options)
+	if (identifier === undefined) {
+		// Required in the contents, but not made up: an empty one would replace the identifier a consumer has
+		const message = `decode matrix contents: For required property 'identifier', value is missing.`
+		if (!options.substituteForRequired) throw new Error(message)
+		errors.push(new Error(message))
+	}
 	return makeResult(
 		new MatrixImpl(
 			identifier,

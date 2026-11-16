@@ -171,7 +171,7 @@ describe('encoders/Ber/index', () => {
 				type: ElementType.Matrix,
 				connections: { 2: new ConnectionImpl(2, [3], ConnectionOperation.Connect) },
 				...contents,
-			} as Matrix)
+			})
 
 		expect(berEncode({ 0: matrix({}) }, RootType.Elements).toString('hex')).toBe(
 			'60236b21a01f711da0040d020101a5153013a011700fa003020102a1030d0103a203020101'

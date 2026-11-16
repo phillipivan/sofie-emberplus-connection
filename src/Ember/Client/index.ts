@@ -581,7 +581,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const request = new QualifiedElementImpl<Matrix>(getPath(matrix), {
 			type: ElementType.Matrix,
 			connections: { [target]: connection },
-		} as Matrix)
+		})
 
 		return this._sendRequest<TreeElement<Matrix>>(request, ExpectResponse.Any, target)
 	}
@@ -976,11 +976,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	}
 
 	private _updateMatrix(update: Matrix, matrix: Matrix) {
-		// Connections are merged below, since a report may cover only the targets that changed. An empty identifier is
-		// what the decoder gives a report without contents, such as a report of connections only.
-		const properties = propertiesOf(update).filter(
-			(key) => key !== 'connections' && !(key === 'identifier' && update.identifier === '')
-		)
+		// Connections are merged below, since a report may cover only the targets that changed
+		const properties = propertiesOf(update).filter((key) => key !== 'connections')
 		updateProps<Matrix>(matrix, update, properties)
 
 		// update connections

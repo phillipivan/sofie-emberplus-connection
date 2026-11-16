@@ -51,8 +51,11 @@ interface Matrix extends EmberBaseElement {
 	 * disposition the provider last reported for the target (pending while a change to it is queued).
 	 */
 	connections?: Connections
-	/** Name. */
-	identifier: string
+	/**
+	 * Name. Required in a matrix's contents, but the contents are optional: a report of connections only, or a request
+	 * to change one, has none.
+	 */
+	identifier?: string
 	/** Display name. */
 	description?: string
 	/** Matrix type. */
@@ -83,7 +86,7 @@ interface Matrix extends EmberBaseElement {
 class MatrixImpl implements Matrix {
 	public readonly type: ElementType.Matrix = ElementType.Matrix
 	constructor(
-		public identifier: string,
+		public identifier?: string,
 		public targets?: Array<number>,
 		public sources?: Array<number>,
 		public connections?: Connections,

@@ -4,7 +4,7 @@ import { ElementType } from '../../../model/EmberElement.js'
 import { Matrix, MatrixAddressingMode, MatrixImpl, MatrixType } from '../../../model/Matrix.js'
 import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, RelativeOID, RootElement } from '../../../types/types.js'
-import { guarded } from '../decoder/DecodeResult.js'
+import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
 import { decodeMatrix } from '../decoder/Matrix.js'
 import { encodeQualifedElement } from '../encoder/Qualified.js'
 import { encodeNumberedElement } from '../encoder/Tree.js'
@@ -249,8 +249,7 @@ describe('encodings/ber/Matrix', () => {
 	})
 
 	// Packets captured from a test device, which uses the indefinite length form for every container.
-	// The targets and sources reports carry no matrix contents, which the decoder reports as a missing
-	// required property, so these tests check the decoded values rather than requiring no errors.
+	// The targets and sources reports carry no matrix contents, which the Glow DTD makes optional.
 	describe('packets captured from a test device', () => {
 		// reply to a GetDirectory on node 0.5: a labels node and the matrix description
 		const description =
@@ -281,6 +280,36 @@ describe('encodings/ber/Matrix', () => {
 		})
 		test('sources', () => {
 			expect(decodeMatrixAt(sources, '0.5.2').sources).toEqual([170, 171, 172, 173])
+		})
+		// The decoder gave a matrix without contents the identifier '', which a consumer then had to tell from a
+		// real one, so as not to replace the identifier it had
+		test('a report without contents has no identifier, and no errors', () => {
+			expect(berDecode(Buffer.from(targets, 'hex')).errors).toEqual([])
+			expect(decodeMatrixAt(targets, '0.5.2').identifier).toBeUndefined()
+		})
+	})
+
+	describe('contents without the identifier they require', () => {
+		const message = () => {
+			const writer = new Ber.Writer()
+			encodeQualifedElement(
+				new QualifiedElementImpl<Matrix>('1.1', { type: ElementType.Matrix, description: 'router' }),
+				writer
+			)
+			return new Ber.Reader(writer.buffer)
+		}
+		test('decode with an error, and no identifier made up', () => {
+			const decoded = decodeMatrix(message(), true)
+
+			expect(decoded.value.contents).toEqual(new MatrixImpl(undefined, undefined, undefined, undefined, 'router'))
+			expect(decoded.errors.map((e) => e.message)).toEqual([
+				"decode matrix contents: For required property 'identifier', value is missing.",
+			])
+		})
+		test('throw when a required property is not to be substituted', () => {
+			expect(() => decodeMatrix(message(), true, { ...defaultDecode, substituteForRequired: false })).toThrow(
+				"For required property 'identifier', value is missing."
+			)
 		})
 	})
 

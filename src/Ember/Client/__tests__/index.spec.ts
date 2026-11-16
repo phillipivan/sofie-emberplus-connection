@@ -710,7 +710,7 @@ describe('client', () => {
 				socket.mockData(
 					createQualifiedNodeResponse(
 						'1.1',
-						new MatrixImpl('', undefined, undefined, { 2: { target: 2, sources: [3] } }),
+						new MatrixImpl(undefined, undefined, undefined, { 2: { target: 2, sources: [3] } }),
 						undefined
 					)
 				)
@@ -726,7 +726,7 @@ describe('client', () => {
 		const report = (target: number, sources: number[], disposition?: ConnectionDisposition) =>
 			createQualifiedNodeResponse(
 				'1.1',
-				new MatrixImpl('', undefined, undefined, { [target]: { target, sources, disposition } }),
+				new MatrixImpl(undefined, undefined, undefined, { [target]: { target, sources, disposition } }),
 				undefined
 			)
 
@@ -794,7 +794,7 @@ describe('client', () => {
 					createQualifiedNodeResponse('1', new EmberNodeImpl(), {
 						1: new NumberedTreeNodeImpl(
 							1,
-							new MatrixImpl('', undefined, undefined, { [target]: { target, sources: [3] } })
+							new MatrixImpl(undefined, undefined, undefined, { [target]: { target, sources: [3] } })
 						),
 					})
 				socket.mockData(inParent(1))
@@ -1290,7 +1290,7 @@ describe('client', () => {
 				socket.mockData(
 					createQualifiedNodeResponse(
 						'1.1',
-						new MatrixImpl('', undefined, undefined, { 1500: { target: 1500, sources: [7] } }),
+						new MatrixImpl(undefined, undefined, undefined, { 1500: { target: 1500, sources: [7] } }),
 						undefined
 					)
 				)
@@ -2031,7 +2031,7 @@ describe('client', () => {
 				})
 				const { contents } = seed(client, matrix)
 
-				const update = new MatrixImpl(undefined as unknown as string, undefined, undefined, {
+				const update = new MatrixImpl(undefined, undefined, undefined, {
 					0: new ConnectionImpl(0, [1]),
 				})
 				update.description = 'Main router'
