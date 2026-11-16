@@ -1,3 +1,13 @@
+import {
+	Command,
+	CommandType,
+	FieldFlags,
+	GetDirectory,
+	Invoke,
+	Subscribe,
+	UnknownCommand,
+	Unsubscribe,
+} from './Command.js'
 import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation } from './Connection.js'
 import { ElementType, EmberElement } from './EmberElement.js'
 import { EmberFunction, EmberFunctionImpl } from './EmberFunction.js'
@@ -14,6 +24,14 @@ import { Template, TemplateImpl } from './Template.js'
 import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl, TreeElement } from './Tree.js'
 
 export {
+	Command,
+	CommandType,
+	FieldFlags,
+	GetDirectory,
+	Invoke,
+	Subscribe,
+	UnknownCommand,
+	Unsubscribe,
 	EmberElement,
 	ElementType,
 	EmberFunction,

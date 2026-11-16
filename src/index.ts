@@ -1,11 +1,21 @@
-import { EmberClient, EmberClientEvents } from './Ember/Client/index.js'
+import { ConnectionStatus } from './Ember/Client/ConnectionStatus.js'
+import {
+	EmberClient,
+	EmberClientEvents,
+	EmberClientOptions,
+	RequestPromise,
+	RequestPromiseArguments,
+} from './Ember/Client/index.js'
 import { EmberLib } from './Ember/Lib/index.js'
 import { EmberServer, EmberServerEvents } from './Ember/Server/index.js'
 import { S101Client } from './Ember/Socket/index.js'
+import S101Socket, { S101SocketEvents } from './Ember/Socket/S101Socket.js'
+import { DecodeOptions, DecodeResult } from './encodings/ber/decoder/DecodeResult.js'
 // import { EmberTreeNode, TreeElement } from './types/types'
 import { berDecode, berEncode } from './encodings/ber/index.js'
 import * as Model from './model/index.js'
 import { S101Codec } from './S101/index.js'
+import { S101CodecEvents } from './S101/S101Codec.js'
 // import { EmberElement } from './model/EmberElement'
 
 // import {
@@ -38,17 +48,27 @@ const Decoder = EmberLib.DecodeBuffer
 // 	return null
 // }
 
+// The types the public classes and functions take, return and emit are exported with them
 export {
 	EmberClient,
 	EmberClientEvents,
+	EmberClientOptions,
+	RequestPromise,
+	RequestPromiseArguments,
+	ConnectionStatus,
 	Decoder,
 	EmberLib,
 	EmberServer,
 	EmberServerEvents,
 	S101Codec,
+	S101CodecEvents,
 	S101Client,
+	S101Socket,
+	S101SocketEvents,
 	berEncode,
 	berDecode,
+	DecodeResult,
+	DecodeOptions,
 	// isValid,
 	// toJSON,
 	// fromJSON,
