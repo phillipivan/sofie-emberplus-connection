@@ -21,7 +21,15 @@ import { Parameter, ParameterAccess, ParameterImpl, ParameterType } from './Para
 import { StreamDescription, StreamFormat } from './StreamDescription.js'
 import { StreamEntry } from './StreamEntry.js'
 import { Template, TemplateImpl } from './Template.js'
-import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl, TreeElement } from './Tree.js'
+import {
+	isNumbered,
+	isQualified,
+	NumberedTreeNode,
+	NumberedTreeNodeImpl,
+	QualifiedElement,
+	QualifiedElementImpl,
+	TreeElement,
+} from './Tree.js'
 
 export {
 	Command,
@@ -67,4 +75,6 @@ export {
 	QualifiedElement,
 	NumberedTreeNodeImpl,
 	QualifiedElementImpl,
+	isNumbered,
+	isQualified,
 }

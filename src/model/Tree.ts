@@ -1,7 +1,15 @@
 import { Collection, RelativeOID, RootElement } from '../types/types.js'
 import { EmberElement } from './EmberElement.js'
 
-export { TreeElement, NumberedTreeNode, QualifiedElement, NumberedTreeNodeImpl, QualifiedElementImpl }
+export {
+	TreeElement,
+	NumberedTreeNode,
+	QualifiedElement,
+	NumberedTreeNodeImpl,
+	QualifiedElementImpl,
+	isNumbered,
+	isQualified,
+}
 
 interface TreeElement<T extends EmberElement> {
 	parent?: RootElement
@@ -47,4 +55,14 @@ class QualifiedElementImpl<T extends EmberElement> extends TreeElementImpl<T> im
 	) {
 		super(contents, children)
 	}
+}
+
+/** Whether a tree element is a numbered one (a child, or a top-level element given by number) */
+function isNumbered<T extends EmberElement>(el: TreeElement<T>): el is NumberedTreeNode<T> {
+	return 'number' in el
+}
+
+/** Whether a tree element is a qualified one (a top-level element given by its path) */
+function isQualified<T extends EmberElement>(el: TreeElement<T>): el is QualifiedElement<T> {
+	return 'path' in el
 }

@@ -2,7 +2,8 @@ import * as Ber from '../../../Ber/index.js'
 import { Connection } from '../../../model/Connection.js'
 import { ElementType, EmberElement } from '../../../model/EmberElement.js'
 import { Matrix, Template } from '../../../model/index.js'
-import { NumberedTreeNode, QualifiedElement, TreeElement } from '../../../types/types.js'
+import { isQualified } from '../../../model/Tree.js'
+import { NumberedTreeNode, TreeElement } from '../../../types/types.js'
 import {
 	ElementCollectionBERID,
 	FunctionBERID,
@@ -133,10 +134,6 @@ function hasChildren(el: TreeElement<EmberElement>): boolean {
 		el.children !== undefined &&
 		!(el.contents.type === ElementType.Command || el.contents.type === ElementType.Template)
 	)
-}
-
-function isQualified(el: TreeElement<EmberElement>): el is QualifiedElement<EmberElement> {
-	return 'path' in el
 }
 
 function isMatrix(el: EmberElement): el is Matrix {

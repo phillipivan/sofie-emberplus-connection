@@ -1,8 +1,8 @@
 import { Command, Invoke, isInvoke } from '../../model/Command.js'
 import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberNode } from '../../model/index.js'
-import { NumberedTreeNodeImpl, QualifiedElementImpl, TreeElement } from '../../model/Tree.js'
-import { isRelativeOID, NumberedTreeNode, QualifiedElement, RelativeOID, RootElement } from '../../types/types.js'
+import { isNumbered, isQualified, NumberedTreeNodeImpl, QualifiedElementImpl, TreeElement } from '../../model/Tree.js'
+import { isRelativeOID, NumberedTreeNode, RelativeOID, RootElement } from '../../types/types.js'
 
 export function assertQualifiedEmberNode(node: RootElement): Exclude<RootElement, NumberedTreeNode<EmberElement>> {
 	if ('path' in node) {
@@ -12,15 +12,9 @@ export function assertQualifiedEmberNode(node: RootElement): Exclude<RootElement
 	}
 }
 
-/** Whether a tree element is a numbered one (a child, or a top-level element given by number) */
-export function isNumbered(node: TreeElement<EmberElement>): node is NumberedTreeNode<EmberElement> {
-	return 'number' in node
-}
+export { isNumbered }
 
 export function getPath(node: RootElement): RelativeOID {
-	function isQualified(node: TreeElement<EmberElement>): node is QualifiedElement<EmberElement> {
-		return 'path' in node
-	}
 	if (isQualified(node)) {
 		return node.path
 	} else if (isNumbered(node)) {

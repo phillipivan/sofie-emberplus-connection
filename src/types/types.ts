@@ -1,11 +1,8 @@
+import { Command } from '../model/Command.js'
 import { EmberElement } from '../model/EmberElement.js'
-import { EmberFunction } from '../model/EmberFunction.js'
-import { EmberNode } from '../model/EmberNode.js'
 import { InvocationResult } from '../model/InvocationResult.js'
-import { Matrix } from '../model/Matrix.js'
-import { Parameter, ParameterType } from '../model/Parameter.js'
+import { ParameterType } from '../model/Parameter.js'
 import { StreamEntry } from '../model/StreamEntry.js'
-import { Template } from '../model/Template.js'
 import { NumberedTreeNode, QualifiedElement, TreeElement } from '../model/Tree.js'
 
 export {
@@ -26,13 +23,11 @@ export {
 }
 
 type EmberTreeNode<T extends EmberElement> = NumberedTreeNode<T>
-type RootElement =
-	| NumberedTreeNode<EmberElement>
-	| QualifiedElement<Parameter>
-	| QualifiedElement<EmberNode>
-	| QualifiedElement<Matrix>
-	| QualifiedElement<EmberFunction>
-	| QualifiedElement<Template>
+/**
+ * A top-level element of a message: a numbered element (as in a reply to a GetDirectory on the root), or a qualified
+ * one, given by its path, of any kind but a command (the Glow DTD's RootElement)
+ */
+type RootElement = NumberedTreeNode<EmberElement> | QualifiedElement<Exclude<EmberElement, Command>>
 type Root = Collection<RootElement> | Collection<StreamEntry> | InvocationResult
 
 enum RootType {
