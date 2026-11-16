@@ -20,6 +20,7 @@ import { InvocationResult } from './InvocationResult.js'
 import { Label, LabelSet } from './Label.js'
 import {
 	Connections,
+	hasSignal,
 	isConnections,
 	Matrix,
 	MatrixAddressingMode,
@@ -85,6 +86,7 @@ export {
 	isConnection,
 	MatrixImpl,
 	isConnections,
+	hasSignal,
 	SignalContents,
 	Parameter,
 	ParameterType,

@@ -3,7 +3,7 @@ import { Connection, isConnection } from './Connection.js'
 import { ElementType, EmberBaseElement } from './EmberElement.js'
 import { Label } from './Label.js'
 
-export { Matrix, MatrixType, MatrixAddressingMode, Connections, MatrixImpl, SignalContents, isConnections }
+export { Matrix, MatrixType, MatrixAddressingMode, Connections, MatrixImpl, SignalContents, isConnections, hasSignal }
 
 /**
  *  Type of a matrix.
@@ -132,4 +132,18 @@ function isConnections(value: unknown): value is Connections {
 		!Array.isArray(value) &&
 		Object.values<unknown>({ ...value }).every((connection) => isConnection(connection))
 	)
+}
+
+/**
+ * Whether a matrix has a target (or source) of the number: one in its targets (sources) list, or, for a linear matrix
+ * without one, one from 0 to its targetCount (sourceCount) − 1. (Linear is the default addressing mode.) Undefined when
+ * the matrix gives neither, so it can't be told.
+ */
+function hasSignal(matrix: Matrix, kind: 'target' | 'source', signal: number): boolean | undefined {
+	const list = kind === 'target' ? matrix.targets : matrix.sources
+	if (list) return list.includes(signal)
+	const count = kind === 'target' ? matrix.targetCount : matrix.sourceCount
+	const linear = (matrix.addressingMode ?? MatrixAddressingMode.Linear) === MatrixAddressingMode.Linear
+	if (linear && count !== undefined) return Number.isInteger(signal) && signal >= 0 && signal < count
+	return undefined
 }

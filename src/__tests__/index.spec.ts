@@ -58,6 +58,7 @@ describe('the package exports', () => {
 		const matrix: Model.Matrix = { type: Model.ElementType.Matrix, targets: [1], targetContents: { 1: contents } }
 
 		expect(matrix.targetContents?.[1]?.labelsLocation).toBe('1.9.1')
+		expect([Model.hasSignal(matrix, 'target', 1), Model.hasSignal(matrix, 'target', 2)]).toEqual([true, false])
 	})
 
 	test('the tree element guards', () => {

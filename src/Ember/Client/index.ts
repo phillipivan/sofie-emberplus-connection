@@ -21,7 +21,7 @@ import { EmberFunction } from '../../model/EmberFunction.js'
 import { EmberNodeImpl } from '../../model/EmberNode.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
 import { LabelSet } from '../../model/Label.js'
-import { Connections, Matrix, SignalContents } from '../../model/Matrix.js'
+import { Connections, hasSignal, Matrix, SignalContents } from '../../model/Matrix.js'
 import { fitsItsType, isValueOfType, Parameter, ParameterImpl } from '../../model/Parameter.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
 import {
@@ -672,6 +672,15 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		return undefined
 	}
 
+	/** The element the tree has at a numeric path, if it has one */
+	private _loadedElement(path: RelativeOID): NumberedTreeNode<EmberElement> | undefined {
+		if (path === '') return undefined
+		const [top, ...below] = path.split('.').map(Number)
+		let element = top === undefined ? undefined : this.tree[top]
+		for (const number of below) element = element?.children?.[number]
+		return element
+	}
+
 	/** The labels in a label set's targets or sources node: its string parameters' values, by number */
 	private async _labelsAt(path: RelativeOID): Promise<{ [signal: number]: string }> {
 		const request = await this.getDirectory(new QualifiedElementImpl(path, new EmberNodeImpl()))
@@ -694,6 +703,22 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	) {
 		if (!matrix) {
 			throw new Error('No matrix specified')
+		}
+		// A target or source the matrix doesn't have is refused here: a provider ignores the request (as the XACI does),
+		// and it would only time out. Checked against the tree's copy of the matrix when there is one; let through
+		// when the matrix gives no targets or sources to tell by.
+		const path = getPath(matrix)
+		const known = (this._loadedElement(path) ?? matrix).contents
+		if (known.type === ElementType.Matrix) {
+			if (hasSignal(known, 'target', target) === false) {
+				throw new Error(`Matrix ${path}: target ${target} is not one of its targets`)
+			}
+			const unknown = sources.filter((source) => hasSignal(known, 'source', source) === false)
+			if (unknown.length) {
+				throw new Error(
+					`Matrix ${path}: ${unknown.length > 1 ? 'sources' : 'source'} ${unknown.join(', ')} not among its sources`
+				)
+			}
 		}
 
 		const connection: Connection = {

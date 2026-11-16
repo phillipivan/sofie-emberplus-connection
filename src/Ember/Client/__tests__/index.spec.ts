@@ -697,6 +697,57 @@ describe('client', () => {
 			return device.children[1] as NumberedTreeNode<Matrix>
 		}
 
+		// A provider ignores a request naming a target or source its matrix doesn't have (the XACI does), so the
+		// request only timed out. The client refuses it, when the matrix it has lists them.
+		describe('a target or source the matrix does not have', () => {
+			it('refuses a target, sending nothing', async () => {
+				await runWithConnection(async (client) => {
+					const node = seedMatrix(client)
+
+					await expect(client.matrixConnect(node, 9, [1])).rejects.toThrow(
+						'Matrix 1.1: target 9 is not one of its targets'
+					)
+					expect(onSocketWrite).not.toHaveBeenCalled()
+				})
+			})
+
+			it('refuses sources, sending nothing', async () => {
+				await runWithConnection(async (client) => {
+					const node = seedMatrix(client)
+
+					await expect(client.matrixSetConnection(node, 1, [2, 8, 9])).rejects.toThrow(
+						'Matrix 1.1: sources 8, 9 not among its sources'
+					)
+					await expect(client.matrixDisconnect(node, 1, [8])).rejects.toThrow(
+						'Matrix 1.1: source 8 not among its sources'
+					)
+					expect(onSocketWrite).not.toHaveBeenCalled()
+				})
+			})
+
+			it("goes by the tree's copy of the matrix, given one built from its path", async () => {
+				await runWithConnection(async (client) => {
+					seedMatrix(client)
+					const byPath = new QualifiedElementImpl<Matrix>('1.1', { type: ElementType.Matrix })
+
+					await expect(client.matrixConnect(byPath, 9, [1])).rejects.toThrow(
+						'target 9 is not one of its targets'
+					)
+				})
+			})
+
+			it('lets a request through when the matrix gives no targets or sources to tell by', async () => {
+				await runWithConnection(async (client) => {
+					const unknown = new QualifiedElementImpl<Matrix>('2.1', { type: ElementType.Matrix })
+
+					const request = await client.matrixConnect(unknown, 9, [9])
+					request.response?.catch(() => null) // no reply here
+
+					expect(onSocketWrite).toHaveBeenCalledTimes(1)
+				})
+			})
+		})
+
 		// A signal's contents are merged as an element's are: a report gives what changed. (They were read past.)
 		it("merges a report of signals' contents into those it has, signal by signal", async () => {
 			await runWithConnection(async (client, socket) => {
