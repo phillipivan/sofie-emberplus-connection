@@ -10,6 +10,7 @@ import {
 	EmberElement,
 	EmberFunction,
 	EmberNodeImpl,
+	hasSignal,
 	InvocationResult,
 	isConnections,
 	Matrix,
@@ -35,6 +36,8 @@ import S101Socket from '../Socket/S101Socket.js'
 export type EmberServerEvents = {
 	error: [Error]
 	clientError: [client: S101Socket, error: Error]
+	/** Something not done, and why: a connection request or change naming a target or source the matrix doesn't have */
+	warn: [Error]
 }
 
 /** A consumer's connection request being handled: the targets it named that no report to it has covered yet */
@@ -174,9 +177,21 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	 * In an n-to-n matrix a change that adds sources beyond `maximumConnectsPerTarget` or `maximumTotalConnects` is
 	 * refused: the target is left as it was, and its current state is reported instead.
 	 *
+	 * A change naming a target or source the matrix doesn't have is refused too, with a `warn` event: a real target's
+	 * current state is reported, a target that doesn't exist reported not at all.
+	 *
 	 * @returns false when the change was refused
 	 */
 	updateMatrixConnection(element: NumberedTreeNode<Matrix>, update: Connection): boolean {
+		const missing = missingSignals(element.contents, update)
+		if (missing) {
+			this.emit('warn', new Error(`Matrix ${getPath(element)}: connection change not applied: ${missing}`))
+			if (hasSignal(element.contents, 'target', update.target) !== false) {
+				const current = element.contents.connections?.[update.target] ?? new ConnectionImpl(update.target, [])
+				this._reportMatrixConnections(element, { [update.target]: current })
+			}
+			return false
+		}
 		const connections = (element.contents.connections ??= {})
 		const matrixType = element.contents.matrixType ?? MatrixType.OneToN
 		const oneSourcePerTarget = matrixType !== MatrixType.NToN
@@ -295,6 +310,10 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	 * Hands a consumer's connection request to onMatrixOperation. The consumer always gets an answer for each target
 	 * it named: the report of the change when the handler makes one with updateMatrixConnection, or otherwise (no
 	 * handler, the change refused, the handler failed) the target's current state.
+	 *
+	 * A connection naming a target or source the matrix doesn't have is dropped, with a `warn` event: the handler isn't
+	 * given it. A real target still gets its current state; a target that doesn't exist gets no answer, having no
+	 * state to give (as the XACI answers none).
 	 */
 	private async _handleMatrix(
 		path: string,
@@ -304,16 +323,27 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		const matrix = this.getElementByPath(path)
 		if (!matrix || !isElementOfType(matrix, ElementType.Matrix) || !el.contents.connections) return
 
-		const requested = Object.values<Connection>(el.contents.connections).map((connection) => connection.target)
+		const requested = Object.values<Connection>(el.contents.connections)
 		const pending: PendingMatrixReply = {
 			path: toQualifiedEmberNode(matrix).path,
 			client,
-			targets: new Set(requested),
+			targets: new Set(requested.map((connection) => connection.target)),
+		}
+		const valid: Connections = {}
+		for (const connection of requested) {
+			const missing = missingSignals(matrix.contents, connection)
+			if (!missing) {
+				valid[connection.target] = connection
+				continue
+			}
+			this.emit('warn', new Error(`Matrix ${pending.path}: dropped a consumer's connection request: ${missing}`))
+			if (hasSignal(matrix.contents, 'target', connection.target) === false)
+				pending.targets.delete(connection.target)
 		}
 		this._pendingMatrixReplies.add(pending)
 
 		try {
-			if (this.onMatrixOperation) await this.onMatrixOperation(matrix, el.contents.connections)
+			if (this.onMatrixOperation && Object.keys(valid).length) await this.onMatrixOperation(matrix, valid)
 		} finally {
 			this._pendingMatrixReplies.delete(pending)
 			if (pending.targets.size) {
@@ -489,6 +519,17 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
  * Whether changing a target's sources from `current` to `next` adds sources beyond an n-to-n matrix's limits. A change
  * that adds none is never refused, so a matrix already over its limits can still be brought under them.
  */
+/** What a connection names that the matrix doesn't have, a target or sources, if anything */
+function missingSignals(matrix: Matrix, connection: Connection): string | undefined {
+	if (hasSignal(matrix, 'target', connection.target) === false) {
+		return `target ${connection.target} is not one of its targets`
+	}
+	const unknown = (connection.sources ?? []).filter((source) => hasSignal(matrix, 'source', source) === false)
+	if (unknown.length)
+		return `${unknown.length > 1 ? 'sources' : 'source'} ${unknown.join(', ')} not among its sources`
+	return undefined
+}
+
 function exceedsConnectLimits(matrix: Matrix, current: number[], next: number[]): boolean {
 	if (next.length <= current.length) return false
 	const { maximumConnectsPerTarget, maximumTotalConnects } = matrix

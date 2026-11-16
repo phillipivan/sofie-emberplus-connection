@@ -637,6 +637,99 @@ describe('EmberServer matrices', () => {
 
 	// A consumer's connect request is answered with the target's state, whether or not the consumer is subscribed to
 	// the matrix, and whether or not anything changed (as a refused setValue is answered with the current value)
+	// A target or source the matrix doesn't have (targets 0 to 2 and sources 0 to 3 here) is dropped, with a warning: a
+	// real target is answered with its current state, a target that doesn't exist not at all. (Such a request was
+	// handed to the handler, and such a change applied.)
+	describe('a target or source the matrix does not have', () => {
+		let warnings: string[]
+		beforeEach(async () => {
+			await init()
+			warnings = []
+			server.on('warn', (e) => warnings.push(e.message))
+		})
+
+		/** The consumer sends a connection request, and waits for the server to handle it */
+		async function request(consumer: FakeConnection, ...connections: Connection[]) {
+			consumer.received.length = 0
+			const requested: Connections = Object.fromEntries(connections.map((c) => [c.target, c]))
+			consumer.emit('emberTree', {
+				rootType: RootType.Elements,
+				value: {
+					0: new QualifiedElementImpl('1.1', new MatrixImpl(undefined, undefined, undefined, requested)),
+				},
+			})
+			await new Promise(setImmediate)
+			return consumer.received.map(reportedConnections)
+		}
+		const connect = (target: number, ...sources: number[]) =>
+			new ConnectionImpl(target, sources, ConnectionOperation.Connect)
+
+		it('drops a request for a target it does not have, answering nothing', async () => {
+			const handler = jest.fn(async () => Promise.resolve())
+			server.onMatrixOperation = handler
+			const consumer = await connectConsumer()
+
+			expect(await request(consumer, connect(9, 1))).toEqual([])
+			expect(handler).not.toHaveBeenCalled()
+			expect(warnings).toEqual([
+				"Matrix 1.1: dropped a consumer's connection request: target 9 is not one of its targets",
+			])
+		})
+
+		it("drops a request naming a source it does not have, answering with the target's current state", async () => {
+			const handler = jest.fn(async () => Promise.resolve())
+			server.onMatrixOperation = handler
+			const consumer = await connectConsumer()
+
+			expect(await request(consumer, connect(2, 3, 7, 8))).toEqual([{ 2: [] }])
+			expect(handler).not.toHaveBeenCalled()
+			expect(warnings).toEqual([
+				"Matrix 1.1: dropped a consumer's connection request: sources 7, 8 not among its sources",
+			])
+		})
+
+		it('hands the handler the rest of a request', async () => {
+			let given: Connections | undefined
+			server.onMatrixOperation = async (m, connections) => {
+				given = connections
+				for (const c of Object.values<Connection>(connections)) server.updateMatrixConnection(m, c)
+				return Promise.resolve()
+			}
+			const consumer = await connectConsumer()
+
+			expect(await request(consumer, connect(2, 3), connect(9, 1))).toEqual([{ 2: [3] }])
+			expect(Object.keys(given ?? {})).toEqual(['2'])
+		})
+
+		it('updateMatrixConnection refuses a change for a target it does not have, reporting nothing', async () => {
+			const consumer = await connectConsumer()
+			consumer.request('1.1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+			consumer.received.length = 0
+
+			expect(server.updateMatrixConnection(matrix, connect(9, 1))).toBe(false)
+			await new Promise(setImmediate)
+
+			expect(consumer.received).toEqual([])
+			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [] })
+			expect(warnings).toEqual(['Matrix 1.1: connection change not applied: target 9 is not one of its targets'])
+		})
+
+		it("updateMatrixConnection refuses a change naming a source it does not have, reporting the target's current state", async () => {
+			const consumer = await connectConsumer()
+			consumer.request('1.1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+			consumer.received.length = 0
+
+			expect(server.updateMatrixConnection(matrix, connect(0, 7))).toBe(false)
+			await new Promise(setImmediate)
+
+			expect(consumer.received.map(reportedConnections)).toEqual([{ 0: [1] }])
+			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [] })
+			expect(warnings).toEqual(['Matrix 1.1: connection change not applied: source 7 not among its sources'])
+		})
+	})
+
 	describe('replies to connection requests', () => {
 		beforeEach(async () => init(MatrixType.NToN))
 
