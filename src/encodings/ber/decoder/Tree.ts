@@ -205,12 +205,10 @@ export function decodeRootElements(
 			continue
 		}
 		const rootEl = decodeGenericElement(reader, options) as DecodeResult<NumberedTreeNode<EmberElement>>
+		// Keyed by place, in the order they came: an element's number or path is in the element. (Keyed by number, one
+		// could replace another with that key, and the collection lost the order the provider reported them in.)
 		safeSet(rootEl, rootEls, (x, y) => {
-			if (x.number) {
-				y[x.number] = x
-			} else {
-				y[Object.values<RootElement>(y).length] = x
-			}
+			y[Object.keys(y).length] = x
 			return y
 		})
 	}

@@ -7,12 +7,16 @@ import { Matrix } from '../../../model/Matrix.js'
 import { ParameterType } from '../../../model/Parameter.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
-import { Collection, Root, RootElement, RootType } from '../../../types/types.js'
+import { Collection, RelativeOID, Root, RootElement, RootType } from '../../../types/types.js'
 import { RootBERID } from '../constants.js'
 import { guarded } from '../decoder/DecodeResult.js'
 import { berDecode, berEncode, EncodableRoot } from '../index.js'
 
 describe('encoders/Ber/index', () => {
+	const numbered = (number: number, identifier: string) =>
+		new NumberedTreeNodeImpl(number, new EmberNodeImpl(identifier))
+	const qualified = (path: RelativeOID, identifier: string) =>
+		new QualifiedElementImpl(path, new EmberNodeImpl(identifier))
 	function roundTrip(...root: EncodableRoot): void {
 		const encoded = berEncode(...root)
 		const decoded = guarded<Root>(berDecode(encoded))
@@ -26,7 +30,7 @@ describe('encoders/Ber/index', () => {
 		const result = new InvocationResultImpl(3, true)
 
 		test.each<[string, EncodableRoot]>([
-			['elements', [{ 1: element }, RootType.Elements]], // decoded elements are keyed by their number
+			['elements', [{ 0: element }, RootType.Elements]], // decoded elements are keyed by their place
 			['a stream collection', [[entry], RootType.Streams]],
 			['an invocation result', [result, RootType.InvocationResult]],
 		])('berDecode gives %s its RootType', (_, root) => {
@@ -53,6 +57,24 @@ describe('encoders/Ber/index', () => {
 			}
 			expect(typeof mismatched).toBe('function')
 		})
+	})
+
+	// Every element of a root collection is kept. A numbered element was keyed by its number unless that was 0, and
+	// a qualified one, or one numbered 0, by the count so far: one could take another's key and replace it.
+	test.each<[string, Array<RootElement>]>([
+		['numbered 1, then 0', [numbered(1, 'a'), numbered(0, 'b')]],
+		['numbered 2, qualified, then numbered 1', [numbered(2, 'a'), qualified('1.1', 'q'), numbered(1, 'b')]],
+		['qualified, then numbered 1', [qualified('1.1', 'q'), numbered(1, 'b')]],
+		['two numbered 3', [numbered(3, 'a'), numbered(3, 'b')]],
+	])('berDecode keeps every root element: %s', (_, elements) => {
+		const decoded = berDecode(berEncode({ ...elements }, RootType.Elements))
+
+		expect(decoded.value).toEqual({ ...elements })
+	})
+	test('berDecode keys root elements by their place, in the order they came', () => {
+		const decoded = berDecode(berEncode({ 0: numbered(4, 'a'), 1: qualified('1.1', 'q') }, RootType.Elements))
+
+		expect(decoded.value).toEqual({ 0: numbered(4, 'a'), 1: qualified('1.1', 'q') })
 	})
 
 	test('InvocationResult', () => {
