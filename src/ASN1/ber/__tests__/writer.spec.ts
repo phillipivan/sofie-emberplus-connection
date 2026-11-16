@@ -239,7 +239,6 @@ test('sequence', () => {
 	const ber = writer.buffer
 
 	expect(ber).toBeInstanceOf(Buffer)
-	console.log(ber)
 	expect(ber.length).toEqual(15) // wrong length
 	expect(ber[0]).toEqual(0x30) // wrong tag
 	expect(ber[1]).toEqual(13) // wrong length
