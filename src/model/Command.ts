@@ -101,7 +101,7 @@ export function isGetDirectory(command: Command | null): command is GetDirectory
 }
 
 abstract class CommandImpl implements Command {
-	public abstract number: number
+	public abstract number: CommandType
 	public type: ElementType.Command = ElementType.Command
 	// constructor() {}
 }
