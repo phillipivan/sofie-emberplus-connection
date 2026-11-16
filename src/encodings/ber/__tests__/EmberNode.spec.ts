@@ -1,7 +1,6 @@
 import * as Ber from '../../../Ber/index.js'
 import { ElementType } from '../../../model/EmberElement.js'
 import { EmberNode } from '../../../model/EmberNode.js'
-import { literal } from '../../../types/types.js'
 import { guarded } from '../decoder/DecodeResult.js'
 import { decodeNode } from '../decoder/EmberNode.js'
 import { decodeGenericElement } from '../decoder/Tree.js'
@@ -114,7 +113,7 @@ const nodeOnly = Buffer.from([
 ])
 
 describe('encodings/ber/EmberNode', () => {
-	const en = literal<EmberNode>({
+	const en: EmberNode = {
 		type: ElementType.Node,
 		identifier: 'Nodey',
 		description: 'Call me nodey',
@@ -122,7 +121,7 @@ describe('encodings/ber/EmberNode', () => {
 		isOnline: true,
 		schemaIdentifiers: `I'm a schema identifier\nand I'm OK`,
 		templateReference: '3.2.1.2',
-	})
+	}
 
 	test('write and read a node', () => {
 		const writer = new Ber.Writer()

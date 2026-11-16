@@ -21,7 +21,6 @@ export {
 	StringIntegerCollection,
 	RootType,
 	RelativeOID,
-	literal,
 	Collection,
 }
 
@@ -61,9 +60,5 @@ type EmberTypedValue =
 type MinMax = number | null
 type StringIntegerCollection = Map<string, number>
 type RelativeOID = string
-
-function literal<T>(arg: T): T {
-	return arg
-}
 
 type Collection<T> = { [index: number]: T }

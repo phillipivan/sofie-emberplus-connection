@@ -1,4 +1,3 @@
-import { literal } from '../../../types/types.js'
 import {
 	appendErrors,
 	check,
@@ -16,18 +15,18 @@ import {
 
 describe('encodings/ver/DecodeResult - default settings', () => {
 	// No errors: an empty list, as makeResult gives it (a decoding result always has one)
-	const goodResult = literal<DecodeResult<number>>({
+	const goodResult: DecodeResult<number> = {
 		value: 42,
 		errors: [],
-	})
-	const resultEmptyErrors = literal<DecodeResult<number>>({
+	}
+	const resultEmptyErrors: DecodeResult<number> = {
 		value: 42,
 		errors: [],
-	})
-	const resultWithError = literal<DecodeResult<number>>({
+	}
+	const resultWithError: DecodeResult<number> = {
 		value: 42,
 		errors: [new Error('decode wibbly wobble: tag was junk')],
-	})
+	}
 
 	test('whatever', () => {
 		expect(whatever(goodResult)).toBe(42)
@@ -251,35 +250,31 @@ describe('encodings/ver/DecodeResult - default settings', () => {
 	})
 
 	test('all equal in the end', () => {
-		expect(goodResult).toEqual(literal<DecodeResult<number>>({ value: 42, errors: [] }))
-		expect(resultEmptyErrors).toEqual(
-			literal<DecodeResult<number>>({
-				value: 42,
-				errors: [],
-			})
-		)
-		expect(resultWithError).toEqual(
-			literal<DecodeResult<number>>({
-				value: 42,
-				errors: [new Error('decode wibbly wobble: tag was junk')],
-			})
-		)
+		expect(goodResult).toEqual({ value: 42, errors: [] } satisfies DecodeResult<number>)
+		expect(resultEmptyErrors).toEqual({
+			value: 42,
+			errors: [],
+		} satisfies DecodeResult<number>)
+		expect(resultWithError).toEqual({
+			value: 42,
+			errors: [new Error('decode wibbly wobble: tag was junk')],
+		} satisfies DecodeResult<number>)
 	})
 })
 
 describe('encodings/ver/DecodeResult - expect to throw', () => {
 	// No errors: an empty list, as makeResult gives it (a decoding result always has one)
-	const goodResult = literal<DecodeResult<number>>({
+	const goodResult: DecodeResult<number> = {
 		value: 42,
 		errors: [],
-	})
+	}
 
-	const triggerThrow = literal<DecodeOptions>({
+	const triggerThrow: DecodeOptions = {
 		skipApplicationTags: false,
 		skipContextTags: false,
 		substituteForRequired: false,
 		skipUnexpected: false,
-	})
+	}
 
 	test('unknownContext - decode result, number tag', () => {
 		const updateMe = Object.assign({}, goodResult)

@@ -1,25 +1,24 @@
 import * as Ber from '../../../Ber/index.js'
 import { InvocationResult } from '../../../model/InvocationResult.js'
 import { ParameterType } from '../../../model/Parameter.js'
-import { literal } from '../../../types/types.js'
 import { guarded } from '../decoder/DecodeResult.js'
 import { decodeInvocationResult } from '../decoder/InvocationResult.js'
 import { encodeInvocationResult } from '../encoder/InvocationResult.js'
 
 describe('encodings/ber/InvocationResult', () => {
-	const ir = literal<InvocationResult>({
+	const ir: InvocationResult = {
 		id: 42,
 		success: true,
 		result: [
 			{ type: ParameterType.String, value: 'fortytwo' },
 			{ type: ParameterType.Real, value: 42.1 },
 		],
-	})
+	}
 
-	const voidRes = literal<InvocationResult>({
+	const voidRes: InvocationResult = {
 		id: 987654,
 		success: true,
-	})
+	}
 
 	test('write and read invocation result', () => {
 		const writer = new Ber.Writer()

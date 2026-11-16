@@ -1,15 +1,14 @@
 import * as Ber from '../../../Ber/index.js'
 import { Label } from '../../../model/Label.js'
-import { literal } from '../../../types/types.js'
 import { guarded } from '../decoder/DecodeResult.js'
 import { decodeLabel } from '../decoder/Label.js'
 import { encodeLabel } from '../encoder/Label.js'
 
 describe('encodings/ber/Label', () => {
-	const lbl = literal<Label>({
+	const lbl: Label = {
 		basePath: '1.1.2.1.3',
 		description: 'Oh what a lovely button',
-	})
+	}
 
 	test('write and read a label', () => {
 		const writer = new Ber.Writer()
@@ -41,7 +40,7 @@ describe('encodings/ber/Label', () => {
 		const reader = new Ber.Reader(writer.buffer)
 		const decoded = decodeLabel(reader)
 
-		expect(decoded.value).toEqual(literal<Label>({ basePath: lbl.basePath, description: '' }))
+		expect(decoded.value).toEqual({ basePath: lbl.basePath, description: '' } satisfies Label)
 		expect(decoded.errors).toHaveLength(2)
 	})
 })

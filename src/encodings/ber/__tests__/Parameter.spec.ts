@@ -2,7 +2,6 @@ import * as Ber from '../../../Ber/index.js'
 import { ElementType } from '../../../model/EmberElement.js'
 import { Parameter, ParameterAccess, ParameterType, TypedParameter } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
-import { literal } from '../../../types/types.js'
 import { guarded } from '../decoder/DecodeResult.js'
 import { decodeParameter } from '../decoder/Parameter.js'
 import { encodeParameter } from '../encoder/Parameter.js'
@@ -10,7 +9,7 @@ import { encodeParameter } from '../encoder/Parameter.js'
 describe('encodings/ber/Parameter', () => {
 	// A parameter's value is tied to its type: each test spreads this base and gives the type
 	const base = { type: ElementType.Parameter } as const
-	const prm = literal<TypedParameter<ParameterType.String>>({ ...base, parameterType: ParameterType.String })
+	const prm: TypedParameter<ParameterType.String> = { ...base, parameterType: ParameterType.String }
 
 	function roundtripParameter(prm: Parameter): void {
 		const writer = new Ber.Writer()

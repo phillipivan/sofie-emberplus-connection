@@ -1,7 +1,7 @@
 import * as Ber from '../../../Ber/index.js'
 import { ParameterType } from '../../../model/Parameter.js'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
-import { EmberTypedValue, literal } from '../../../types/types.js'
+import { EmberTypedValue } from '../../../types/types.js'
 import { StreamEntriesBERID, StreamEntryBERID } from '../constants.js'
 import {
 	check,
@@ -69,7 +69,7 @@ function decodeStreamEntry(reader: Ber.Reader, options: DecodeOptions = defaultD
 		value,
 		'decode stream entry',
 		'value',
-		literal<EmberTypedValue>({ value: null, type: ParameterType.Null }),
+		{ value: null, type: ParameterType.Null } satisfies EmberTypedValue,
 		errors,
 		options
 	)

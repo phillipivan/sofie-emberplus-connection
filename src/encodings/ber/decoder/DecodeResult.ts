@@ -1,5 +1,4 @@
 import * as Ber from '../../../Ber/index.js'
-import { literal } from '../../../types/types.js'
 
 export {
 	DecodeOptions,
@@ -35,12 +34,12 @@ interface DecodeOptions {
 /**
  * Default decoding values. Prevents throwing exceptions while decoding.
  */
-const defaultDecode = literal<DecodeOptions>({
+const defaultDecode: DecodeOptions = {
 	skipApplicationTags: true,
 	skipContextTags: true,
 	substituteForRequired: true,
 	skipUnexpected: true,
-})
+}
 
 /**
  * Decoders are forgiving and return both a candidate value and a list of
@@ -98,10 +97,10 @@ function guarded<T>(decres: DecodeResult<T>): T {
  * @param t Value to embed in the initial result.
  */
 function makeResult<T>(t: T, errors?: Array<Error>): DecodeResult<T> {
-	return literal<DecodeResult<T>>({
+	return {
 		value: t,
 		errors: Array.isArray(errors) ? errors : [],
-	})
+	}
 }
 
 /**

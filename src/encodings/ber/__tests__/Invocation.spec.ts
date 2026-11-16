@@ -1,30 +1,29 @@
 import * as Ber from '../../../Ber/index.js'
 import { Invocation } from '../../../model/Invocation.js'
 import { ParameterType } from '../../../model/Parameter.js'
-import { literal } from '../../../types/types.js'
 import { guarded } from '../decoder/DecodeResult.js'
 import { decodeInvocation } from '../decoder/Invocation.js'
 import { encodeInvocation } from '../encoder/Invocation.js'
 import { toIndefiniteLength } from './indefiniteLength.js'
 
 describe('encodings/ber/Invocation', () => {
-	const iv = literal<Invocation>({
+	const iv: Invocation = {
 		id: 45654,
 		args: [
 			{ type: ParameterType.Integer, value: -1 },
 			{ type: ParameterType.Boolean, value: false },
 			{ type: ParameterType.String, value: 'twotyfour' },
 		],
-	})
+	}
 
-	const noArgs = literal<Invocation>({
+	const noArgs: Invocation = {
 		id: 234,
 		args: [],
-	})
+	}
 
-	const noId = literal<Invocation>({
+	const noId: Invocation = {
 		args: [{ type: ParameterType.Integer, value: 47 }],
-	})
+	}
 
 	test('write and read an invocation - 3 args', () => {
 		const writer = new Ber.Writer()
