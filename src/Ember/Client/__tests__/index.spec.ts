@@ -1874,6 +1874,70 @@ describe('client', () => {
 		})
 	})
 
+	// #68: a request about an element the tree doesn't have yet, such as the parameters node of an inline
+	// parametersLocation (which a GetDirectory on the matrix doesn't list) or a path the caller builds. The reply put
+	// the element into the tree, but made a change only at its parent's path, so the request timed out.
+	describe('a request about an element the tree does not have yet', () => {
+		const parametersNode = () =>
+			createQualifiedNodeResponse('1.7', new EmberNodeImpl(), {
+				1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('targets')),
+			})
+
+		it('is answered by the reply, below an element the tree has', async () => {
+			await runWithConnection(async (client, socket) => {
+				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {})
+				client.tree[1] = device
+				const cb = jest.fn()
+
+				const request = await client.getDirectory(
+					new QualifiedElementImpl('1.7', new EmberNodeImpl()),
+					undefined,
+					cb
+				)
+				socket.mockData(parametersNode())
+
+				const inserted = device.children?.[7]
+				await expect(request.response).resolves.toBe(inserted)
+				expect(inserted?.parent).toBe(device)
+				expect(cb).toHaveBeenCalledTimes(1)
+				expect(cb).toHaveBeenCalledWith(inserted)
+			})
+		})
+
+		it('is answered by the reply, at the top of the tree', async () => {
+			await runWithConnection(async (client, socket) => {
+				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+
+				const request = await client.getDirectory(new QualifiedElementImpl('2', new EmberNodeImpl()))
+				socket.mockData(
+					createQualifiedNodeResponse('2', new EmberNodeImpl('other'), {
+						1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('child')),
+					})
+				)
+
+				await expect(request.response).resolves.toBe(client.tree[2])
+			})
+		})
+
+		it("is answered by a connection report on a matrix the tree doesn't have", async () => {
+			await runWithConnection(async (client, socket) => {
+				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {})
+
+				const matrix = new QualifiedElementImpl<Matrix>('1.4', { type: ElementType.Matrix })
+				const request = await client.matrixConnect(matrix, 2, [3])
+				socket.mockData(
+					createQualifiedNodeResponse(
+						'1.4',
+						new MatrixImpl(undefined, undefined, undefined, { 2: { target: 2, sources: [3] } }),
+						undefined
+					)
+				)
+
+				await expect(request.response).resolves.toBe(client.tree[1]?.children?.[4])
+			})
+		})
+	})
+
 	describe('GetDirectory on the root of a loaded tree', () => {
 		// A device, 1, with a parameter, 1.1, already loaded
 		function seedDevice(client: EmberClient) {

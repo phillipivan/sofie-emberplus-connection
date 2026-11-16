@@ -835,7 +835,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 							// Insert node into root
 							const inserted = toTreeElement(rootElement, number)
 							this.tree[number] = inserted
-							changes.push({ path: undefined, node: inserted })
+							changes.push({ path: undefined, node: inserted }, insertedChange(rootElement, inserted))
 							continue
 						}
 					}
@@ -851,11 +851,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						}
 						if (!child) {
 							tree.children ??= {}
-							tree.children[number] = toTreeElement(rootElement, number, tree)
-							changes.push({
-								path: rootElement.path.split('.').slice(0, -1).join('.'),
-								node: tree,
-							})
+							const element = toTreeElement(rootElement, number, tree)
+							tree.children[number] = element
+							changes.push(
+								{ path: rootElement.path.split('.').slice(0, -1).join('.'), node: tree },
+								insertedChange(rootElement, element)
+							)
 							inserted = true
 							break
 						}
@@ -1072,6 +1073,23 @@ function reportedConnections(update: TreeElement<EmberElement>): Connections | u
 function findConnection(connections: Connections | undefined, target: number): Connection | undefined {
 	if (!connections) return undefined
 	return Object.values<Connection>(connections).find((connection) => connection.target === target)
+}
+
+/**
+ * The change an element put into the tree makes at its own path, as one already there makes when it is updated: it
+ * answers a request about the element, and calls the callbacks for its path. (Only the parent's change was made, so a
+ * request about an element the tree didn't have yet, under one it had, was never answered.)
+ */
+function insertedChange(
+	reported: QualifiedElement<Exclude<EmberElement, Command>>,
+	inserted: NumberedTreeNode<EmberElement>
+): Change {
+	return {
+		path: reported.path,
+		node: inserted,
+		emptyNode: isEmptyNode(reported),
+		connections: reportedConnections(reported),
+	}
 }
 
 /**
