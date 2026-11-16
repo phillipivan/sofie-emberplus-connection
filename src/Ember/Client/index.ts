@@ -944,11 +944,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					if (!tree) {
 						if (path.length) {
 							// Assuming this means that no get directory was done on the root of the tree.
-							changes.push({
-								path: rootElement.path,
-								node: rootElement,
-								connections: reportedConnections(rootElement),
-							})
+							changes.push(reportedChange(rootElement))
 							continue
 						} else {
 							const number = Number(rootElement.path)
@@ -985,11 +981,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 					if (inserted) continue
 					if (notLoaded) {
-						changes.push({
-							path: rootElement.path,
-							node: rootElement,
-							connections: reportedConnections(rootElement),
-						})
+						changes.push(reportedChange(rootElement))
 						continue
 					}
 					changes.push(...this._updateTree(rootElement, tree))
@@ -1193,6 +1185,21 @@ function reportedConnections(update: TreeElement<EmberElement>): Connections | u
 function findConnection(connections: Connections | undefined, target: number): Connection | undefined {
 	if (!connections) return undefined
 	return Object.values<Connection>(connections).find((connection) => connection.target === target)
+}
+
+/**
+ * The change an element the tree has no place for (its parent, or its device, isn't loaded) makes: the element as the
+ * provider reported it, at its path. An empty one is the answer to a GetDirectory on a node without children, which
+ * "must report itself without any properties set" (_Glow › Commands › GetDirectory_). (It wasn't marked as one, so that
+ * answer was waited past, for children, until the request timed out.)
+ */
+function reportedChange(reported: QualifiedElement<Exclude<EmberElement, Command>>): Change {
+	return {
+		path: reported.path,
+		node: reported,
+		emptyNode: isEmptyNode(reported),
+		connections: reportedConnections(reported),
+	}
 }
 
 /**

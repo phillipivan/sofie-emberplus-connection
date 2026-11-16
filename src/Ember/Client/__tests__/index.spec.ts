@@ -2069,6 +2069,80 @@ describe('client', () => {
 		})
 	})
 
+	// #69: a GetDirectory on a node without children is answered with the node "without any properties set" (Glow ›
+	// Commands › GetDirectory), which says it has none. When the node's parent, or its device, wasn't loaded, that
+	// answer wasn't taken as one, and the request waited for children until it timed out.
+	describe('an empty node answering a GetDirectory', () => {
+		test.each<[string, (client: EmberClient) => void]>([
+			['nothing is loaded', () => undefined],
+			[
+				'only its device is loaded',
+				(client) => {
+					client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {})
+				},
+			],
+			[
+				'the node above it is loaded',
+				(client) => {
+					const labels = new NumberedTreeNodeImpl(0, new EmberNodeImpl('labels'))
+					const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 0: labels })
+					labels.parent = device
+					client.tree[1] = device
+				},
+			],
+		])('settles the request when %s', async (_, seed) => {
+			await runWithConnection(
+				async (client, socket) => {
+					seed(client)
+
+					const request = await client.getDirectory(new QualifiedElementImpl('1.0.1', new EmberNodeImpl()))
+					socket.mockData(createQualifiedNodeResponse('1.0.1', new EmberNodeImpl(), undefined))
+
+					await expect(request.response).resolves.toMatchObject({ contents: { type: ElementType.Node } })
+				},
+				{ timeout: 300 }
+			)
+		})
+
+		it('still waits for children after a report with properties, as the spec has it', async () => {
+			await runWithConnection(
+				async (client, socket) => {
+					const request = await client.getDirectory(new QualifiedElementImpl('1.0.1', new EmberNodeImpl()))
+					socket.mockData(createQualifiedNodeResponse('1.0.1', new EmberNodeImpl('targets'), undefined))
+
+					await expect(request.response).rejects.toThrow('Request timed out')
+				},
+				{ timeout: 300 }
+			)
+		})
+
+		it('lets getMatrixLabels give an empty label set', async () => {
+			await runWithConnection(async (client, socket) => {
+				onSocketWrite.mockImplementation((data: Buffer) => {
+					const request = firstElement(data)
+					if (isQualified(request)) {
+						setImmediate(() =>
+							socket.mockData(createQualifiedNodeResponse(request.path, new EmberNodeImpl(), undefined))
+						)
+					}
+					return true
+				})
+				const matrix = new QualifiedElementImpl<Matrix>('2.4', {
+					type: ElementType.Matrix,
+					labels: [{ basePath: '5.3', description: 'Spare' }], // nothing of 5 loaded
+				})
+
+				try {
+					await expect(client.getMatrixLabels(matrix)).resolves.toEqual([
+						{ basePath: '5.3', description: 'Spare', targets: {}, sources: {} },
+					])
+				} finally {
+					onSocketWrite.mockReset()
+				}
+			})
+		})
+	})
+
 	describe('matrix helpers', () => {
 		const labels = (kind: string, values: { [signal: number]: string | null }) =>
 			new NumberedTreeNodeImpl(
