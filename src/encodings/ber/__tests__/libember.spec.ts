@@ -552,6 +552,34 @@ describe('BER and Glow compared with libember', () => {
 		})
 	})
 
+	// ber/traits/Length.hpp reads as many length bytes as the length's first byte gives (#57: the library refused more
+	// than four, as `encoding too long`). X.690 8.1.3.5 allows up to 126.
+	describe('lengths in any number of bytes, as libember reads them', () => {
+		const longForm = (count: number, length: number) =>
+			[0x80 | count, ...Buffer.alloc(count - 1), length].map((b) => b.toString(16).padStart(2, '0')).join(' ')
+
+		it.each([5, 8, 9, 126])('reads a length given in %d bytes', (count) => {
+			const reader = new Ber.Reader(hex(`04 ${longForm(count, 3)} 61 62 63`))
+
+			expect(reader.readStringAsBuffer(Ber.BERDataTypes.OCTETSTRING)?.toString()).toBe('abc')
+		})
+
+		it('reads a sequence whose length takes 9 bytes, and its contents', () => {
+			const reader = new Ber.Reader(hex(`30 ${longForm(9, 3)} 02 01 07`))
+
+			expect(reader.readSequence(Ber.BERDataTypes.SEQUENCE)).toBe(Ber.BERDataTypes.SEQUENCE)
+			expect(reader.length).toBe(3)
+			expect(reader.readInt()).toBe(7)
+		})
+
+		it('reads an element with a 9-byte length inside one of indefinite length', () => {
+			const reader = new Ber.Reader(hex(`30 80 04 ${longForm(9, 3)} 61 62 63 00 00`))
+
+			reader.readSequence(Ber.BERDataTypes.SEQUENCE)
+			expect(reader.readStringAsBuffer(Ber.BERDataTypes.OCTETSTRING)?.toString()).toBe('abc')
+		})
+	})
+
 	describe('where the library differs from libember', () => {
 		// glow/impl/GlowStringIntegerPair.ipp: name() is "" when the field is left out. The library makes up a name.
 		it.failing('names an enumeration map entry without a name ""', () => {
@@ -576,14 +604,6 @@ describe('BER and Glow compared with libember', () => {
 		// ber/traits/Boolean.hpp reads the first contents byte only. The library reads them all as an integer.
 		it.failing('reads a BOOLEAN from its first contents byte', () => {
 			expect(new Ber.Reader(hex('01 02 00 01')).readBoolean()).toBe(false)
-		})
-
-		// ber/traits/Length.hpp reads as many length bytes as the length's first byte gives. The library refuses more
-		// than four, as `encoding too long`.
-		it.failing('reads a length given in five bytes', () => {
-			const reader = new Ber.Reader(hex('04 85 00 00 00 00 03 61 62 63'))
-
-			expect(reader.readStringAsBuffer(Ber.BERDataTypes.OCTETSTRING)?.toString()).toBe('abc')
 		})
 	})
 })

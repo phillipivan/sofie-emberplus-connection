@@ -6,6 +6,11 @@ import { newInvalidAsn1Error } from './errors.js'
 import { readTagAt } from './tag.js'
 import { Types } from './types.js'
 
+// X.690 8.1.3.5: the long form takes 1 to 126 length bytes, as many as the first byte's low seven bits say, and that
+// byte must not be 0xFF. libember (ber/traits/Length.hpp) reads any number of them, as does this reader now; it
+// refused more than four. What keeps a length safe is that it can't run past the data, which the callers check.
+const RESERVED_LENGTH = 'Invalid length: the first length byte 0xFF is reserved (X.690 8.1.3.5)'
+
 ///--- API
 
 export class Reader {
@@ -97,7 +102,7 @@ export class Reader {
 					if (nested === null) return null
 					lenB = nested
 				} else {
-					if (lenB > 4) throw newInvalidAsn1Error('encoding too long')
+					if (lenB === 0x7f) throw newInvalidAsn1Error(RESERVED_LENGTH)
 
 					if (this._size - currOffset < lenB) {
 						return null
@@ -149,12 +154,14 @@ export class Reader {
 			if (lenB === 0) {
 				this._len = this.readBlock(offset) ?? 0
 			} else {
-				if (lenB > 4) throw newInvalidAsn1Error('encoding too long')
+				if (lenB === 0x7f) throw newInvalidAsn1Error(RESERVED_LENGTH)
 
 				if (this._size - offset < lenB) return null
 
 				this._len = 0
-				// Not `<< 8`, which is signed: four length bytes from 0x80000000 up would give a negative length
+				// Not `<< 8`, which is signed: four length bytes from 0x80000000 up would give a negative length. In
+				// doubles, 126 bytes stay finite (under 2^1008); past 2^53 the value is rounded, but is then far more
+				// than any data, which the callers refuse.
 				for (let i = 0; i < lenB; i++) this._len = this._len * 0x100 + (this._buf[offset++] & 0xff)
 			}
 		} else {

@@ -172,6 +172,37 @@ test('nested indefinite length sequences', () => {
 	expect(reader.readInt()).toEqual(7)
 })
 
+// X.690 8.1.3.5: 1 to 126 length bytes, and the first length byte must not be 0xFF (#57)
+describe('long-form lengths', () => {
+	test('refuse the reserved first length byte 0xFF', () => {
+		const lengthBytes = [0xff, ...Buffer.alloc(127)]
+
+		expect(() => new Reader(Buffer.from([0x30, ...lengthBytes])).readSequence()).toThrow(/0xFF is reserved/)
+		// and inside a container of indefinite length, which is scanned for its end
+		expect(() => new Reader(Buffer.from([0x30, 0x80, 0x04, ...lengthBytes, 0x00, 0x00])).readSequence()).toThrow(
+			/0xFF is reserved/
+		)
+	})
+
+	test('refuse a length past the data, however many bytes it takes', () => {
+		for (const length of [
+			[0x85, 0x01, 0, 0, 0, 0],
+			[0x89, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+		]) {
+			expect(() => new Reader(Buffer.from([0x30, ...length, 0x02, 0x01, 0x07])).readSequence()).toThrow(
+				/only \d+ left/
+			)
+			expect(new Reader(Buffer.from([0x04, ...length, 0x61])).readStringAsBuffer(0x04)).toBeNull()
+		}
+	})
+
+	test('refuse a length past the data inside a container of indefinite length', () => {
+		const reader = new Reader(Buffer.from([0x30, 0x80, 0x04, 0x89, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0x61, 0x00, 0x00]))
+
+		expect(() => reader.readSequence()).toThrow(/invalid block/)
+	})
+})
+
 test('truncated indefinite length block does not hang', () => {
 	// no 0x00 0x00 terminator - this used to loop forever
 	const reader = new Reader(Buffer.from([0x60, 0x80, 0x01, 0x01, 0xff, 0x00]))
