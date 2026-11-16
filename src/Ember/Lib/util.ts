@@ -77,7 +77,7 @@ export function normalizeError(e: unknown): Error {
 		return e
 	}
 
-	return new Error(typeof e === 'string' ? e : (e as any)?.toString())
+	return new Error(String(e))
 }
 
 export function isEmptyNode(node: TreeElement<EmberElement>): boolean {

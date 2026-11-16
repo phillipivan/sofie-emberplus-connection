@@ -61,7 +61,8 @@ export interface Request {
 	// Basic validation of the response change
 	nodeResponse: ExpectResponse
 
-	resolve: (res: any) => void
+	/** Called with what answers the request: the element, as the provider reported it, or an invocation's result */
+	resolve: (res: RootElement | InvocationResult) => void
 	reject: (err: Error) => void
 	cb?: (EmberNode: TreeElement<EmberElement>) => void
 	/** For a request to change a matrix connection: the target, whose connection the reply has to report */
@@ -666,7 +667,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					reqId,
 					node,
 					nodeResponse: expectResponse,
-					resolve,
+					// The caller names the response it expects (T) for the request it sends
+					resolve: (res) => resolve(res as T),
 					reject,
 					connectionTarget,
 					message,

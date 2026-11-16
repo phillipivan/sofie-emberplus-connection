@@ -10,8 +10,6 @@ import { Root } from '../../types/index.js'
 import { ConnectionStatus } from '../Client/ConnectionStatus.js'
 import { normalizeError } from '../Lib/util.js'
 
-export type Request = any
-
 export type S101SocketEvents = {
 	error: [Error]
 	emberTree: [root: DecodeResult<Root>]
@@ -49,7 +47,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 			}
 		})
 
-		this.codec.on('emberPacket', (packet: any) => {
+		this.codec.on('emberPacket', (packet) => {
 			try {
 				const root = berDecode(packet)
 				if (root != null) {
@@ -59,7 +57,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 				this.emit('error', normalizeError(e))
 			}
 		})
-		this.codec.on('emberStreamPacket', (packet: any) => {
+		this.codec.on('emberStreamPacket', (packet) => {
 			try {
 				const root = berDecode(packet)
 				if (root != null) {
