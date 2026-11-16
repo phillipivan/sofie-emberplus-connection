@@ -606,10 +606,26 @@ describe('client', () => {
 					)
 				)
 
-				await expect(request.response).resolves.toBeDefined()
+				await expect(request.response).resolves.toBe(node)
 				expect(node.contents.value).toBe(20)
 				expect(node.contents.identifier).toBe('gain')
 				expect(node.contents.maximum).toBe(70)
+			})
+		})
+
+		// A request is answered by what the provider reports at its path. Whatever that was, the response resolved
+		// with it, typed as the parameter.
+		it("rejects a reply that isn't a parameter", async () => {
+			await runWithConnection(async (client, socket) => {
+				const gain = new QualifiedElementImpl(
+					'1.1',
+					new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0)
+				)
+
+				const request = await client.setValue(gain, 20) // not loaded: the reply is reported as it comes
+				socket.mockData(createQualifiedNodeResponse('1.1', new EmberNodeImpl('gain'), undefined))
+
+				await expect(request.response).rejects.toThrow('Unexpected reply to the request to 1.1: a node at 1.1')
 			})
 		})
 	})

@@ -24,18 +24,17 @@ import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
 import {
 	Collection,
 	CommandableElementType,
+	ElementOf,
 	EmberTypedValue,
 	EmberValue,
 	NumberedTreeNode,
 	QualifiedCommand,
-	QualifiedElement,
 	RelativeOID,
-	Root,
 	RootElement,
 	RootType,
 	TreeElement,
 } from '../../types/types.js'
-import { getPath, isEmptyNode, isNumbered, toQualifiedCommand, updateProps } from '../Lib/util.js'
+import { getPath, isElementOfType, isEmptyNode, isNumbered, toQualifiedCommand, updateProps } from '../Lib/util.js'
 import { S101Client } from '../Socket/index.js'
 import { ConnectionStatus } from './ConnectionStatus.js'
 import { StreamManager } from './StreamManager.js'
@@ -63,8 +62,11 @@ export interface Request {
 	// Basic validation of the response change
 	nodeResponse: ExpectResponse
 
-	/** Called with what answers the request: the element, as the provider reported it, or an invocation's result */
-	resolve: (res: RootElement | InvocationResult) => void
+	/**
+	 * Settles the request with what answers it: resolves it when that is of the kind the request expects (as its
+	 * promise is typed), and rejects it when not
+	 */
+	resolve: (res: Response) => void
 	reject: (err: Error) => void
 	cb?: (EmberNode: TreeElement<EmberElement>) => void
 	/** For a request to change a matrix connection: the target, whose connection the reply has to report */
@@ -242,7 +244,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		node: RootElement | Collection<RootElement>,
 		dirFieldMask?: FieldFlags,
 		cb?: (EmberNode: TreeElement<EmberElement>) => void
-	): RequestPromise<Root | RootElement> {
+	): RequestPromise<RootElement> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -255,7 +257,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					cb,
 				})
 
-			const request = await this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
+			const request = await this._sendRequest(
+				new NumberedTreeNodeImpl(0, command),
+				ExpectResponse.Any,
+				isElementResponse
+			)
 			if (request.sentOk) this._sentGetDirectories.set('', { dirFieldMask })
 			return request
 		}
@@ -268,14 +274,14 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				cb,
 			})
 
-		const sent = await this._sendRequest<RootElement>(request, ExpectResponse.HasChildren)
+		const sent = await this._sendRequest(request, ExpectResponse.HasChildren, isElementResponse)
 		if (sent.sentOk) this._sentGetDirectories.set(request.path, { elementType: request.elementType, dirFieldMask })
 		return sent
 	}
 	async subscribe(
 		node: RootElement | Array<RootElement>,
 		cb?: (EmberNode: TreeElement<EmberElement>) => void
-	): RequestPromise<Root | void> {
+	): RequestPromise<RootElement> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -289,7 +295,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					cb,
 				})
 
-			const request = await this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
+			const request = await this._sendRequest(
+				new NumberedTreeNodeImpl(0, command),
+				ExpectResponse.Any,
+				isElementResponse
+			)
 			if (request.sentOk) this._sentSubscribes.set('', {})
 			return request
 		}
@@ -314,11 +324,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				cb,
 			})
 
-		const sent = await this._sendRequest<void>(request, ExpectResponse.None)
+		const sent = await this._sendRequest(request, ExpectResponse.None, isElementResponse)
 		if (sent.sentOk) this._sentSubscribes.set(request.path, { elementType: request.elementType })
 		return sent
 	}
-	async unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>): RequestPromise<Root | void> {
+	async unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>): RequestPromise<RootElement> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -331,7 +341,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			this._sentGetDirectories.delete('')
 			this._sentSubscribes.delete('')
 			this._forgetParametersBelow('')
-			return this._sendRequest<Root>(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any)
+			return this._sendRequest(new NumberedTreeNodeImpl(0, command), ExpectResponse.Any, isElementResponse)
 		}
 
 		const path = getPath(node)
@@ -352,12 +362,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			}
 		}
 
-		return this._sendCommand<void>(node, command, ExpectResponse.None)
+		return this._sendRequest(toQualifiedCommand(node, command), ExpectResponse.None, isElementResponse)
 	}
-	async invoke(
-		node: NumberedTreeNode<EmberFunction> | QualifiedElement<EmberFunction>,
-		...args: Array<EmberTypedValue>
-	): RequestPromise<InvocationResult> {
+	async invoke(node: ElementOf<EmberFunction>, ...args: Array<EmberTypedValue>): RequestPromise<InvocationResult> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -371,7 +378,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				args,
 			},
 		}
-		return this._sendCommand<InvocationResult>(node, command, ExpectResponse.Any)
+		return this._sendRequest(toQualifiedCommand(node, command), ExpectResponse.Any, isInvocationResult)
 	}
 
 	/** Sending ember+ values */
@@ -381,10 +388,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	 * doesn't fit the parameter's type is refused, before anything is sent.
 	 */
 	async setValue<P extends Parameter>(
-		node: QualifiedElement<P> | NumberedTreeNode<P>,
+		node: ElementOf<P>,
 		value: Exclude<P['value'], undefined>,
 		awaitResponse = true
-	): RequestPromise<TreeElement<P>> {
+	): RequestPromise<ElementOf<Parameter>> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -402,7 +409,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			<Parameter>new ParameterImpl(parameterType, undefined, undefined, value)
 		)
 
-		return this._sendRequest<TreeElement<P>>(request, awaitResponse ? ExpectResponse.Any : ExpectResponse.None)
+		// The reply is the parameter, of the type the tree has, or, when it isn't loaded, of the type the provider
+		// reported (which the decoder guesses from the value when the provider leaves it out): not checked against P
+		return this._sendRequest(
+			request,
+			awaitResponse ? ExpectResponse.Any : ExpectResponse.None,
+			(res): res is ElementOf<Parameter> => isElementResponse(res) && isElementOfType(res, ElementType.Parameter)
+		)
 	}
 	/**
 	 * Asks the provider to connect sources to a target, in addition to the sources already connected to it.
@@ -413,18 +426,18 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	 * reports the connection as made.
 	 */
 	async matrixConnect(
-		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
+		matrix: ElementOf<Matrix>,
 		target: number,
 		sources: Array<number>
-	): RequestPromise<TreeElement<Matrix>> {
+	): RequestPromise<ElementOf<Matrix>> {
 		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Connect)
 	}
 	/** Asks the provider to disconnect sources from a target. The response settles as matrixConnect's does. */
 	async matrixDisconnect(
-		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
+		matrix: ElementOf<Matrix>,
 		target: number,
 		sources: Array<number>
-	): RequestPromise<TreeElement<Matrix>> {
+	): RequestPromise<ElementOf<Matrix>> {
 		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Disconnect)
 	}
 	/**
@@ -432,10 +445,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	 * response settles as matrixConnect's does.
 	 */
 	async matrixSetConnection(
-		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
+		matrix: ElementOf<Matrix>,
 		target: number,
 		sources: Array<number>
-	): RequestPromise<TreeElement<Matrix>> {
+	): RequestPromise<ElementOf<Matrix>> {
 		return this._matrixMutation(matrix, target, sources, ConnectionOperation.Absolute)
 	}
 
@@ -471,7 +484,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			} else {
 				const req = await this.getDirectory(curEmberNode)
 				if (!req.response) continue
-				const res = (await req.response) as RootElement
+				const res = await req.response
 				if (res.children) {
 					Object.values<NumberedTreeNode<EmberElement>>(res.children).forEach(
 						(c) => canBeExpanded(c) && emberNodes.push(c)
@@ -519,9 +532,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 			let next = getNextChild(tree, i)
 			if (!next) {
-				const req = await this.getDirectory(tree)
-				tree = (await req.response) as NumberedTreeNode<EmberElement>
-				next = getNextChild(tree, i)
+				// the reply: the element as the tree has it, or as the provider reported it when the tree hasn't
+				const reply = await (await this.getDirectory(tree)).response
+				next = reply && getNextChild(reply, i)
 			}
 			tree = next
 
@@ -540,7 +553,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			// do an additional getDirectory because Providers do not _have_ to send updates without that (should vs shall).
 			// Don't wait for the reply, as some providers never answer one. A reply updates the tree and calls cb.
 			const request = toQualifiedCommand(tree, new GetDirectoryImpl())
-			const sent = await this._sendRequest(request, ExpectResponse.None)
+			const sent = await this._sendRequest(request, ExpectResponse.None, isElementResponse)
 			if (sent.sentOk) this._sentGetDirectories.set(request.path, { elementType: request.elementType })
 		}
 
@@ -573,7 +586,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	}
 
 	private async _matrixMutation(
-		matrix: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
+		matrix: ElementOf<Matrix>,
 		target: number,
 		sources: Array<number>,
 		operation: ConnectionOperation
@@ -595,7 +608,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			connections: { [target]: connection },
 		})
 
-		return this._sendRequest<TreeElement<Matrix>>(request, ExpectResponse.Any, target)
+		return this._sendRequest(
+			request,
+			ExpectResponse.Any,
+			(res): res is ElementOf<Matrix> => isElementResponse(res) && isElementOfType(res, ElementType.Matrix),
+			target
+		)
 	}
 
 	/**
@@ -635,7 +653,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			const request: QualifiedCommand | RootElement = elementType
 				? { path, elementType, command }
 				: new NumberedTreeNodeImpl(0, command) // the root
-			this._sendRequest(request, ExpectResponse.None).catch((e) =>
+			this._sendRequest(request, ExpectResponse.None, isElementResponse).catch((e) =>
 				this.emit('warn', e instanceof Error ? e : new Error(String(e)))
 			)
 		}
@@ -648,15 +666,14 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		}
 	}
 
-	/** Sends a command for an element, given by its path */
-	private async _sendCommand<T>(node: RootElement, command: Command, expectResponse: ExpectResponse) {
-		return this._sendRequest<T>(toQualifiedCommand(node, command), expectResponse)
-	}
-
-	/** @param connectionTarget for a request to change a matrix connection, see Request.connectionTarget */
-	private async _sendRequest<T>(
+	/**
+	 * @param isResponse whether what answers the request is of the kind it expects, which its promise resolves with
+	 * @param connectionTarget for a request to change a matrix connection, see Request.connectionTarget
+	 */
+	private async _sendRequest<T extends Response>(
 		node: RootElement | QualifiedCommand,
 		expectResponse: ExpectResponse,
+		isResponse: (res: Response) => res is T,
 		connectionTarget?: number
 	): RequestPromise<T> {
 		const reqId = Math.random().toString(24).substr(-4)
@@ -673,8 +690,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					reqId,
 					node,
 					nodeResponse: expectResponse,
-					// The caller names the response it expects (T) for the request it sends
-					resolve: (res) => resolve(res as T),
+					resolve: (res) => {
+						if (isResponse(res)) resolve(res)
+						else
+							reject(
+								new Error(`Unexpected reply to the request to ${requestPath(node)}: ${describe(res)}`)
+							)
+					},
 					reject,
 					connectionTarget,
 					message,
@@ -725,7 +747,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			// (An Invoke is answered by its invocation's result, not by a report on the function.)
 			const reqs = Array.from(this._requests.values()).filter(
 				(s) =>
-					!('command' in s.node && isInvoke(s.node.command)) &&
+					!isInvokeRequest(s.node) &&
 					((!('path' in s.node) && !change.path) || ('path' in s.node && s.node.path === change.path))
 			)
 			for (const req of reqs) {
@@ -776,11 +798,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			const node = root.value
 			this._requests.forEach((req) => {
 				// the Invoke whose invocation the result is of
-				if (
-					'command' in req.node &&
-					isInvoke(req.node.command) &&
-					req.node.command.invocation?.id === node.id
-				) {
+				if (isInvokeRequest(req.node) && req.node.command.invocation?.id === node.id) {
 					req.resolve(node)
 					this._requests.delete(req.reqId)
 				}
@@ -1049,4 +1067,30 @@ function findConnection(connections: Connections | undefined, target: number): C
 /** The names of an element's contents' properties */
 function propertiesOf<T extends object>(contents: T): Array<keyof T> {
 	return Object.keys(contents) as Array<keyof T>
+}
+
+/** What answers a request: an element, as the provider reported it (or as the tree has it), or an invocation's result */
+type Response = RootElement | InvocationResult
+
+function isElementResponse(res: Response): res is RootElement {
+	return 'contents' in res
+}
+
+function isInvocationResult(res: Response): res is InvocationResult {
+	return !isElementResponse(res)
+}
+
+/** Whether a request is an Invoke, answered by its invocation's result */
+function isInvokeRequest(node: RootElement | QualifiedCommand): node is QualifiedCommand<Invoke> {
+	return 'command' in node && isInvoke(node.command)
+}
+
+function requestPath(node: RootElement | QualifiedCommand): string {
+	return ('command' in node ? node.path : getPath(node)) || 'the root'
+}
+
+function describe(res: Response): string {
+	return isElementResponse(res)
+		? `a ${res.contents.type.toLowerCase()} at ${getPath(res) || 'the root'}`
+		: `the result of invocation ${res.id}`
 }

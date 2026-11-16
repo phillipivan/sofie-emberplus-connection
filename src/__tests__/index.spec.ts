@@ -93,18 +93,19 @@ describe('the package exports', () => {
 		const options: EmberClientOptions = { timeout: 1000, getDirectoryOnParams: false }
 		// Not called: it only has to compile
 		const signatures = async (client: EmberClient, server: EmberServer) => {
-			const sent: RequestPromise<Types.Root | Types.RootElement> = client.getDirectory(
-				client.tree,
-				Model.FieldFlags.Default
+			const sent: RequestPromise<Types.RootElement> = client.getDirectory(client.tree, Model.FieldFlags.Default)
+			const request: RequestPromiseArguments<Types.RootElement> = await sent
+			const set: RequestPromise<Types.ElementOf<Model.Parameter>> = client.setValue(
+				new Model.NumberedTreeNodeImpl(1, new Model.ParameterImpl(Model.ParameterType.Integer)),
+				5
 			)
-			const request: RequestPromiseArguments<Types.Root | Types.RootElement> = await sent
 			server.onInvocation = async (_fn, invocation: Types.NumberedTreeNode<Model.Invoke>) =>
 				Promise.resolve({ id: invocation.contents.invocation?.id ?? -1, success: true })
 			server.on('clientError', (socket: S101Socket) => socket.status === ConnectionStatus.Connected)
 			const command: Model.Command = invocation()
 			const tree: S101SocketEvents['emberTree'] = [berDecode(Buffer.alloc(0))]
 			const codecEvent: keyof S101CodecEvents = 'keepaliveReq'
-			return { request, command, tree, codecEvent }
+			return { request, set, command, tree, codecEvent }
 		}
 		const invocation = (): Model.Invoke => ({
 			type: Model.ElementType.Command,

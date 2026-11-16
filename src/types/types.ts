@@ -14,6 +14,7 @@ export {
 	EmberTypedValue,
 	Root,
 	RootElement,
+	ElementOf,
 	QualifiedCommand,
 	CommandableElementType,
 	isCommandableElementType,
@@ -31,6 +32,8 @@ type EmberTreeNode<T extends EmberElement> = NumberedTreeNode<T>
  * one, given by its path, of any kind but a command (the Glow DTD's RootElement)
  */
 type RootElement = NumberedTreeNode<EmberElement> | QualifiedElement<Exclude<EmberElement, Command>>
+/** An element of a kind, numbered or qualified (as a request about one names it, and its reply is) */
+type ElementOf<T extends Exclude<EmberElement, Command>> = NumberedTreeNode<T> | QualifiedElement<T>
 /**
  * A command for an element given by its path, as a consumer sends it: the path, the element's kind, which decides how
  * it is encoded (as a QualifiedNode, a QualifiedParameter, ...), and the command, with none of the element's contents,
