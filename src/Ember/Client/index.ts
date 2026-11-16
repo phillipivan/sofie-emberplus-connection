@@ -9,6 +9,7 @@ import {
 	GetDirectory,
 	GetDirectoryImpl,
 	Invoke,
+	isInvoke,
 	Subscribe,
 	SubscribeImpl,
 	Unsubscribe,
@@ -17,7 +18,6 @@ import {
 import { Connection, ConnectionDisposition, ConnectionOperation } from '../../model/Connection.js'
 import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberFunction } from '../../model/EmberFunction.js'
-import { EmberNode } from '../../model/EmberNode.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
 import { Connections, Matrix } from '../../model/Matrix.js'
 import { Parameter, ParameterImpl } from '../../model/Parameter.js'
@@ -34,7 +34,7 @@ import {
 	RootType,
 	TreeElement,
 } from '../../types/types.js'
-import { assertQualifiedEmberNode, getPath, insertCommand, isEmptyNode, updateProps } from '../Lib/util.js'
+import { assertQualifiedEmberNode, getPath, insertCommand, isEmptyNode, isNumbered, updateProps } from '../Lib/util.js'
 import { S101Client } from '../Socket/index.js'
 import { ConnectionStatus } from './ConnectionStatus.js'
 import { StreamManager } from './StreamManager.js'
@@ -441,7 +441,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const emberNodes = [node]
 		const canBeExpanded = (node: NumberedTreeNode<EmberElement>) => {
 			if (node.contents.type === ElementType.Node) {
-				return (node as NumberedTreeNode<EmberNode>).contents.isOnline !== false
+				return node.contents.isOnline !== false
 			} else {
 				return node.contents.type !== ElementType.Parameter && node.contents.type !== ElementType.Function
 			}
@@ -483,8 +483,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			const byNumber = () => (isNumber(segment) ? nodes.find((r) => r.number === Number(segment)) : undefined)
 			if (numbered) return byNumber()
 			return (
-				nodes.find((r) => (r.contents as EmberNode).identifier === segment) ??
-				nodes.find((r) => (r.contents as EmberNode).description === segment) ??
+				nodes.find((r) => 'identifier' in r.contents && r.contents.identifier === segment) ??
+				nodes.find((r) => 'description' in r.contents && r.contents.description === segment) ??
 				byNumber()
 			)
 		}
@@ -536,10 +536,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if ('path' in node && typeof node.path === 'string') {
 			// QualifiedElement case
 			return node.path
-		} else if ('number' in node) {
+		} else if (isNumbered(node)) {
 			// NumberedTreeNode case
 			const numbers: number[] = []
-			let current: NumberedTreeNode<EmberElement> | undefined = node as NumberedTreeNode<EmberElement>
+			let current: NumberedTreeNode<EmberElement> | undefined = node
 
 			while (current) {
 				numbers.unshift(current.number)
@@ -770,11 +770,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			this._requests.forEach((req) => {
 				if (req.node.contents.type === ElementType.Function) {
 					if (req.node.children && req.node.children[0]) {
-						if ('invocation' in (req.node.children[0].contents as Invoke)) {
-							if (
-								(req.node.children[0].contents as Invoke).invocation?.id &&
-								(req.node.children[0].contents as Invoke).invocation?.id === node.id
-							) {
+						const command = req.node.children[0].contents
+						if (command.type === ElementType.Command && isInvoke(command)) {
+							if (command.invocation?.id && command.invocation.id === node.id) {
 								req.resolve(node)
 								this._requests.delete(req.reqId)
 							}
@@ -898,17 +896,20 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					updateProps<EmberElement>(tree.contents, update.contents)
 					break
 				case ElementType.Parameter:
+					// (The update is of the same type, checked above; this check narrows it for TypeScript.)
+					if (update.contents.type !== ElementType.Parameter) break
 					// Not the type: when a provider leaves it out, the decoder infers one from the value (an
 					// enumeration's value is an integer), so the type in an update can't be told from a guess
 					updateProps<Parameter>(
 						tree.contents,
-						update.contents as Parameter,
-						propertiesOf(update.contents as Parameter).filter((key) => key !== 'parameterType')
+						update.contents,
+						propertiesOf(update.contents).filter((key) => key !== 'parameterType')
 					)
 					this._followStreamIdentifier(getPath(tree), tree.contents)
 					break
 				case ElementType.Matrix:
-					this._updateMatrix(update.contents as Matrix, tree.contents)
+					if (update.contents.type !== ElementType.Matrix) break // the same type, as above
+					this._updateMatrix(update.contents, tree.contents)
 					break
 			}
 		}

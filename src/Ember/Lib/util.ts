@@ -1,4 +1,4 @@
-import { Command } from '../../model/Command.js'
+import { Command, Invoke, isInvoke } from '../../model/Command.js'
 import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberNode } from '../../model/index.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl, TreeElement } from '../../model/Tree.js'
@@ -12,12 +12,14 @@ export function assertQualifiedEmberNode(node: RootElement): Exclude<RootElement
 	}
 }
 
+/** Whether a tree element is a numbered one (a child, or a top-level element given by number) */
+export function isNumbered(node: TreeElement<EmberElement>): node is NumberedTreeNode<EmberElement> {
+	return 'number' in node
+}
+
 export function getPath(node: RootElement): string {
 	function isQualified(node: TreeElement<EmberElement>): node is QualifiedElement<EmberElement> {
 		return 'path' in node
-	}
-	function isNumbered(node: TreeElement<EmberElement>): node is NumberedTreeNode<EmberElement> {
-		return 'number' in node
 	}
 	if (isQualified(node)) {
 		return node.path
@@ -104,4 +106,20 @@ export function isEmptyNode(node: TreeElement<EmberElement>): boolean {
 	].some((value) => value !== undefined && value !== null)
 
 	return !notEmpty
+}
+
+/**
+ * Whether a tree element's contents are of the given type, narrowing the element with them. (Checking
+ * `el.contents.type` narrows the contents, but not the element they are in.)
+ */
+export function isElementOfType<K extends ElementType, E extends TreeElement<EmberElement>>(
+	el: E,
+	type: K
+): el is E & TreeElement<Extract<EmberElement, { type: K }>> {
+	return el.contents.type === type
+}
+
+/** Whether a command element is an Invoke, narrowing the element with it */
+export function isInvokeElement(el: NumberedTreeNode<Command>): el is NumberedTreeNode<Invoke> {
+	return isInvoke(el.contents)
 }
