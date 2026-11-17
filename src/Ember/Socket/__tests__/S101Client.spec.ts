@@ -3,7 +3,7 @@ import { EventEmitter } from 'events'
 import { berDecode, berEncode } from '../../../encodings/ber/index.js'
 import { at } from '../../../lib/at.js'
 import { GetDirectoryImpl } from '../../../model/Command.js'
-import { NumberedTreeNodeImpl } from '../../../model/index.js'
+import { EmberNodeImpl, NumberedTreeNodeImpl } from '../../../model/index.js'
 import S101Codec from '../../../S101/S101Codec.js'
 import { RootType } from '../../../types/types.js'
 import { ConnectionStatus } from '../../Client/ConnectionStatus.js'
@@ -499,6 +499,35 @@ describe('EmberClient discard', () => {
 
 		await jest.advanceTimersByTimeAsync(60000)
 		expect(FakeNetSocket.attempts).toBe(1)
+	})
+})
+
+// The socket's disconnect() sets its status first, so its close emits no 'disconnected', which is what rejected the
+// requests waiting; and timeouts are checked only while connected, so they waited for good
+describe('EmberClient disconnect', () => {
+	beforeEach(() => {
+		jest.useFakeTimers()
+	})
+	afterEach(() => {
+		jest.useRealTimers()
+	})
+
+	it('rejects the requests waiting', async () => {
+		const client = new EmberClient('127.0.0.1', 9000)
+		client.on('error', () => null)
+		currentSocket((client as unknown as { _client: S101Client })._client).succeed()
+		await jest.advanceTimersByTimeAsync(0)
+		expect(client.connected).toBe(true)
+		const request = await client.getDirectory(new NumberedTreeNodeImpl(1, new EmberNodeImpl('a')))
+		let rejection: unknown
+		request.response?.catch((e: unknown) => (rejection = e))
+
+		await client.disconnect()
+		await jest.advanceTimersByTimeAsync(10000)
+
+		expect(rejection).toBeInstanceOf(Error)
+		expect((rejection as Error).message).toBe('Socket was disconnected')
+		client.discard()
 	})
 })
 

@@ -206,10 +206,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			this.emit('connected')
 		})
 		this._client.on('disconnected', () => {
-			this._requests.forEach((req) => {
-				req.reject(new Error('Socket was disconnected'))
-				this._requests.delete(req.reqId)
-			})
+			this._rejectAllRequests()
 			this.emit('disconnected')
 		})
 	}
@@ -235,6 +232,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	 * Closes the s101 socket to the provider
 	 */
 	async disconnect(): Promise<void> {
+		// The socket's disconnect() sets its status first, so the close emits no 'disconnected' to reject the requests
+		// waiting; and timeouts are checked only while connected, so they would wait for good
+		this._rejectAllRequests()
 		return this._client.disconnect()
 	}
 
@@ -248,11 +248,14 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._client.removeAllListeners()
 		// @ts-expect-error: after using this method, properties are no longer expected to always exist
 		delete this._client
-		this._requests.forEach((req) => {
-			req.reject(new Error('Socket was disconnected'))
-			this._requests.delete(req.reqId)
-		})
+		this._rejectAllRequests()
 		clearInterval(this._timer)
+	}
+
+	/** Rejects every request waiting for a reply, there being no connection for one to come on */
+	private _rejectAllRequests(): void {
+		for (const req of this._requests.values()) req.reject(new Error('Socket was disconnected'))
+		this._requests.clear()
 	}
 
 	get connected(): boolean {
