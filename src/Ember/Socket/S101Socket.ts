@@ -87,14 +87,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 			this.socket.on('close', () => {
 				this.status = ConnectionStatus.Disconnected
 				this.codec.reset()
-				if (this.keepaliveIntervalTimer) {
-					clearInterval(this.keepaliveIntervalTimer)
-					this.keepaliveIntervalTimer = undefined
-				}
-				if (this.keepaliveResponseWindowTimer) {
-					clearTimeout(this.keepaliveResponseWindowTimer)
-					this.keepaliveResponseWindowTimer = null
-				}
+				this.clearKeepaliveTimers()
 				this.socket?.removeAllListeners()
 				this.socket = undefined
 				this.emit('disconnected')
@@ -114,14 +107,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 			return Promise.resolve()
 		}
 		return new Promise((resolve) => {
-			if (this.keepaliveIntervalTimer != null) {
-				clearInterval(this.keepaliveIntervalTimer)
-				this.keepaliveIntervalTimer = undefined
-			}
-			if (this.keepaliveResponseWindowTimer != null) {
-				clearTimeout(this.keepaliveResponseWindowTimer)
-				this.keepaliveResponseWindowTimer = null
-			}
+			this.clearKeepaliveTimers()
 			if (this.socket) {
 				let done = false
 				const cb = () => {
@@ -152,14 +138,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 		this.socket?.removeAllListeners()
 		this.socket?.destroy()
 		this.socket = undefined
-		if (this.keepaliveIntervalTimer) {
-			clearInterval(this.keepaliveIntervalTimer)
-			this.keepaliveIntervalTimer = undefined
-		}
-		if (this.keepaliveResponseWindowTimer) {
-			clearTimeout(this.keepaliveResponseWindowTimer)
-			this.keepaliveResponseWindowTimer = null
-		}
+		this.clearKeepaliveTimers()
 		this.status = ConnectionStatus.Disconnected
 		this.emit('disconnected')
 	}
@@ -220,7 +199,22 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 	// 	this.sendBER(ber)
 	// }
 
+	/** Stops the keepalive requests, and the wait for the answer to one sent */
+	protected clearKeepaliveTimers(): void {
+		if (this.keepaliveIntervalTimer) {
+			clearInterval(this.keepaliveIntervalTimer)
+			this.keepaliveIntervalTimer = undefined
+		}
+		if (this.keepaliveResponseWindowTimer) {
+			clearTimeout(this.keepaliveResponseWindowTimer)
+			this.keepaliveResponseWindowTimer = null
+		}
+	}
+
 	protected startKeepAlive(): void {
+		// A connection has one interval: one started beside another would send two requests at a time, and the
+		// window of the first, no longer the one an answer clears, would close the connection
+		this.clearKeepaliveTimers()
 		this.keepaliveIntervalTimer = setInterval(() => {
 			try {
 				this.sendKeepaliveRequest()

@@ -184,7 +184,7 @@ export default class S101Client extends S101Socket {
 	}
 
 	protected handleClose(): void {
-		if (this.keepaliveIntervalTimer) clearInterval(this.keepaliveIntervalTimer)
+		this.clearKeepaliveTimers()
 		this.socket?.destroy()
 	}
 
@@ -243,6 +243,9 @@ export default class S101Client extends S101Socket {
 	private _onClose(_hadError: boolean) {
 		// The codec reads every connection this client makes: what this one left half read is no part of the next
 		this.codec.reset()
+		// Nor are its keepalives: its interval would carry on beside the next connection's, and the window of a request
+		// it didn't answer would close the next connection
+		this.clearKeepaliveTimers()
 		if (this.status !== ConnectionStatus.Disconnected) this.emit('disconnected')
 		this.status = ConnectionStatus.Disconnected
 

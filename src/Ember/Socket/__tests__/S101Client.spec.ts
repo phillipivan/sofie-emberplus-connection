@@ -24,6 +24,10 @@ class FakeNetSocket extends EventEmitter {
 
 	connecting = false
 	destroyed = false
+	/** Keepalive requests written to this socket, across its connections */
+	keepaliveRequests = 0
+	/** Whether it answers them, as a live provider does */
+	answerKeepalives = true
 
 	connect(): this {
 		FakeNetSocket.attempts++
@@ -47,7 +51,10 @@ class FakeNetSocket extends EventEmitter {
 	}
 
 	write(data: Buffer): boolean {
-		if (data.equals(KEEPALIVE_REQUEST)) queueMicrotask(() => this.emit('data', KEEPALIVE_RESPONSE))
+		if (data.equals(KEEPALIVE_REQUEST)) {
+			this.keepaliveRequests++
+			if (this.answerKeepalives) queueMicrotask(() => this.emit('data', KEEPALIVE_RESPONSE))
+		}
 		return true
 	}
 
@@ -538,6 +545,64 @@ describe('EmberClient connect', () => {
 		expect(rejection).toBeInstanceOf(Error)
 		expect((rejection as Error).message).toBe('No host specified')
 		client.discard()
+	})
+})
+
+// A connection's keepalive interval and response window were left running when it closed, and a reconnect started
+// another interval beside the old one (net.Socket connects again as the same socket)
+describe('S101Client keepalives across a reconnect', () => {
+	beforeEach(() => {
+		jest.useFakeTimers()
+	})
+	afterEach(() => {
+		jest.useRealTimers()
+	})
+
+	it('sends one keepalive request every 10 s after a reconnect, and none after disconnect()', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		void client.connect()
+		const socket = currentSocket(client)
+		socket.succeed()
+		await advanceInSteps(10000)
+		expect(socket.keepaliveRequests).toBe(1)
+
+		socket.emit('close', false) // the connection drops, and the client connects again at once
+		expect(socket.connecting).toBe(true)
+		socket.succeed()
+		const before = socket.keepaliveRequests
+		await advanceInSteps(30000)
+		expect(socket.keepaliveRequests - before).toBe(3)
+
+		await client.disconnect()
+		const atDisconnect = socket.keepaliveRequests
+		await advanceInSteps(30000)
+		expect(socket.keepaliveRequests).toBe(atDisconnect)
+		client.removeAllListeners()
+	})
+
+	// The response window of a keepalive request the dropped connection didn't answer closed the next connection
+	it("doesn't let an unanswered keepalive of the dropped connection close the next one", async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		void client.connect()
+		const socket = currentSocket(client)
+		socket.succeed()
+		await advanceInSteps(9000)
+
+		socket.answerKeepalives = false
+		await jest.advanceTimersByTimeAsync(1100) // the request at 10 s, unanswered
+		expect(socket.keepaliveRequests).toBe(1)
+		socket.emit('close', false) // dropped within the 500 ms response window
+		socket.answerKeepalives = true
+		expect(socket.connecting).toBe(true)
+		socket.succeed()
+		await jest.advanceTimersByTimeAsync(1000)
+
+		expect(client.status).toBe(ConnectionStatus.Connected)
+		expect(socket.destroyed).toBe(false)
+		client.removeAllListeners()
+		await client.disconnect()
 	})
 })
 
