@@ -219,10 +219,18 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 	/** Clears the state, so the next read starts clean, and reports a frame too large to take */
 	private dropOversized(message: string): never {
+		this.reset()
+		throw new S101OversizedFrameError(message)
+	}
+
+	/**
+	 * Drops what is half read: a frame cut short and a message in several packets not yet complete. For when the
+	 * connection closes, so that what it left is no part of the next connection's data.
+	 */
+	reset(): void {
 		this.frameBuffer = undefined
 		this.escaped = false
 		this.resetMultiPacketBuffer()
-		throw new S101OversizedFrameError(message)
 	}
 
 	/**

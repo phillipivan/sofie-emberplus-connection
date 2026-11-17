@@ -125,6 +125,21 @@ describe('S101Socket lifecycle', () => {
 		})
 	})
 
+	it('drops what the closed connection left half read', () => {
+		const socket = new FakeSocket()
+		const s101Socket = new S101Socket(socket as any)
+		s101Socket.on('error', () => null)
+
+		// The first packet of a message in several, and the start of a non-escaping frame
+		socket.emit('data', new S101Codec().encodeBER(Buffer.alloc(3000, 0x01))[0])
+		socket.emit('data', Buffer.from([0xf8, 0x01, 0xff, 0x00]))
+		socket.emit('close')
+
+		const codec = (s101Socket as any).codec
+		expect(codec.multiPacketBuffer).toBeUndefined()
+		expect(codec.frameBuffer).toBeUndefined()
+	})
+
 	it('handleClose tears down socket and marks disconnected', () => {
 		const socket = new FakeSocket()
 		const s101Socket = new S101Socket(socket as any)

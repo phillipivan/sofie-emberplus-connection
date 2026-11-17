@@ -86,6 +86,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 
 			this.socket.on('close', () => {
 				this.status = ConnectionStatus.Disconnected
+				this.codec.reset()
 				if (this.keepaliveIntervalTimer) {
 					clearInterval(this.keepaliveIntervalTimer)
 					this.keepaliveIntervalTimer = undefined

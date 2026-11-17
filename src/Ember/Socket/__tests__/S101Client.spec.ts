@@ -528,6 +528,56 @@ describe('EmberClient connect', () => {
 
 		client.discard()
 	})
+
+	it('rejects with an Error when there is no host', async () => {
+		const client = new EmberClient('', 9000)
+		client.on('error', () => null)
+
+		const rejection: unknown = await client.connect().catch((e: unknown) => e)
+
+		expect(rejection).toBeInstanceOf(Error)
+		expect((rejection as Error).message).toBe('No host specified')
+		client.discard()
+	})
+})
+
+describe('S101Client a new connection', () => {
+	beforeEach(() => {
+		jest.useFakeTimers()
+	})
+	afterEach(() => {
+		jest.useRealTimers()
+	})
+
+	// The codec is the client's, for every connection it makes: what the dropped one left half read was kept. A frame
+	// cut short took the next connection's data for the rest of it, and a message in several packets cut short was
+	// held (up to 16 MiB) until another came.
+	it('starts clean, without what the dropped connection left half read', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		const trees: unknown[] = []
+		client.on('error', () => null)
+		client.on('emberTree', (tree) => trees.push(tree))
+		void client.connect()
+		const first = currentSocket(client)
+		first.succeed()
+
+		// The first packet of a message in several, and the start of a non-escaping frame of 255 bytes
+		first.emit('data', at(new S101Codec().encodeBER(Buffer.alloc(3000, 0x01)), 0))
+		first.emit('data', Buffer.from([0xf8, 0x01, 0xff, 0x00]))
+		first.emit('close', false)
+		await advanceInSteps(5000) // the retry
+		const next = currentSocket(client)
+		next.succeed()
+
+		const message = berEncode([new NumberedTreeNodeImpl(0, new GetDirectoryImpl())], RootType.Elements)
+		next.emit('data', at(new S101Codec().encodeBER(message), 0))
+
+		expect(trees).toHaveLength(1)
+		const codec = (client as unknown as { codec: { multiPacketBuffer?: unknown } }).codec
+		expect(codec.multiPacketBuffer).toBeUndefined()
+		client.removeAllListeners()
+		await client.disconnect()
+	})
 })
 
 describe('S101Client a rejected frame', () => {

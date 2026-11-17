@@ -185,7 +185,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			}
 			return a
 		}
-		this._timer = setInterval(() => this._resendTimer(), findGcd(this._timeout, this._resendTimeout))
+		// At least 50 ms apart: timeouts such as 2999 and 1000 ms have a gcd of 1, which made the check run every
+		// millisecond. And it doesn't keep the process running, which a socket does while there is a connection.
+		this._timer = setInterval(() => this._resendTimer(), Math.max(50, findGcd(this._timeout, this._resendTimeout)))
+		this._timer.unref()
 
 		this._client = new S101Client(this.host, this.port, true)
 		this._client.on('emberTree', (tree) => {
@@ -220,8 +223,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (host) this.host = host
 		if (port) this.port = port
 
-		// eslint-disable-next-line
-		if (!this.host) return Promise.reject('No host specified')
+		if (!this.host) throw new Error('No host specified')
 
 		this._client.address = this.host
 		this._client.port = this.port
@@ -1166,6 +1168,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						req.lastSent = Date.now()
 					} else {
 						req.reject(new Error('Request was not sent correctly'))
+						this._requests.delete(req.reqId)
+						return
 					}
 				}
 				if (sinceFirstSent >= this._timeout) {

@@ -2763,4 +2763,43 @@ describe('client', () => {
 			})
 		})
 	})
+
+	describe('timeouts and resends', () => {
+		// A resend that couldn't be sent rejected the request but left it waiting, to be sent and rejected again on
+		// every check until it timed out
+		it('drops a request whose resend cannot be sent', async () => {
+			await runWithConnection(
+				async (client, socket) => {
+					const request = await client.getDirectory(new NumberedTreeNodeImpl(1, new EmberNodeImpl('a')))
+					expect(request.sentOk).toBe(true)
+					let rejection: unknown
+					request.response?.catch((e: unknown) => (rejection = e))
+					socket.onWrite = () => false
+
+					await new Promise((resolve) => setTimeout(resolve, 150))
+
+					expect((rejection as Error | undefined)?.message).toBe('Request was not sent correctly')
+					expect(client['_requests'].size).toBe(0)
+				},
+				{ enableResends: true, resendTimeout: 50, timeout: 10000 }
+			)
+		})
+
+		// The check ran every gcd(timeout, resendTimeout) ms: every millisecond for a timeout of 2999 ms. And the interval
+		// kept the process running until the client was discarded.
+		it('checks no more often than every 50 ms, without keeping the process running', async () => {
+			const setInterval = jest.spyOn(global, 'setInterval')
+			try {
+				await runWithConnection(
+					async (client) => {
+						expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 50)
+						expect(client['_timer'].hasRef()).toBe(false)
+					},
+					{ timeout: 2999, resendTimeout: 1000 }
+				)
+			} finally {
+				setInterval.mockRestore()
+			}
+		})
+	})
 })
