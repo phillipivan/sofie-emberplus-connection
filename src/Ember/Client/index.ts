@@ -841,6 +841,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					this._requests.delete(reqId)
 				}
 			})
+			// A caller may read only sentOk: a response it doesn't await isn't to reject unhandled, which ends a Node
+			// process. A caller awaiting it still gets the rejection.
+			p.catch(() => undefined)
 			requestPromise.response = p
 		}
 

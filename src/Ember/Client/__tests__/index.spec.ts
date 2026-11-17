@@ -2785,6 +2785,23 @@ describe('client', () => {
 			)
 		})
 
+		// A caller may read only sentOk. The response it didn't await was rejected unhandled when the request timed out,
+		// which ends a Node process
+		it('lets a caller ignore the response of a request that times out', async () => {
+			await runWithConnection(
+				async (client) => {
+					const ignored = await client.getDirectory(new NumberedTreeNodeImpl(1, new EmberNodeImpl('a')))
+					expect(ignored.sentOk).toBe(true)
+					const awaited = await client.getDirectory(new NumberedTreeNodeImpl(2, new EmberNodeImpl('b')))
+
+					await expect(awaited.response).rejects.toThrow('Request timed out')
+					await new Promise((resolve) => setTimeout(resolve, 200))
+					expect(client['_requests'].size).toBe(0)
+				},
+				{ timeout: 100 }
+			)
+		})
+
 		// The check ran every gcd(timeout, resendTimeout) ms: every millisecond for a timeout of 2999 ms. And the interval
 		// kept the process running until the client was discarded.
 		it('checks no more often than every 50 ms, without keeping the process running', async () => {
