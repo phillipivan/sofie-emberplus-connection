@@ -22,15 +22,18 @@ import {
 	defaultDecode,
 	makeResult,
 	skipNext,
+	skipTooDeep,
 	unexpected,
 	unknownContext,
 } from './DecodeResult.js'
 import { decodeGenericElement } from './Tree.js'
 
+/** @param depth how deep the template is below the message's own elements, which are at 0 */
 export function decodeTemplate(
 	reader: Ber.Reader,
 	isQualified = false,
-	options: DecodeOptions = defaultDecode
+	options: DecodeOptions = defaultDecode,
+	depth = 0
 ): DecodeResult<QualifiedElement<Template> | NumberedTreeNode<Template>> {
 	reader.readSequence(isQualified ? QualifiedTemplateBERID : TemplateBERID)
 	let number: number | null = null
@@ -51,7 +54,8 @@ export function decodeTemplate(
 				break
 			case Ber.CONTEXT(1): {
 				// A parameter, node, matrix or function, numbered (the DTD's TemplateElement)
-				const templated = appendErrors(decodeGenericElement(reader, options), errors)
+				if (skipTooDeep(reader, depth + 1, errors, 'decode template')) break
+				const templated = appendErrors(decodeGenericElement(reader, options, depth + 1), errors)
 				if (isTemplateElement(templated)) {
 					element = templated
 				} else {

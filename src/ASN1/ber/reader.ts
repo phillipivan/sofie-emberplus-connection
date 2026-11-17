@@ -12,6 +12,12 @@ import { Types } from './types.js'
 // refused more than four. What keeps a length safe is that it can't run past the data, which the callers check.
 const RESERVED_LENGTH = 'Invalid length: the first length byte 0xFF is reserved (X.690 8.1.3.5)'
 
+// How deep indefinite-length blocks may be nested. Measuring a block measures those in it, a call a level, and a level
+// takes two bytes: some thousands of levels used up the call stack, ending the decoding with a RangeError. An Ember+
+// tree level takes about four (the element, its children, their collection and the item), so this is well above four
+// times the elements' limit (MAX_TREE_DEPTH in the decoder), for a provider that uses the indefinite form throughout.
+const MAX_BLOCK_DEPTH = 512
+
 ///--- API
 
 export class Reader {
@@ -103,6 +109,11 @@ export class Reader {
 				lenB &= 0x7f
 
 				if (lenB == 0) {
+					if (this._blocklevel + 1 >= MAX_BLOCK_DEPTH) {
+						throw newInvalidAsn1Error(
+							`indefinite-length blocks nested more than ${MAX_BLOCK_DEPTH} deep at offset ${currOffset}`
+						)
+					}
 					this._blocklevel++
 					lenB = this.readBlock(currOffset)
 					this._blocklevel--

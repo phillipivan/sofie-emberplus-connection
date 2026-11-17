@@ -227,6 +227,26 @@ test('truncated long-form length inside indefinite length block throws', () => {
 	expect(() => reader.readSequence(0x60)).toThrow(/truncated length in block/)
 })
 
+// Nesting indefinite-length blocks takes two bytes a level, and measuring them a call a level: some thousands of levels
+// used up the call stack, ending the decoding with a RangeError
+describe('indefinite-length nesting', () => {
+	const nested = (levels: number) => {
+		const b = Buffer.alloc(4 * levels)
+		for (let i = 0; i < levels; i++) b.set([0x30, 0x80], 2 * i) // and 00 00 for each end
+		return b
+	}
+
+	test('is read 512 levels deep', () => {
+		expect(new Reader(nested(512)).readSequence()).toBe(0x30)
+	})
+
+	test.each([513, 100000])('is refused %d levels deep', (levels) => {
+		expect(() => new Reader(nested(levels)).readSequence()).toThrow(
+			/indefinite-length blocks nested more than 512 deep/
+		)
+	})
+})
+
 test('truncated indefinite length block does not hang at any length', () => {
 	const full = Buffer.from([0x60, 0x80, 0x61, 0x80, 0x02, 0x01, 0x07, 0x00, 0x00, 0x00, 0x00])
 

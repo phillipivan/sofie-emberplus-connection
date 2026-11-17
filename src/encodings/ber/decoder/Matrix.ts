@@ -29,10 +29,12 @@ import { decodeChildren } from './Tree.js'
 
 export { decodeMatrix }
 
+/** @param depth how deep the matrix is below the message's own elements, which are at 0 */
 function decodeMatrix(
 	reader: Ber.Reader,
 	isQualified = false,
-	options: DecodeOptions = defaultDecode
+	options: DecodeOptions = defaultDecode,
+	depth = 0
 ): DecodeResult<QualifiedElement<Matrix> | NumberedTreeNode<Matrix>> {
 	reader.readSequence(isQualified ? QualifiedMatrixBERID : MatrixBERID)
 	let number: number | null = null
@@ -58,7 +60,7 @@ function decodeMatrix(
 				contents = appendErrors(decodeMatrixContents(reader, options), errors)
 				break
 			case Ber.CONTEXT(2):
-				kids = appendErrors(decodeChildren(reader, options), errors)
+				kids = appendErrors(decodeChildren(reader, options, depth), errors)
 				break
 			case Ber.CONTEXT(3):
 				targets = appendErrors(decodeTargets(reader, options), errors)

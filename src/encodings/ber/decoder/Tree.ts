@@ -30,6 +30,7 @@ import {
 	makeResult,
 	safeSet,
 	skipNext,
+	skipTooDeep,
 	unexpected,
 	unknownApplication,
 	unknownContext,
@@ -40,9 +41,11 @@ import { decodeMatrix } from './Matrix.js'
 import { decodeParameter } from './Parameter.js'
 import { decodeTemplate } from './Template.js'
 
+/** @param depth how deep the element whose children these are is below the message's own elements */
 export function decodeChildren(
 	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
+	options: DecodeOptions = defaultDecode,
+	depth = 0
 ): DecodeResult<Collection<NumberedTreeNode<EmberElement>>> {
 	reader.readSequence(ElementCollectionBERID)
 	const kids = makeResult<Collection<NumberedTreeNode<EmberElement>>>({})
@@ -51,7 +54,8 @@ export function decodeChildren(
 	while (reader.offset < endOffset) {
 		const tag = reader.readSequence()
 		if (tag === 0) continue
-		const kid = appendErrors(decodeGenericElement(reader, options), kids)
+		if (skipTooDeep(reader, depth + 1, kids, 'decode children')) continue
+		const kid = appendErrors(decodeGenericElement(reader, options, depth + 1), kids)
 		// The children are numbered elements (the DTD's ElementCollection): a qualified one has no number to go by
 		if (!isNumbered(kid)) {
 			unexpected(
@@ -69,9 +73,11 @@ export function decodeChildren(
 	return kids
 }
 
+/** @param depth how deep the element is below the message's own elements, which are at 0 */
 export function decodeGenericElement(
 	reader: Ber.Reader,
-	options: DecodeOptions = defaultDecode
+	options: DecodeOptions = defaultDecode,
+	depth = 0
 ): DecodeResult<RootElement> {
 	const tag = reader.peek()
 	const errors = new Array<Error>()
@@ -85,10 +91,10 @@ export function decodeGenericElement(
 	const type = appendErrors(tagToElType(tag, options), errors)
 
 	if (tag === MatrixBERID || tag === QualifiedMatrixBERID) {
-		return decodeMatrix(reader, isQualified, options)
+		return decodeMatrix(reader, isQualified, options, depth)
 	}
 	if (tag === TemplateBERID || tag === QualifiedTemplateBERID) {
-		return decodeTemplate(reader, isQualified, options)
+		return decodeTemplate(reader, isQualified, options, depth)
 	} else if (tag === CommandBERID) {
 		const commandResult: DecodeResult<Command> = decodeCommand(reader, options)
 		return makeResult(
@@ -149,7 +155,7 @@ export function decodeGenericElement(
 				}
 				break
 			case Ber.CONTEXT(2):
-				children = appendErrors(decodeChildren(reader, options), errors)
+				children = appendErrors(decodeChildren(reader, options, depth), errors)
 				break
 			case 0:
 				break // indefinite length

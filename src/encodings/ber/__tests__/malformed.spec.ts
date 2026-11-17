@@ -1,8 +1,14 @@
 import vm from 'vm'
 
+import * as Ber from '../../../Ber/index.js'
 import { at } from '../../../lib/at.js'
+import { EmberElement } from '../../../model/EmberElement.js'
+import { TreeElement } from '../../../model/Tree.js'
+import { Collection, RootElement } from '../../../types/types.js'
+import { ElementCollectionBERID, NodeBERID, RootBERID, RootElementsBERID, TemplateBERID } from '../constants.js'
 import { berDecode } from '../index.js'
 import { withTwoByteTags } from './encodingForms.js'
+import { toIndefiniteLength } from './indefiniteLength.js'
 import { messages } from './messages.js'
 
 // A message from a peer can be anything. Decoding one must end, by returning or by throwing, however it is malformed.
@@ -83,5 +89,95 @@ describe('decoding a malformed message ends', () => {
 				)
 			)
 		).not.toBe('did not end')
+	})
+})
+
+// Elements nested deep enough (some thousands of levels) used up the call stack, ending the decoding with a RangeError.
+// Real trees are a handful of levels deep: an element more than 64 levels below the root's is skipped, with an error.
+describe('decoding elements nested deep', () => {
+	/** A root holding a node holding a node, and so on: `levels` nodes, each numbered 1 */
+	function nestedNodes(levels: number): Buffer {
+		const w = new Ber.Writer()
+		let open = 0
+		const start = (tag: number) => {
+			w.startSequence(tag)
+			open++
+		}
+		start(RootBERID)
+		start(RootElementsBERID)
+		start(Ber.CONTEXT(0))
+		for (let i = 0; i < levels; i++) {
+			start(NodeBERID)
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeInt(1)
+			w.endSequence()
+			if (i === levels - 1) break
+			start(Ber.CONTEXT(2))
+			start(ElementCollectionBERID)
+			start(Ber.CONTEXT(0))
+		}
+		for (; open > 0; open--) w.endSequence()
+		return w.buffer
+	}
+
+	/** A root holding a template whose element is a template, and so on: `levels` templates */
+	function nestedTemplates(levels: number): Buffer {
+		const w = new Ber.Writer()
+		let open = 0
+		const start = (tag: number) => {
+			w.startSequence(tag)
+			open++
+		}
+		start(RootBERID)
+		start(RootElementsBERID)
+		start(Ber.CONTEXT(0))
+		for (let i = 0; i < levels; i++) {
+			start(TemplateBERID)
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeInt(1)
+			w.endSequence()
+			if (i === levels - 1) break
+			start(Ber.CONTEXT(1))
+		}
+		for (; open > 0; open--) w.endSequence()
+		return w.buffer
+	}
+
+	/** How many levels of children below an element */
+	function depthBelow(el: TreeElement<EmberElement>): number {
+		let depth = 0
+		for (let child = el.children?.[1]; child; child = child.children?.[1]) depth++
+		return depth
+	}
+
+	const decode = (message: Buffer) => {
+		const decoded = berDecode(message)
+		return { errors: decoded.errors.map((e) => e.message), root: (decoded.value as Collection<RootElement>)[0] }
+	}
+
+	test("decodes nodes 64 levels below the root's", () => {
+		const { errors, root } = decode(nestedNodes(65))
+
+		expect(errors).toEqual([])
+		expect(depthBelow(root as TreeElement<EmberElement>)).toBe(64)
+	})
+
+	test.each([
+		['definite', (message: Buffer) => message],
+		['indefinite', toIndefiniteLength],
+	])('skips a node deeper, with an error (%s lengths)', (_, form) => {
+		const { errors, root } = decode(form(nestedNodes(66)))
+
+		expect(errors).toEqual(['decode children: an element nested more than 64 deep: skipped'])
+		expect(depthBelow(root as TreeElement<EmberElement>)).toBe(64)
+	})
+
+	test.each([
+		['nodes', nestedNodes, 'decode children'],
+		['templates', nestedTemplates, 'decode template'],
+	])('decodes %s nested thousands deep, skipping the deepest', (_, nested, where) => {
+		const { errors } = decode(nested(5000))
+
+		expect(errors).toContain(`${where}: an element nested more than 64 deep: skipped`)
 	})
 })

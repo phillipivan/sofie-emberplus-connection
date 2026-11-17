@@ -15,7 +15,15 @@ export {
 	appendErrors,
 	unexpected,
 	skipNext,
+	skipTooDeep,
 }
+
+/**
+ * How deep elements may be nested below a message's own: an element deeper is skipped, with an error. Real trees are a
+ * handful of levels deep. Decoding an element decodes those in it, some calls a level: some thousands of levels used up
+ * the call stack, ending the decoding with a RangeError.
+ */
+const MAX_TREE_DEPTH = 64
 
 /**
  * Control what cuases an exception during decoding.
@@ -237,6 +245,22 @@ function skipNext(reader: Ber.Reader): void {
 	if (skipTag) {
 		reader.readStringAsBuffer(skipTag)
 	}
+}
+
+/**
+ * Skips the element at the reader, with an error, when it is nested more than MAX_TREE_DEPTH below the message's own
+ * elements (at `depth`, those being at 0). Whether it was skipped.
+ */
+function skipTooDeep<T>(
+	reader: Ber.Reader,
+	depth: number,
+	errors: DecodeResult<T> | Array<Error>,
+	where: string
+): boolean {
+	if (depth <= MAX_TREE_DEPTH) return false
+	addError(errors, new Error(`${where}: an element nested more than ${MAX_TREE_DEPTH} deep: skipped`))
+	skipNext(reader)
+	return true
 }
 
 /**
