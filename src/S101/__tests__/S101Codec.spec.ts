@@ -44,7 +44,7 @@ describe('S101Codec DoS hardening', () => {
 		}).toThrow(/oversized/i)
 
 		// State must be reset so the next dataIn starts clean.
-		expect((codec as any).frameBuffer).toBeUndefined()
+		expect((codec as any).pendingFrame).toBeUndefined()
 	}, 5000)
 
 	test('unterminated multi-packet message is dropped', () => {
@@ -78,7 +78,7 @@ describe('S101Codec DoS hardening', () => {
 		codec.on('keepaliveReq', () => events.push('req'))
 
 		expect(() => codec.dataIn(Buffer.from([0xf8, ...header, 0x00, 0x0e]))).toThrow(/oversized/i)
-		expect((codec as any).frameBuffer).toBeUndefined()
+		expect((codec as any).pendingFrame).toBeUndefined()
 
 		codec.dataIn(codec.keepAliveRequest())
 		expect(events).toEqual(['req'])
@@ -372,5 +372,115 @@ describe('S101Codec messages with two-byte tags', () => {
 		for (const frame of new S101Codec().encodeBER(message)) receiver.dataIn(frame)
 
 		expect(events).toEqual([[expected, message]])
+	})
+})
+
+/** An Ember message as one non-escaping frame: S101 header (slot, message type, command, version, flags, DTD, app bytes) */
+function nonEscapingEmberFrame(ember: Buffer): Buffer {
+	const message = Buffer.concat([Buffer.from([0x00, 0x0e, 0x00, 0x01, 0xc0, 0x01, 0x02, 0x32, 0x02]), ember])
+	const header = Buffer.alloc(6)
+	header[0] = 0xf8
+	header[1] = 4
+	header.writeUInt32BE(message.length, 2)
+	return Buffer.concat([header, message])
+}
+
+/** Everything the codec emits, in order */
+function allEvents(codec: S101Codec): string[] {
+	const events: string[] = []
+	codec.on('emberPacket', (p) => events.push('emberPacket ' + p.toString('hex')))
+	codec.on('emberStreamPacket', (p) => events.push('emberStreamPacket ' + p.toString('hex')))
+	codec.on('keepaliveReq', (nonEscaping) => events.push('keepaliveReq ' + nonEscaping))
+	codec.on('keepaliveResp', () => events.push('keepaliveResp'))
+	return events
+}
+
+// However the reads split it, a stream gives what it gives read whole: frames of both forms, an abandoned frame, a
+// message in several packets, and a non-escaping frame holding the bytes an escaping one escapes
+describe('S101Codec a stream read in any pieces', () => {
+	const codec = new S101Codec()
+	const octets = (identifier: string, value: Buffer) =>
+		berEncode(
+			[new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Octets, identifier, undefined, value))],
+			RootType.Elements
+		)
+	const stream = Buffer.concat([
+		Buffer.from([0xfe, 0x01, 0x02]), // abandoned: the next frame's BOF starts a new one
+		...codec.encodeBER(octets('one', Buffer.from([0xfe, 0xff, 0xf8, 0xfd]))),
+		codec.keepAliveRequest(),
+		nonEscapingEmberFrame(octets('two', Buffer.from([0xfe, 0xff, 0xf8, 0xfd, 0x00]))),
+		...codec.encodeBER(octets('three', Buffer.alloc(2500, 0xfe))), // in several packets
+		Buffer.from([0xf8, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x0e, 0x01, 0x01]), // a non-escaping keep-alive request
+	])
+
+	function read(pieces: Buffer[]): string[] {
+		const reader = new S101Codec()
+		const events = allEvents(reader)
+		for (const piece of pieces) reader.dataIn(piece)
+		return events
+	}
+	const whole = read([stream])
+
+	test('read whole', () => {
+		expect(whole).toHaveLength(5)
+		expect(whole.map((e) => e.split(' ')[0])).toEqual([
+			'emberPacket',
+			'keepaliveReq',
+			'emberPacket',
+			'emberPacket',
+			'keepaliveReq',
+		])
+	})
+
+	test('split in two at every position', () => {
+		for (let i = 1; i < stream.length; i++) {
+			expect([i, read([stream.subarray(0, i), stream.subarray(i)])]).toEqual([i, whole])
+		}
+	})
+
+	test.each([1, 2, 3, 7, 100, 1460])('in pieces of %d bytes', (size) => {
+		const pieces: Buffer[] = []
+		for (let i = 0; i < stream.length; i += size) pieces.push(stream.subarray(i, i + size))
+		expect(read(pieces)).toEqual(whole)
+	})
+})
+
+// A frame a read left unfinished was joined to the next read, at every read: one that came a few bytes at a time was
+// copied over and over, the work growing with the square of its length (0.7 s for 4 MiB in reads of 1460 bytes). Its
+// pieces are now joined once, when the frame can be read.
+describe('S101Codec a long frame that comes in many reads', () => {
+	const ember = berEncode(
+		[
+			new NumberedTreeNodeImpl(
+				1,
+				new ParameterImpl(ParameterType.Octets, 'big', undefined, Buffer.alloc(200000, 0x41))
+			),
+		],
+		RootType.Elements
+	)
+	const escaped: number[] = []
+	for (const b of ember) {
+		if (b >= 0xf8) escaped.push(0xfd, b ^ 0x20)
+		else escaped.push(b)
+	}
+	const escapingFrame: Buffer = (new S101Codec() as any)._makeBERFrame(0xc0, Buffer.from(escaped))
+
+	test.each([
+		['an escaping frame', escapingFrame],
+		['a non-escaping frame', nonEscapingEmberFrame(ember)],
+	])('%s is read once whole, its pieces joined once', (_, frame) => {
+		const codec = new S101Codec()
+		const packets: Buffer[] = []
+		codec.on('emberPacket', (p) => packets.push(p))
+		const concat = jest.spyOn(Buffer, 'concat')
+		try {
+			for (let i = 0; i < frame.length; i += 1460) codec.dataIn(frame.subarray(i, i + 1460))
+
+			const copied = concat.mock.calls.reduce((n, [list]) => n + list.reduce((m, b) => m + b.length, 0), 0)
+			expect(copied).toBeLessThan(2 * frame.length)
+		} finally {
+			concat.mockRestore()
+		}
+		expect(packets).toEqual([ember])
 	})
 })

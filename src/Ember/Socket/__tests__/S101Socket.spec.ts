@@ -137,7 +137,7 @@ describe('S101Socket lifecycle', () => {
 
 		const codec = (s101Socket as any).codec
 		expect(codec.multiPacketBuffer).toBeUndefined()
-		expect(codec.frameBuffer).toBeUndefined()
+		expect(codec.pendingFrame).toBeUndefined()
 	})
 
 	it('handleClose tears down socket and marks disconnected', () => {

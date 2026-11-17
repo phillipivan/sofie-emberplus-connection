@@ -81,9 +81,23 @@ const MAX_FRAME_BUFFER_SIZE = 4 * 1024 * 1024
 // Largest reassembled multi-packet Ember message we will accept.
 const MAX_MULTI_PACKET_SIZE = 16 * 1024 * 1024
 
+/** A frame a read ended in, kept for the next read, in the pieces it came in */
+interface PendingFrame {
+	form: 'escaping' | 'nonEscaping'
+	pieces: Buffer[]
+	length: number
+	/** A non-escaping frame's whole length, from its 0xF8, once its length bytes have come */
+	frameLength?: number
+}
+
 export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	inbuf = new SmartBuffer({ size: BUFFER_FRAME_SIZE })
-	private frameBuffer?: Buffer
+	/**
+	 * The frame the last read ended in. Its pieces are joined only once a read can finish it (or cuts it short): joined
+	 * to every read, a frame that came a few bytes at a time was copied over and over, the work growing with the square
+	 * of its length.
+	 */
+	private pendingFrame?: PendingFrame
 	escaped = false
 
 	private multiPacketBuffer?: SmartBuffer
@@ -99,10 +113,11 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	dataIn(buf: Buffer): void {
 		// console.log('TimeStamp: ', Date.now(), 'dataIn', buf.toString('hex'))
 
-		// If we have leftover data from a previous incomplete frame, prepend it
-		if (this.frameBuffer) {
-			buf = Buffer.concat([this.frameBuffer, buf])
-			this.frameBuffer = undefined
+		// A frame the last read left unfinished: joined to this read only when this one finishes it, or cuts it short
+		if (this.pendingFrame) {
+			if (this.keepPending(buf)) return
+			buf = Buffer.concat([...this.pendingFrame.pieces, buf])
+			this.pendingFrame = undefined
 		}
 
 		const errors: Error[] = []
@@ -134,7 +149,13 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 				const frame = readNonEscapingFrame(buf, nonEscaping)
 				if (frame === null) {
 					// Kept whole: its declared length is within bounds (or not all its length bytes have come yet)
-					this.frameBuffer = buf.subarray(nonEscaping)
+					const pending = buf.subarray(nonEscaping)
+					this.pendingFrame = {
+						form: 'nonEscaping',
+						pieces: [pending],
+						length: pending.length,
+						frameLength: nonEscapingFrameLength(pending, 0),
+					}
 					break
 				}
 				if ('oversized' in frame) {
@@ -159,14 +180,14 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 			}
 
 			if (frameEnd === -1) {
-				//console.log('Parsing frameEnd to next chunk')
-				const pending = buf.subarray(frameStart)
+				// Kept from the last BOF, as a BOF always starts a new frame (there is no 0xF8 after this one, see above)
+				const pending = buf.subarray(buf.lastIndexOf(S101_BOF))
 				if (pending.length > MAX_FRAME_BUFFER_SIZE) {
 					this.dropOversized(
 						format('dropping oversized S101 frame: %d bytes buffered without EOF', pending.length)
 					)
 				}
-				this.frameBuffer = pending
+				this.pendingFrame = { form: 'escaping', pieces: [pending], length: pending.length }
 				break
 			}
 
@@ -217,6 +238,38 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 		if (others.length) throw new AggregateError(errors, format('dropped %d S101 frames', errors.length))
 	}
 
+	/**
+	 * Adds a read to the frame the last one left unfinished, when the read neither finishes it nor cuts it short, so
+	 * that it is looked through once, not joined to what came before. False when the frame is to be read on, with the
+	 * read joined to it.
+	 */
+	private keepPending(buf: Buffer): boolean {
+		const pending = this.pendingFrame
+		if (!pending) return false
+		if (pending.form === 'nonEscaping') {
+			// Its bytes are the message's, whatever their value: only its length tells where it ends
+			if (pending.frameLength === undefined || pending.length + buf.length >= pending.frameLength) return false
+		} else {
+			// An escaping frame ends at an EOF, and a 0xF8 (escaped within one) cuts it short
+			if (buf.includes(S101_EOF) || buf.includes(S101_INV)) return false
+			// A BOF always starts a new frame: what came before it is discarded
+			const bof = buf.lastIndexOf(S101_BOF)
+			if (bof !== -1) {
+				pending.pieces = []
+				pending.length = 0
+				buf = buf.subarray(bof)
+			}
+			if (pending.length + buf.length > MAX_FRAME_BUFFER_SIZE) {
+				this.dropOversized(
+					format('dropping oversized S101 frame: %d bytes buffered without EOF', pending.length + buf.length)
+				)
+			}
+		}
+		pending.pieces.push(buf)
+		pending.length += buf.length
+		return true
+	}
+
 	/** Clears the state, so the next read starts clean, and reports a frame too large to take */
 	private dropOversized(message: string): never {
 		this.reset()
@@ -228,7 +281,7 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 	 * connection closes, so that what it left is no part of the next connection's data.
 	 */
 	reset(): void {
-		this.frameBuffer = undefined
+		this.pendingFrame = undefined
 		this.escaped = false
 		this.resetMultiPacketBuffer()
 	}
@@ -547,15 +600,23 @@ function readNonEscapingFrame(
 	buf: Buffer,
 	start: number
 ): { message: Buffer; end: number } | { oversized: number } | null {
-	if (start + 1 >= buf.length) return null
-	const lengthLength = at(buf, start + 1) & 0x07
-	const messageStart = start + 2 + lengthLength
-	if (messageStart > buf.length) return null
+	const frameLength = nonEscapingFrameLength(buf, start)
+	if (frameLength === undefined) return null
+	const messageStart = start + 2 + (at(buf, start + 1) & 0x07)
+	const length = start + frameLength - messageStart
+	if (length > MAX_FRAME_BUFFER_SIZE) return { oversized: length }
+	if (start + frameLength > buf.length) return null
+	return { message: buf.subarray(messageStart, start + frameLength), end: start + frameLength }
+}
+
+/** The whole length of the non-escaping frame starting at `start`, from its 0xF8: undefined until its length bytes come */
+function nonEscapingFrameLength(buf: Buffer, start: number): number | undefined {
+	if (start + 1 >= buf.length) return undefined
+	const messageStart = start + 2 + (at(buf, start + 1) & 0x07)
+	if (messageStart > buf.length) return undefined
 	let length = 0
 	for (let i = start + 2; i < messageStart; i++) length = length * 0x100 + at(buf, i) // not `<< 8`: up to seven bytes
-	if (length > MAX_FRAME_BUFFER_SIZE) return { oversized: length }
-	if (messageStart + length > buf.length) return null
-	return { message: buf.subarray(messageStart, messageStart + length), end: messageStart + length }
+	return messageStart - start + length
 }
 
 /** A message in a non-escaping frame: 0xF8, four length bytes (as libember_slim writes them), the message */
