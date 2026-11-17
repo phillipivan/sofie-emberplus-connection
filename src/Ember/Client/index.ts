@@ -150,6 +150,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _resendTimeout = 1000
 	private _resends = false
 	private _timer: NodeJS.Timeout
+	/** The id of the next request: an id only tells requests apart in `_requests`, as nothing on the wire has one */
+	private _nextReqId = 0
 	private _getDirectoryOnParams = true
 
 	constructor(host: string, port = 9000, options?: EmberClientOptions) {
@@ -807,7 +809,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		isResponse: (res: Response) => res is T,
 		connectionTarget?: number
 	): RequestPromise<T> {
-		const reqId = Math.random().toString(24).substr(-4)
+		// Counted, not random: four random base-24 digits could be those of a request waiting, which this one replaced,
+		// and which then never settled
+		const reqId = String(this._nextReqId++)
 		const requestPromise: RequestPromiseArguments<T> = {
 			reqId,
 			sentOk: false,

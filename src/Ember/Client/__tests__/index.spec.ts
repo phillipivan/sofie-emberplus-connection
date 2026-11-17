@@ -2802,6 +2802,23 @@ describe('client', () => {
 			)
 		})
 
+		// An id was four random base-24 digits: two requests waiting could have the same, and the later replaced the
+		// earlier, which then never settled, not even by timing out
+		it('gives each request its own id, whatever Math.random gives', async () => {
+			const random = jest.spyOn(Math, 'random').mockReturnValue(0.5)
+			try {
+				await runWithConnection(async (client) => {
+					const a = await client.getDirectory(new NumberedTreeNodeImpl(1, new EmberNodeImpl('a')))
+					const b = await client.getDirectory(new NumberedTreeNodeImpl(2, new EmberNodeImpl('b')))
+
+					expect(a.reqId).not.toBe(b.reqId)
+					expect(client['_requests'].size).toBe(2)
+				})
+			} finally {
+				random.mockRestore()
+			}
+		})
+
 		// The check ran every gcd(timeout, resendTimeout) ms: every millisecond for a timeout of 2999 ms. And the interval
 		// kept the process running until the client was discarded.
 		it('checks no more often than every 50 ms, without keeping the process running', async () => {
