@@ -32,6 +32,11 @@ export interface S101SocketOptions {
 	 * peer isn't reading what is sent to it, which would otherwise be kept without end. No limit by default.
 	 */
 	maxSendBufferSize?: number
+	/**
+	 * Whether to send the peer keep-alive requests from the start, and close the connection when it stops answering:
+	 * for a socket made from a connection, as a server's are. (S101Client starts them when it connects.) Off by default.
+	 */
+	keepalive?: boolean
 }
 
 export default class S101Socket extends EventEmitter<S101SocketEvents> {
@@ -79,6 +84,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 		})
 
 		this._initSocket()
+		if (options?.keepalive && this.socket) this.startKeepAlive()
 	}
 
 	private _initSocket(): void {

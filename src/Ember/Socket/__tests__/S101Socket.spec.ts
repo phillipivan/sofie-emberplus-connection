@@ -15,6 +15,13 @@ class FakeSocket extends EventEmitter {
 	/** Bytes waiting to be sent: what is written while the peer isn't reading stays waiting */
 	public writableLength = 0
 	public peerReading = true
+	/** What setKeepAlive (TCP keep-alive) was last given */
+	public tcpKeepAlive?: [boolean | undefined, number | undefined]
+
+	setKeepAlive(enable?: boolean, initialDelay?: number): this {
+		this.tcpKeepAlive = [enable, initialDelay]
+		return this
+	}
 
 	write(data: Buffer): boolean {
 		this.wrote.push(data)
@@ -285,5 +292,76 @@ describe('EmberServer maxClients', () => {
 
 		expect(s101.server?.maxConnections).toBe(64)
 		await close(server, [])
+	})
+})
+
+// A server didn't send keep-alive requests, so a consumer gone without closing its connection (its power or network
+// gone) was never noticed: its connection, and its place among maxClients, were held for good, and updates kept being
+// sent to it
+describe('keep-alives on the connections a server accepts', () => {
+	const REQUEST = new S101Codec().keepAliveRequest()
+	const requests = (fake: FakeSocket) => fake.wrote.filter((b) => b.equals(REQUEST)).length
+
+	beforeEach(() => {
+		jest.useFakeTimers()
+	})
+	afterEach(() => {
+		jest.useRealTimers()
+	})
+
+	function accept(options?: S101ServerOptions) {
+		const server = new S101Server(0, undefined, options)
+		const fake = new FakeSocket()
+		let client: S101Socket | undefined
+		server.once('connection', (c) => (client = c))
+		server.addClient(fake as unknown as Socket)
+		if (!client) throw new Error('no connection')
+		const disconnected = jest.fn()
+		client.on('disconnected', disconnected)
+		return { fake, client, disconnected }
+	}
+
+	it('asks a consumer after 5 s in which nothing came, and closes the connection when nothing comes after', async () => {
+		const { fake, disconnected } = accept()
+
+		await jest.advanceTimersByTimeAsync(5000)
+		expect(requests(fake)).toBe(1)
+		await jest.advanceTimersByTimeAsync(4900)
+		expect(disconnected).not.toHaveBeenCalled()
+		await jest.advanceTimersByTimeAsync(200)
+		expect(disconnected).toHaveBeenCalledTimes(1)
+		expect(fake.destroyed).toBe(true)
+	})
+
+	it('keeps the connection of a consumer that answers', async () => {
+		const { fake, disconnected } = accept()
+
+		for (let i = 0; i < 6; i++) {
+			await jest.advanceTimersByTimeAsync(5000)
+			fake.emit('data', new S101Codec().keepAliveResponse())
+		}
+
+		expect(requests(fake)).toBe(6)
+		expect(disconnected).not.toHaveBeenCalled()
+		fake.destroy()
+	})
+
+	it('sends none with keepalive off', async () => {
+		const { fake, disconnected } = accept({ keepalive: false })
+
+		await jest.advanceTimersByTimeAsync(30000)
+
+		expect(requests(fake)).toBe(0)
+		expect(disconnected).not.toHaveBeenCalled()
+		fake.destroy()
+	})
+
+	// The system's probes, which a live peer's system answers whatever the program, notice a consumer that is gone, after
+	// some minutes, keep-alive requests or not
+	it.each([[{}], [{ keepalive: false }]])('turns on TCP keep-alive, with options %j', (options) => {
+		const { fake } = accept(options)
+
+		expect(fake.tcpKeepAlive).toEqual([true, 60000])
+		fake.destroy()
 	})
 })

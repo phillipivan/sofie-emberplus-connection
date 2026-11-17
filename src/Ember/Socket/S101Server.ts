@@ -19,6 +19,12 @@ const DEFAULT_MAX_SEND_BUFFER_SIZE = 8 * 1024 * 1024
  */
 const DEFAULT_MAX_CLIENTS = 64
 
+/**
+ * How long a consumer's connection may be idle before the system's TCP keep-alive probes start. They notice a consumer
+ * that is gone (after some minutes, as the system sets them) whether keep-alive requests are sent or not.
+ */
+const TCP_KEEPALIVE_DELAY = 60000
+
 export interface S101ServerOptions {
 	/**
 	 * Bytes waiting to be sent to a consumer above which its connection is closed (with an S101SendBufferFullError, as
@@ -31,6 +37,13 @@ export interface S101ServerOptions {
 	 * 'refused' event (EmberServer's 'warn'). 64 by default; Infinity sets no limit.
 	 */
 	maxClients?: number
+	/**
+	 * Whether to send each consumer keep-alive requests, as a client does: one when nothing has come for 5 s, the
+	 * connection closed when nothing comes in the 5 s after. A consumer gone without closing its connection is so
+	 * noticed in about 10 s. Every Ember+ host must answer one (the documentation's Keep-Alive mechanism); turn this off
+	 * for a consumer that doesn't. On by default. (TCP keep-alive is on either way, noticing such a consumer in minutes.)
+	 */
+	keepalive?: boolean
 }
 
 export type S101ServerEvents = {
@@ -47,6 +60,7 @@ export class S101Server extends EventEmitter<S101ServerEvents> {
 	status: string // TODO - enum
 	private readonly maxSendBufferSize: number
 	private readonly maxClients: number
+	private readonly keepalive: boolean
 
 	constructor(port: number, address?: string, options?: S101ServerOptions) {
 		super()
@@ -56,11 +70,13 @@ export class S101Server extends EventEmitter<S101ServerEvents> {
 		this.status = 'disconnected'
 		this.maxSendBufferSize = options?.maxSendBufferSize ?? DEFAULT_MAX_SEND_BUFFER_SIZE
 		this.maxClients = options?.maxClients ?? DEFAULT_MAX_CLIENTS
+		this.keepalive = options?.keepalive ?? true
 	}
 
 	addClient(socket: Socket): void {
+		socket.setKeepAlive(true, TCP_KEEPALIVE_DELAY)
 		// Wrap the tcp socket into an S101Socket.
-		const client = new S101Socket(socket, { maxSendBufferSize: this.maxSendBufferSize })
+		const client = new S101Socket(socket, { maxSendBufferSize: this.maxSendBufferSize, keepalive: this.keepalive })
 		this.emit('connection', client)
 	}
 
