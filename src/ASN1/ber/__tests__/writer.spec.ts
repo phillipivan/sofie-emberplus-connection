@@ -338,6 +338,45 @@ test.each([{ growthFactor: 0 }, { growthFactor: 0.5 }, { growthFactor: 1 }, { si
 	}
 )
 
+// endSequence reserves 3 bytes for the length, and contents of 0x10000 bytes or more need 4 (83 xx xx xx), so they
+// are moved on by one. When the buffer ended where the contents did, the move lost their last byte. Growth that
+// fits a large write exactly leaves it so, as it now does with the default options.
+test.each([{}, { growthFactor: 1 }, { size: 0x10009 }])(
+	'grows before moving a sequence into the 0x83 length form, options %j',
+	(options) => {
+		const content = Buffer.alloc(0x10000, 0x61)
+		content[content.length - 1] = 0x7a
+		const writer = new Writer(options)
+		writer.startSequence(0x30)
+		writer.writeBuffer(content, 0x04)
+		writer.endSequence()
+
+		const ber = writer.buffer
+		const inner = 1 + 4 + content.length
+		expect(ber.length).toEqual(1 + 4 + inner)
+		expect(ber.subarray(0, 5)).toEqual(Buffer.from([0x30, 0x83, inner >> 16, (inner >> 8) & 0xff, inner & 0xff]))
+		expect(ber.subarray(5, 10)).toEqual(Buffer.from([0x04, 0x83, 0x01, 0x00, 0x00]))
+		expect(ber[ber.length - 1]).toEqual(0x7a)
+	}
+)
+
+test('grows before moving nested sequences into the 0x83 length form', () => {
+	const content = Buffer.alloc(0x10000, 0x61)
+	content[content.length - 1] = 0x7a
+	const writer = new Writer()
+	writer.startSequence(0x30)
+	writer.startSequence(0x31)
+	writer.writeBuffer(content, 0x04)
+	writer.endSequence()
+	writer.endSequence()
+
+	const ber = writer.buffer
+	expect(ber.length).toEqual(1 + 4 + 1 + 4 + 1 + 4 + content.length)
+	expect(ber.subarray(0, 2)).toEqual(Buffer.from([0x30, 0x83]))
+	expect(ber.subarray(5, 7)).toEqual(Buffer.from([0x31, 0x83]))
+	expect(ber[ber.length - 1]).toEqual(0x7a)
+})
+
 test('write empty buffer', () => {
 	const writer = new Writer()
 	writer.writeBuffer(Buffer.alloc(0), 0x04)
