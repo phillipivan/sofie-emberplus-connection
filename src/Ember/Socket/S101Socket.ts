@@ -1,9 +1,10 @@
 import { Socket } from 'net'
+import { format } from 'util'
 
 import { EventEmitter } from 'eventemitter3'
 
 import { berDecode, DecodedRoot } from '../../encodings/ber/index.js'
-import { S101OversizedFrameError } from '../../Errors.js'
+import { S101OversizedFrameError, S101SendBufferFullError } from '../../Errors.js'
 import { S101Codec } from '../../S101/index.js'
 import { ConnectionStatus } from '../Client/ConnectionStatus.js'
 import { normalizeError } from '../Lib/util.js'
@@ -25,8 +26,17 @@ const KEEPALIVE_IDLE_TIME = 5000
 /** How long to wait for anything to come after one, before closing the connection */
 const KEEPALIVE_TIMEOUT = 5000
 
+export interface S101SocketOptions {
+	/**
+	 * Bytes waiting to be sent to the peer above which the connection is closed, with an S101SendBufferFullError: the
+	 * peer isn't reading what is sent to it, which would otherwise be kept without end. No limit by default.
+	 */
+	maxSendBufferSize?: number
+}
+
 export default class S101Socket extends EventEmitter<S101SocketEvents> {
 	protected socket: Socket | undefined
+	private readonly maxSendBufferSize: number
 	/** Waits for the time to send a keep-alive request, or, once one is sent, for the time to have had an answer */
 	private keepaliveTimer: NodeJS.Timeout | undefined
 	/** When anything last came from the peer */
@@ -36,9 +46,10 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 	status: ConnectionStatus
 	protected readonly codec = new S101Codec()
 
-	constructor(socket?: Socket) {
+	constructor(socket?: Socket, options?: S101SocketOptions) {
 		super()
 		this.socket = socket
+		this.maxSendBufferSize = options?.maxSendBufferSize ?? Infinity
 		this.status = this.isConnected() ? ConnectionStatus.Connected : ConnectionStatus.Disconnected
 
 		// A request in a non-escaping frame is answered in one, so the peer learns this side reads them
@@ -156,11 +167,28 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 				for (const frame of frames) {
 					this.socket.write(frame)
 				}
-				return true
 			} catch (_e) {
 				this.handleClose()
 				return false
 			}
+			// Closed rather than the message dropped, so that a peer is never left with a tree it thinks is current: it
+			// connects again, and asks for the tree again
+			const waiting = this.socket.writableLength
+			if (waiting > this.maxSendBufferSize) {
+				this.emit(
+					'error',
+					new S101SendBufferFullError(
+						format(
+							'closing connection: %d bytes are waiting to be sent, more than the maxSendBufferSize of %d',
+							waiting,
+							this.maxSendBufferSize
+						)
+					)
+				)
+				this.handleClose()
+				return false
+			}
+			return true
 		} else {
 			return false
 		}

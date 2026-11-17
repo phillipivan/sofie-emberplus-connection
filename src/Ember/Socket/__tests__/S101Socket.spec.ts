@@ -2,17 +2,24 @@ import { EventEmitter } from 'events'
 
 import type { Socket } from 'net'
 
+import { S101SendBufferFullError } from '../../../Errors.js'
 import S101Codec from '../../../S101/S101Codec.js'
 import { ConnectionStatus } from '../../Client/ConnectionStatus.js'
+import { EmberServer } from '../../Server/index.js'
+import { S101Server } from '../S101Server.js'
 import S101Socket from '../S101Socket.js'
 
 // Minimal stand-in for net.Socket: enough to drive the 'data' path and observe destroy().
 class FakeSocket extends EventEmitter {
 	public destroyed = false
 	public wrote: Buffer[] = []
+	/** Bytes waiting to be sent: what is written while the peer isn't reading stays waiting */
+	public writableLength = 0
+	public peerReading = true
 
 	write(data: Buffer): boolean {
 		this.wrote.push(data)
+		if (!this.peerReading) this.writableLength += data.length
 		return true
 	}
 
@@ -147,5 +154,86 @@ describe('S101Socket lifecycle', () => {
 		expect((s101Socket as any).keepaliveTimer).toBeUndefined()
 		expect(s101Socket.status).toBe(ConnectionStatus.Disconnected)
 		expect(onDisconnected).toHaveBeenCalled()
+	})
+})
+
+// What was sent to a peer that doesn't read it was kept waiting without end: a consumer that stopped reading took the
+// provider's memory with it
+describe('S101Socket maxSendBufferSize', () => {
+	function stalled(options?: { maxSendBufferSize?: number }) {
+		const fake = new FakeSocket()
+		fake.peerReading = false
+		const socket = new S101Socket(fake as unknown as Socket, options)
+		const errors: Error[] = []
+		const disconnected = jest.fn()
+		socket.on('error', (e) => errors.push(e))
+		socket.on('disconnected', disconnected)
+		return { fake, socket, errors, disconnected }
+	}
+
+	it('closes the connection once more than it is waiting to be sent', () => {
+		const { fake, socket, errors, disconnected } = stalled({ maxSendBufferSize: 100 })
+
+		expect(socket.sendBER(Buffer.alloc(50))).toBe(true)
+		expect(fake.destroyed).toBe(false)
+		expect(socket.sendBER(Buffer.alloc(50))).toBe(false)
+
+		expect(fake.destroyed).toBe(true)
+		expect(disconnected).toHaveBeenCalledTimes(1)
+		expect(errors).toHaveLength(1)
+		expect(errors[0]).toBeInstanceOf(S101SendBufferFullError)
+		expect(errors[0]?.message).toMatch(/more than the maxSendBufferSize of 100/)
+	})
+
+	it('counts only what is waiting, not what was sent', () => {
+		const fake = new FakeSocket()
+		const socket = new S101Socket(fake as unknown as Socket, { maxSendBufferSize: 100 })
+
+		for (let i = 0; i < 20; i++) expect(socket.sendBER(Buffer.alloc(50))).toBe(true)
+		expect(fake.destroyed).toBe(false)
+	})
+
+	it('sets no limit unless given one', () => {
+		const { fake, socket } = stalled()
+		fake.writableLength = 1024 * 1024 * 1024
+
+		expect(socket.sendBER(Buffer.alloc(50))).toBe(true)
+		expect(fake.destroyed).toBe(false)
+	})
+})
+
+describe('S101Server the connections it accepts', () => {
+	function accept(server: S101Server): { fake: FakeSocket; client: S101Socket } {
+		const fake = new FakeSocket()
+		fake.peerReading = false
+		let client: S101Socket | undefined
+		server.once('connection', (c) => (client = c))
+		server.addClient(fake as unknown as Socket)
+		if (!client) throw new Error('no connection')
+		client.on('error', () => null)
+		return { fake, client }
+	}
+
+	it('closes one with more than 8 MiB waiting to be sent, by default', () => {
+		const { fake, client } = accept(new S101Server(0))
+		fake.writableLength = 8 * 1024 * 1024 - 100
+
+		expect(client.sendBER(Buffer.alloc(10))).toBe(true)
+		expect(client.sendBER(Buffer.alloc(100))).toBe(false)
+		expect(fake.destroyed).toBe(true)
+	})
+
+	it('takes maxSendBufferSize from its options, as EmberServer passes them on', () => {
+		const ember = new EmberServer(0, undefined, { maxSendBufferSize: 100 })
+		for (const server of [
+			new S101Server(0, undefined, { maxSendBufferSize: 100 }),
+			(ember as unknown as { _server: S101Server })._server,
+		]) {
+			const { fake, client } = accept(server)
+
+			expect(client.sendBER(Buffer.alloc(50))).toBe(true)
+			expect(client.sendBER(Buffer.alloc(50))).toBe(false)
+			expect(fake.destroyed).toBe(true)
+		}
 	})
 })

@@ -30,8 +30,11 @@ import {
 	TreeElement,
 } from '../../types/types.js'
 import { getPath, isElementOfType, isInvokeElement, parentPath, toQualifiedEmberNode } from '../Lib/util.js'
-import { S101Server } from '../Socket/S101Server.js'
+import { S101Server, S101ServerOptions } from '../Socket/S101Server.js'
 import S101Socket from '../Socket/S101Socket.js'
+
+/** Limits on what a consumer may cost the provider (see S101ServerOptions) */
+export type EmberServerOptions = S101ServerOptions
 
 export type EmberServerEvents = {
 	error: [Error]
@@ -77,12 +80,12 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	private _pendingMatrixReplies = new Set<PendingMatrixReply>()
 	private _pendingValueReplies = new Set<PendingValueReply>()
 
-	constructor(port: number, address?: string) {
+	constructor(port: number, address?: string, options?: EmberServerOptions) {
 		super()
 
 		this.address = address
 		this.port = port
-		this._server = new S101Server(port, address)
+		this._server = new S101Server(port, address, options)
 
 		this._server.on('connection', (client: S101Socket) => {
 			this._clients.add(client)

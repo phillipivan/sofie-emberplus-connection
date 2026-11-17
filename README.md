@@ -28,6 +28,22 @@ const client = new EmberClient('10.9.8.7', 9000, options)
 
 Reconnects back off from 5 seconds to a minute between attempts, see [Connection and Reconnecting](#connection-and-reconnecting).
 
+### Server
+
+An options object, limiting what consumers may cost the provider. Each is optional, with the default shown:
+
+```typescript
+import { EmberServer, EmberServerOptions } from '@phillipivan/emberplus-connection'
+
+const options: EmberServerOptions = {
+	maxSendBufferSize: 8 * 1024 * 1024,
+}
+
+const server = new EmberServer(9000, undefined, options)
+```
+
+- `maxSendBufferSize`: bytes waiting to be sent to a consumer above which its connection is closed, as it isn't reading what is sent to it. The consumer connects again and asks for the tree again. Raise it to send large bursts to consumers on slow links; `Infinity` turns it off.
+
 ---
 
 ## Example Usage

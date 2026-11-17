@@ -7,7 +7,7 @@ import {
 	RequestPromiseArguments,
 } from './Ember/Client/index.js'
 import { EmberLib } from './Ember/Lib/index.js'
-import { EmberServer, EmberServerEvents } from './Ember/Server/index.js'
+import { EmberServer, EmberServerEvents, EmberServerOptions } from './Ember/Server/index.js'
 import { S101Client } from './Ember/Socket/index.js'
 import S101Socket, { S101SocketEvents } from './Ember/Socket/S101Socket.js'
 import { DecodeOptions, DecodeResult } from './encodings/ber/decoder/DecodeResult.js'
@@ -61,6 +61,7 @@ export {
 	EmberLib,
 	EmberServer,
 	EmberServerEvents,
+	EmberServerOptions,
 	S101Codec,
 	S101CodecEvents,
 	S101Client,
