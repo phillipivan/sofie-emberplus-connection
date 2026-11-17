@@ -7,6 +7,7 @@ import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElem
 import { Collection, RelativeOID, RootElement } from '../../../types/types.js'
 import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
 import { decodeMatrix } from '../decoder/Matrix.js'
+import { decodeGenericElement } from '../decoder/Tree.js'
 import { encodeQualifedElement } from '../encoder/Qualified.js'
 import { encodeNumberedElement } from '../encoder/Tree.js'
 import { berDecode } from '../index.js'
@@ -319,6 +320,12 @@ describe('encodings/ber/Matrix', () => {
 		})
 		test('throw when a required property is not to be substituted', () => {
 			expect(() => decodeMatrix(message(), true, { ...defaultDecode, substituteForRequired: false })).toThrow(
+				"For required property 'identifier', value is missing."
+			)
+		})
+		// The element decoder, which decodes a message's elements, gave a matrix the default options, not its own
+		test('throw so in a message too', () => {
+			expect(() => decodeGenericElement(message(), { ...defaultDecode, substituteForRequired: false })).toThrow(
 				"For required property 'identifier', value is missing."
 			)
 		})

@@ -85,10 +85,10 @@ export function decodeGenericElement(
 	const type = appendErrors(tagToElType(tag, options), errors)
 
 	if (tag === MatrixBERID || tag === QualifiedMatrixBERID) {
-		return decodeMatrix(reader, isQualified)
+		return decodeMatrix(reader, isQualified, options)
 	}
 	if (tag === TemplateBERID || tag === QualifiedTemplateBERID) {
-		return decodeTemplate(reader, isQualified)
+		return decodeTemplate(reader, isQualified, options)
 	} else if (tag === CommandBERID) {
 		const commandResult: DecodeResult<Command> = decodeCommand(reader, options)
 		return makeResult(

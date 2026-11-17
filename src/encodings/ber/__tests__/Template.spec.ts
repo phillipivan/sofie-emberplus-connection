@@ -12,6 +12,7 @@ import {
 import { TemplateBERID } from '../constants.js'
 import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
 import { decodeTemplate } from '../decoder/Template.js'
+import { decodeGenericElement } from '../decoder/Tree.js'
 import { encodeQualifedElement } from '../encoder/Qualified.js'
 import { encodeNumberedElement } from '../encoder/Tree.js'
 
@@ -79,6 +80,14 @@ describe('encodings/ber/Template', () => {
 			const reader = template((w) => encodeNumberedElement(new NumberedTreeNodeImpl(0, new TemplateImpl()), w))
 
 			expect(() => decodeTemplate(reader, false, { ...defaultDecode, skipUnexpected: false })).toThrow(
+				'a numbered template is not a templated element'
+			)
+		})
+		// The element decoder, which decodes a message's elements, gave a template the default options, not its own
+		test('throws so in a message too', () => {
+			const reader = template((w) => encodeNumberedElement(new NumberedTreeNodeImpl(0, new TemplateImpl()), w))
+
+			expect(() => decodeGenericElement(reader, { ...defaultDecode, skipUnexpected: false })).toThrow(
 				'a numbered template is not a templated element'
 			)
 		})
