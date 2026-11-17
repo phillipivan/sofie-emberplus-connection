@@ -98,20 +98,14 @@ describe('S101Socket lifecycle', () => {
 	it('notifies disconnected listeners after close teardown state is finalized', () => {
 		const socket = new FakeSocket()
 		const s101Socket = new S101Socket(socket as any)
-		const observedStates: Array<{
-			status: ConnectionStatus
-			keepaliveIntervalTimer: unknown
-			keepaliveResponseWindowTimer: unknown
-		}> = []
+		const observedStates: Array<{ status: ConnectionStatus; keepaliveTimer: unknown }> = []
 
-		;(s101Socket as any).keepaliveIntervalTimer = setInterval(() => null, 1000)
-		;(s101Socket as any).keepaliveResponseWindowTimer = setTimeout(() => null, 1000)
+		;(s101Socket as any).keepaliveTimer = setTimeout(() => null, 1000)
 
 		s101Socket.on('disconnected', () => {
 			observedStates.push({
 				status: s101Socket.status,
-				keepaliveIntervalTimer: (s101Socket as any).keepaliveIntervalTimer,
-				keepaliveResponseWindowTimer: (s101Socket as any).keepaliveResponseWindowTimer,
+				keepaliveTimer: (s101Socket as any).keepaliveTimer,
 			})
 		})
 
@@ -120,8 +114,7 @@ describe('S101Socket lifecycle', () => {
 		expect(observedStates).toHaveLength(1)
 		expect(observedStates[0]).toMatchObject({
 			status: ConnectionStatus.Disconnected,
-			keepaliveIntervalTimer: undefined,
-			keepaliveResponseWindowTimer: null,
+			keepaliveTimer: undefined,
 		})
 	})
 
@@ -146,14 +139,12 @@ describe('S101Socket lifecycle', () => {
 		const onDisconnected = jest.fn()
 
 		s101Socket.on('disconnected', onDisconnected)
-		;(s101Socket as any).keepaliveIntervalTimer = setInterval(() => null, 1000)
-		;(s101Socket as any).keepaliveResponseWindowTimer = setTimeout(() => null, 1000)
+		;(s101Socket as any).keepaliveTimer = setTimeout(() => null, 1000)
 		;(s101Socket as any).handleClose()
 
 		expect(socket.destroyed).toBeTruthy()
 		expect((s101Socket as any).socket).toBeUndefined()
-		expect((s101Socket as any).keepaliveIntervalTimer).toBeUndefined()
-		expect((s101Socket as any).keepaliveResponseWindowTimer).toBeNull()
+		expect((s101Socket as any).keepaliveTimer).toBeUndefined()
 		expect(s101Socket.status).toBe(ConnectionStatus.Disconnected)
 		expect(onDisconnected).toHaveBeenCalled()
 	})

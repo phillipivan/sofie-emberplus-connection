@@ -17,32 +17,33 @@ export type S101SocketEvents = {
 	disconnected: []
 }
 
+// The Ember+ documentation, Keep-Alive mechanism: a request "should only be sent when there hasn't been any kind of
+// communication for a while, like for about 4-5 seconds", and the host sending it decides how long to wait for the
+// answer: "A recommended timeout is about 5 seconds". (Every host must answer one.)
+/** How long nothing may come before a keep-alive request is sent */
+const KEEPALIVE_IDLE_TIME = 5000
+/** How long to wait for anything to come after one, before closing the connection */
+const KEEPALIVE_TIMEOUT = 5000
+
 export default class S101Socket extends EventEmitter<S101SocketEvents> {
 	protected socket: Socket | undefined
-	private readonly keepaliveInterval = 10
-	private readonly keepaliveMaxResponseTime = 500
-	protected keepaliveIntervalTimer: NodeJS.Timeout | undefined
-	private keepaliveResponseWindowTimer: NodeJS.Timeout | null
+	/** Waits for the time to send a keep-alive request, or, once one is sent, for the time to have had an answer */
+	private keepaliveTimer: NodeJS.Timeout | undefined
+	/** When anything last came from the peer */
+	private lastReceived = 0
+	/** Whether anything came since the last keep-alive request */
+	private receivedSinceRequest = false
 	status: ConnectionStatus
 	protected readonly codec = new S101Codec()
 
 	constructor(socket?: Socket) {
 		super()
 		this.socket = socket
-		this.keepaliveIntervalTimer = undefined
-		this.keepaliveResponseWindowTimer = null
 		this.status = this.isConnected() ? ConnectionStatus.Connected : ConnectionStatus.Disconnected
 
 		// A request in a non-escaping frame is answered in one, so the peer learns this side reads them
 		this.codec.on('keepaliveReq', (nonEscaping) => {
 			this.sendKeepaliveResponse(nonEscaping)
-		})
-
-		this.codec.on('keepaliveResp', () => {
-			if (this.keepaliveResponseWindowTimer) {
-				clearTimeout(this.keepaliveResponseWindowTimer)
-				this.keepaliveResponseWindowTimer = null
-			}
 		})
 
 		this.codec.on('emberPacket', (packet) => {
@@ -72,6 +73,7 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 	private _initSocket(): void {
 		if (this.socket != null) {
 			this.socket.on('data', (data) => {
+				this.noteReceived()
 				try {
 					// no encoding is set on the socket, so this is a Buffer
 					this.codec.dataIn(typeof data === 'string' ? Buffer.from(data) : data)
@@ -164,19 +166,15 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 		}
 	}
 
-	/**
-	 *
-	 */
-	private sendKeepaliveRequest(): void {
-		if (this.isConnected() && this.socket) {
-			try {
-				this.socket.write(this.codec.keepAliveRequest())
-				this.keepaliveResponseWindowTimer = setTimeout(() => {
-					this.handleClose()
-				}, this.keepaliveMaxResponseTime)
-			} catch (_e) {
-				this.handleClose()
-			}
+	/** Whether the request was sent: the connection is closed when it can't be */
+	private sendKeepaliveRequest(): boolean {
+		if (!this.isConnected() || !this.socket) return false
+		try {
+			this.socket.write(this.codec.keepAliveRequest())
+			return true
+		} catch (_e) {
+			this.handleClose()
+			return false
 		}
 	}
 
@@ -199,28 +197,43 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 	// 	this.sendBER(ber)
 	// }
 
-	/** Stops the keepalive requests, and the wait for the answer to one sent */
+	/**
+	 * Anything that comes from the peer shows it is there: no keep-alive request is needed until nothing has come for a
+	 * while, and it answers one sent (an answer may be behind what the peer is sending)
+	 */
+	protected noteReceived(): void {
+		this.lastReceived = Date.now()
+		this.receivedSinceRequest = true
+	}
+
+	/** Stops the keep-alive requests, and the wait for the answer to one sent */
 	protected clearKeepaliveTimers(): void {
-		if (this.keepaliveIntervalTimer) {
-			clearInterval(this.keepaliveIntervalTimer)
-			this.keepaliveIntervalTimer = undefined
-		}
-		if (this.keepaliveResponseWindowTimer) {
-			clearTimeout(this.keepaliveResponseWindowTimer)
-			this.keepaliveResponseWindowTimer = null
+		if (this.keepaliveTimer) {
+			clearTimeout(this.keepaliveTimer)
+			this.keepaliveTimer = undefined
 		}
 	}
 
+	/** Sends a keep-alive request whenever nothing has come for KEEPALIVE_IDLE_TIME, for as long as the peer answers */
 	protected startKeepAlive(): void {
-		// A connection has one interval: one started beside another would send two requests at a time, and the
-		// window of the first, no longer the one an answer clears, would close the connection
+		// One wait at a time: requests sent from two would close the connection when an answer came for only one
 		this.clearKeepaliveTimers()
-		this.keepaliveIntervalTimer = setInterval(() => {
-			try {
-				this.sendKeepaliveRequest()
-			} catch (e) {
-				this.emit('error', normalizeError(e))
-			}
-		}, 1000 * this.keepaliveInterval)
+		this.lastReceived = Date.now()
+		this.keepaliveTimer = setTimeout(() => this.keepaliveDue(), KEEPALIVE_IDLE_TIME)
+	}
+
+	/** Sends a keep-alive request if nothing has come for KEEPALIVE_IDLE_TIME, or waits until nothing has */
+	private keepaliveDue(): void {
+		const idle = Date.now() - this.lastReceived
+		if (idle < KEEPALIVE_IDLE_TIME) {
+			this.keepaliveTimer = setTimeout(() => this.keepaliveDue(), KEEPALIVE_IDLE_TIME - idle)
+			return
+		}
+		this.receivedSinceRequest = false
+		if (!this.sendKeepaliveRequest()) return
+		this.keepaliveTimer = setTimeout(() => {
+			if (this.receivedSinceRequest) this.keepaliveDue()
+			else this.handleClose()
+		}, KEEPALIVE_TIMEOUT)
 	}
 }

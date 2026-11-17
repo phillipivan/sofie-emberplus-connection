@@ -90,6 +90,7 @@ export default class S101Client extends S101Socket {
 					this.socket.on('close', (hadError) => this._onClose(hadError))
 					this.socket.on('connect', () => this._onConnect())
 					this.socket.on('data', (chunk) => {
+						this.noteReceived()
 						// no encoding is set on the socket, so this is a Buffer
 						const data = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
 						debug('Data from Ember connection received:', {
@@ -243,8 +244,8 @@ export default class S101Client extends S101Socket {
 	private _onClose(_hadError: boolean) {
 		// The codec reads every connection this client makes: what this one left half read is no part of the next
 		this.codec.reset()
-		// Nor are its keepalives: its interval would carry on beside the next connection's, and the window of a request
-		// it didn't answer would close the next connection
+		// Nor are its keep-alives: its requests would carry on beside the next connection's, and the wait for the answer
+		// to one it didn't answer would close the next connection
 		this.clearKeepaliveTimers()
 		if (this.status !== ConnectionStatus.Disconnected) this.emit('disconnected')
 		this.status = ConnectionStatus.Disconnected
