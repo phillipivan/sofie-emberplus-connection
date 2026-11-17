@@ -37,12 +37,14 @@ import { EmberServer, EmberServerOptions } from '@phillipivan/emberplus-connecti
 
 const options: EmberServerOptions = {
 	maxSendBufferSize: 8 * 1024 * 1024,
+	maxClients: 64,
 }
 
 const server = new EmberServer(9000, undefined, options)
 ```
 
 - `maxSendBufferSize`: bytes waiting to be sent to a consumer above which its connection is closed, as it isn't reading what is sent to it. The consumer connects again and asks for the tree again. Raise it to send large bursts to consumers on slow links; `Infinity` turns it off.
+- `maxClients`: consumers connected at once. A connection beyond it is closed as soon as it is made, and the server emits a `warn` saying so. `Infinity` turns it off.
 
 ---
 

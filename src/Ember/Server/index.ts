@@ -39,7 +39,10 @@ export type EmberServerOptions = S101ServerOptions
 export type EmberServerEvents = {
 	error: [Error]
 	clientError: [client: S101Socket, error: Error]
-	/** Something not done, and why: a connection request or change naming a target or source the matrix doesn't have */
+	/**
+	 * Something not done, and why: a connection request or change naming a target or source the matrix doesn't have, or
+	 * a consumer's connection refused, as many being connected as maxClients allows
+	 */
 	warn: [Error]
 }
 
@@ -86,6 +89,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		this.address = address
 		this.port = port
 		this._server = new S101Server(port, address, options)
+		this._server.on('refused', (e) => this.emit('warn', e))
 
 		this._server.on('connection', (client: S101Socket) => {
 			this._clients.add(client)

@@ -1,12 +1,11 @@
 import { EventEmitter } from 'events'
-
-import type { Socket } from 'net'
+import { AddressInfo, connect, Socket } from 'net'
 
 import { S101SendBufferFullError } from '../../../Errors.js'
 import S101Codec from '../../../S101/S101Codec.js'
 import { ConnectionStatus } from '../../Client/ConnectionStatus.js'
 import { EmberServer } from '../../Server/index.js'
-import { S101Server } from '../S101Server.js'
+import { S101Server, S101ServerOptions } from '../S101Server.js'
 import S101Socket from '../S101Socket.js'
 
 // Minimal stand-in for net.Socket: enough to drive the 'data' path and observe destroy().
@@ -235,5 +234,56 @@ describe('S101Server the connections it accepts', () => {
 			expect(client.sendBER(Buffer.alloc(50))).toBe(false)
 			expect(fake.destroyed).toBe(true)
 		}
+	})
+})
+
+// Connections were taken however many came, and each can hold megabytes: a frame cut short, a message in several
+// packets, what waits to be sent
+describe('EmberServer maxClients', () => {
+	async function listening(options?: S101ServerOptions) {
+		const server = new EmberServer(0, '127.0.0.1', options)
+		const warnings: string[] = []
+		server.on('warn', (e) => warnings.push(e.message))
+		await server.init({})
+		const s101 = (server as unknown as { _server: S101Server })._server
+		const port = (s101.server?.address() as AddressInfo).port
+		return { server, s101, warnings, port }
+	}
+	const connected = async (port: number) =>
+		new Promise<Socket>((resolve, reject) => {
+			const socket = connect(port, '127.0.0.1', () => resolve(socket))
+			socket.on('error', reject)
+		})
+	const closed = async (socket: Socket) => new Promise((resolve) => socket.once('close', resolve))
+	/** Closes the consumers' connections, and waits for the server to see them closed */
+	async function close(server: EmberServer, sockets: Socket[]) {
+		for (const socket of sockets) socket.destroy()
+		while ((server as unknown as { _clients: Set<unknown> })._clients.size) await new Promise(setImmediate)
+		server.discard()
+	}
+
+	it('refuses a connection beyond maxClients, with a warning', async () => {
+		const { server, warnings, port } = await listening({ maxClients: 2 })
+		const first = await connected(port)
+		const second = await connected(port)
+
+		const third = await connected(port)
+		await closed(third)
+
+		expect(warnings).toEqual([
+			expect.stringMatching(
+				/^connection from 127\.0\.0\.1:\d+ refused: 2 consumers are connected, as many as maxClients allows$/
+			),
+		])
+		expect(first.destroyed).toBe(false)
+		expect(second.destroyed).toBe(false)
+		await close(server, [first, second])
+	})
+
+	it('takes 64 by default', async () => {
+		const { server, s101 } = await listening()
+
+		expect(s101.server?.maxConnections).toBe(64)
+		await close(server, [])
 	})
 })
