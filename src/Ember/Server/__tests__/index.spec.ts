@@ -145,16 +145,24 @@ describe('EmberServer subscriptions', () => {
 		expect(await consumer.countSent(() => server.update(node, { description: 'Channel' }))).toBe(0)
 	})
 
-	// Requests can't list a consumer twice any more, so set such a list up directly
-	it('removes every entry for a consumer, even one listed more than once', async () => {
+	// The consumers of a path are a Set: one can't be listed twice (removing entries with splice while looping over them
+	// skipped the entry after each one removed, when the list could hold one more than once)
+	it('removes a consumer from a path, keeping the others, and forgets a path left without any', async () => {
 		const consumer = await connect()
 		const other = await connect()
-		const subscriptions = (server as unknown as { _subscriptions: Record<string, unknown[]> })._subscriptions
-		subscriptions['1.1'] = [consumer, consumer, other, consumer, consumer]
+		const subscriptions = (server as unknown as { _subscriptions: Map<string, Set<unknown>> })._subscriptions
+		consumer.request('1.1', new GetDirectoryImpl())
+		other.request('1.1', new GetDirectoryImpl())
+		await new Promise(setImmediate)
+		expect([...(subscriptions.get('1.1') ?? [])]).toEqual([consumer, other])
 
 		consumer.request('1.1', new UnsubscribeImpl())
 		await new Promise(setImmediate)
-		expect(subscriptions['1.1']).toEqual([other])
+		expect([...(subscriptions.get('1.1') ?? [])]).toEqual([other])
+
+		other.request('1.1', new UnsubscribeImpl())
+		await new Promise(setImmediate)
+		expect(subscriptions.has('1.1')).toBe(false)
 	})
 
 	it('keeps sending to the other consumers', async () => {
@@ -254,7 +262,9 @@ describe('EmberServer subscriptions', () => {
 			consumer.emit('emberTree', berDecode(message))
 			await new Promise(setImmediate)
 		}
-		const subscriptions = () => (server as unknown as { _subscriptions: Record<string, unknown[]> })._subscriptions
+		const subscriptions = (path: string) => [
+			...((server as unknown as { _subscriptions: Map<string, Set<unknown>> })._subscriptions.get(path) ?? []),
+		]
 
 		it.each([
 			['the root', ''],
@@ -264,7 +274,7 @@ describe('EmberServer subscriptions', () => {
 			await receive(consumer, commandMessage(path, CommandType.GetDirectory))
 
 			expect(consumer.sent).toBe(1)
-			expect(subscriptions()[path]).toEqual([consumer])
+			expect(subscriptions(path)).toEqual([consumer])
 		})
 
 		describe.each([
@@ -280,7 +290,7 @@ describe('EmberServer subscriptions', () => {
 				await receive(consumer, commandMessage(path, number))
 
 				expect(consumer.sent).toBe(0)
-				expect(subscriptions()[path] ?? []).toEqual([])
+				expect(subscriptions(path)).toEqual([])
 				expect(await consumer.countSent(changeParameter)).toBe(0)
 			})
 		})

@@ -80,7 +80,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 
 	private _server: S101Server
 	private _clients: Set<S101Socket> = new Set()
-	private _subscriptions: { [path: string]: Array<S101Socket> } = {}
+	/** The consumers subscribed to each path */
+	private _subscriptions = new Map<string, Set<S101Socket>>()
 	private _pendingMatrixReplies = new Set<PendingMatrixReply>()
 	private _pendingValueReplies = new Set<PendingValueReply>()
 
@@ -166,7 +167,10 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 				: el.path
 
 		// The subscribers of the parent (or of a node itself), and those that subscribed to the element itself
-		const recipients = new Set([...(this._subscriptions[elPath] ?? []), ...(this._subscriptions[el.path] ?? [])])
+		const recipients = new Set([
+			...(this._subscriptions.get(elPath) ?? []),
+			...(this._subscriptions.get(el.path) ?? []),
+		])
 		// A consumer waiting for the answer to its setValue on this element gets the update
 		for (const pending of this._pendingValueReplies) {
 			if (pending.path !== el.path) continue
@@ -257,7 +261,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	 */
 	private _reportMatrixConnections(element: NumberedTreeNode<Matrix>, changed: Connections): void {
 		const path = toQualifiedEmberNode(element).path
-		const recipients = new Set(this._subscriptions[path] ?? [])
+		const recipients = new Set(this._subscriptions.get(path) ?? [])
 		// A consumer waiting for the answer to its connection request gets the report of a target it asked about
 		for (const pending of this._pendingMatrixReplies) {
 			if (pending.path !== path) continue
@@ -449,20 +453,20 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	private _subscribe(path: string, client: S101Socket) {
-		const clients = this._subscriptions[path] || []
-		// A consumer may ask for the same path more than once (a GetDirectory again, or a Subscribe after one);
-		// listing it again would send it every change once per request.
-		if (clients.includes(client)) return
-		this._subscriptions[path] = [...clients, client]
+		// A Set: a consumer may ask for the same path more than once (a GetDirectory again, or a Subscribe after one),
+		// and is sent each change once
+		let clients = this._subscriptions.get(path)
+		if (!clients) this._subscriptions.set(path, (clients = new Set()))
+		clients.add(client)
 	}
 	private _unsubscribe(path: string, client: S101Socket) {
-		if (!this._subscriptions[path]) return
-
-		// (Removing entries with splice while looping over them skipped the entry after each one removed.)
-		this._subscriptions[path] = this._subscriptions[path].filter((c) => c !== client)
+		const clients = this._subscriptions.get(path)
+		if (!clients) return
+		clients.delete(client)
+		if (!clients.size) this._subscriptions.delete(path)
 	}
 	private _clearSubscription(client: S101Socket) {
-		for (const path of Object.keys(this._subscriptions)) {
+		for (const path of [...this._subscriptions.keys()]) {
 			this._unsubscribe(path, client)
 		}
 	}

@@ -1292,12 +1292,12 @@ describe('client', () => {
 				await client.subscribe(node, jest.fn())
 
 				//@ts-expect-error - private member
-				expect(client._subscriptions.filter((s) => s.path === '1')).toHaveLength(2)
+				expect(client._subscriptions.get('1')).toHaveLength(2)
 
 				await client.unsubscribe(node)
 
 				//@ts-expect-error - private member
-				expect(client._subscriptions.filter((s) => s.path === '1')).toHaveLength(0)
+				expect(client._subscriptions.has('1')).toBe(false)
 			})
 		})
 

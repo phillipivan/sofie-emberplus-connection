@@ -88,10 +88,8 @@ export interface Request {
 	lastSent: number
 }
 
-export interface Subscription {
-	path: string | undefined // undefined implies root level
-	cb: (EmberNode: TreeElement<EmberElement>) => void
-}
+/** What is called with an element when the provider reports it */
+type SubscriptionCallback = (EmberNode: TreeElement<EmberElement>) => void
 
 export interface Change {
 	path: string | undefined
@@ -127,7 +125,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _requests = new Map<string, Request>()
 	private _lastInvocation = 0
 	private _client: S101Client
-	private _subscriptions: Array<Subscription> = []
+	/** The callbacks for each path (undefined for the root), in the order they were given, a callback given twice twice */
+	private _subscriptions = new Map<string | undefined, Array<SubscriptionCallback>>()
 	/** The parameters subscribed to for their stream values, by path: what a path's callbacks are called with */
 	private _streamNodes = new Map<string, RootElement>()
 	/**
@@ -172,9 +171,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 			const node = this._streamNodes.get(path)
 			if (!node) return
-			for (const subscription of this._subscriptions.filter((s) => s.path === path)) {
-				subscription.cb(node)
-			}
+			for (const cb of this._callbacksAt(path)) cb(node)
 		})
 
 		// resend timer runs at greatest common divisor of timeouts and resends
@@ -276,11 +273,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const command: GetDirectory = new GetDirectoryImpl(dirFieldMask)
 
 		if (!('number' in node || 'path' in node)) {
-			if (cb)
-				this._subscriptions.push({
-					path: undefined,
-					cb,
-				})
+			if (cb) this._addSubscription(undefined, cb)
 
 			const sending = this._sendRequest(
 				new NumberedTreeNodeImpl(0, command),
@@ -301,11 +294,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		// (first, so that a request that can't be sent leaves no callback behind)
 		const request = toQualifiedCommand(node, command)
-		if (cb)
-			this._subscriptions.push({
-				path: request.path,
-				cb,
-			})
+		if (cb) this._addSubscription(request.path, cb)
 
 		const sent = await this._sendRequest(request, ExpectResponse.HasChildren, isElementResponse)
 		if (sent.sentOk) this._sentGetDirectories.set(request.path, { elementType: request.elementType, dirFieldMask })
@@ -322,11 +311,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const command: Subscribe = new SubscribeImpl()
 
 		if (node instanceof Map) {
-			if (cb)
-				this._subscriptions.push({
-					path: undefined,
-					cb,
-				})
+			if (cb) this._addSubscription(undefined, cb)
 
 			const request = await this._sendRequest(
 				new NumberedTreeNodeImpl(0, command),
@@ -351,11 +336,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			}
 		}
 
-		if (cb)
-			this._subscriptions.push({
-				path: request.path,
-				cb,
-			})
+		if (cb) this._addSubscription(request.path, cb)
 
 		const sent = await this._sendRequest(request, ExpectResponse.None, isElementResponse)
 		if (sent.sentOk) this._sentSubscribes.set(request.path, { elementType: request.elementType })
@@ -370,7 +351,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		if (node instanceof Map) {
 			// root subscriptions are tracked with undefined path
-			this._subscriptions = this._subscriptions.filter((subscription) => subscription.path !== undefined)
+			this._subscriptions.delete(undefined)
 			this._sentGetDirectories.delete('')
 			this._sentSubscribes.delete('')
 			this._forgetParametersBelow('')
@@ -380,7 +361,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		const path = getPath(node)
 
 		// Remove all matching subscriptions for the path in one pass
-		this._subscriptions = this._subscriptions.filter((subscription) => subscription.path !== path)
+		this._subscriptions.delete(path)
 		// Unsubscribe ends both a Subscribe and the reports a GetDirectory started
 		this._sentGetDirectories.delete(path)
 		this._sentSubscribes.delete(path)
@@ -575,10 +556,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		}
 
 		if (cb && numberedPath) {
-			this._subscriptions.push({
-				path: numberedPath.join('.'),
-				cb,
-			})
+			this._addSubscription(numberedPath.join('.'), cb)
 		}
 
 		if (tree?.contents.type === ElementType.Parameter && this._getDirectoryOnParams) {
@@ -866,11 +844,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		// check for subscriptiions:
 		for (const change of changes) {
-			const subscriptions = this._subscriptions.filter((s) => s.path === change.path)
 			if (change.node) {
-				for (const subscription of subscriptions) {
-					subscription.cb(change.node)
-				}
+				for (const cb of this._callbacksAt(change.path)) cb(change.node)
 			}
 		}
 
@@ -1151,6 +1126,17 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				}
 			}
 		}
+	}
+
+	private _addSubscription(path: string | undefined, cb: SubscriptionCallback): void {
+		const callbacks = this._subscriptions.get(path)
+		if (callbacks) callbacks.push(cb)
+		else this._subscriptions.set(path, [cb])
+	}
+
+	/** The callbacks for a path, as they are now: one given while they are called waits for the next report */
+	private _callbacksAt(path: string | undefined): Array<SubscriptionCallback> {
+		return [...(this._subscriptions.get(path) ?? [])]
 	}
 
 	private _resendTimer() {
