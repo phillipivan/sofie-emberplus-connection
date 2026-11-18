@@ -67,6 +67,13 @@ describe('the package exports', () => {
 		expect([Model.hasSignal(matrix, 'target', 1), Model.hasSignal(matrix, 'target', 2)]).toEqual([true, false])
 	})
 
+	// The other element classes were exported, and the package's exports map now refuses an import from dist
+	test("a matrix's label set class", () => {
+		const label = new Model.LabelImpl('1.2.3', 'Primary')
+
+		expect(label).toEqual({ basePath: '1.2.3', description: 'Primary' })
+	})
+
 	test('the tree element guards', () => {
 		const numbered: Types.RootElement = new Model.NumberedTreeNodeImpl(1, new Model.EmberNodeImpl())
 		const qualified: Types.RootElement = new Model.QualifiedElementImpl('1.2', new Model.EmberNodeImpl())
