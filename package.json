@@ -2,6 +2,7 @@
 	"name": "@phillipivan/emberplus-connection",
 	"version": "0.4.5",
 	"description": "Typescript implementation of the Ember+ automation protocol",
+	"type": "module",
 	"engines": {
 		"node": ">=26"
 	},
@@ -10,6 +11,13 @@
 	],
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./package.json": "./package.json"
+	},
 	"scripts": {
 		"postinstall": "husky",
 		"build": "rimraf dist && run build:main",

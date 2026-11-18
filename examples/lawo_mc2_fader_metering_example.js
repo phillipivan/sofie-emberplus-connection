@@ -1,13 +1,9 @@
-// Setting the environment variable DEBUG=emberplus-connection:*
-// will show debug information from the emberplus-connection module
+import { EmberClient, setDebugLogging } from '../dist/index.js'
 
-process.env.DEBUG = 'emberplus-connection:*'
-// Note: it's also possible to only log parts of the module by using a subset of the debug name,
-// 'emberplus-connection:S101Client' // for the S101Client class
-// 'emberplus-connection:S101Codec' // for the S101Codec class
-// 'emberplus-connection:StreamManager' // for the StreamManager class
-
-const { EmberClient } = require('../dist/index')
+// Debug information from the library, to console.log. (A logger can be given instead: setDebugLogging(true, log).)
+// Setting the environment variable DEBUG=emberplus-connection:* in the shell does the same; setting it here would not,
+// as the library is loaded before this runs.
+setDebugLogging(true)
 
 //-------------------------------------------------------------------------
 // Client
@@ -19,13 +15,13 @@ let node1InternalNodePath = ''
 
 client.on('disconnected', () => {
 	console.error('Client Lost Ember connection')
-	client.tree = []
+	client.tree = new Map()
 })
 
 // Handle successful connection
 client.on('connected', () => {
 	console.log('Client Found Ember connection')
-	client.tree = []
+	client.tree = new Map()
 
 	client
 		.getDirectory(client.tree)

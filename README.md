@@ -10,6 +10,8 @@ Relative to the Sofie branch this fork has additional configuration options, str
 
 ## Changes in this fork
 
+The package is an ES module (`"type": "module"`); `require()` of it works too, on the Node versions it needs (26 and later). Import from the package root only: its `exports` map leaves out the files in `dist`, which are not part of the API. Everything a consumer needs is exported from the root, the model's types and classes as `Model` and the protocol's types as `Types`.
+
 ### Client
 
 An options object
