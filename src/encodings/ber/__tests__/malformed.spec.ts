@@ -146,7 +146,7 @@ describe('decoding elements nested deep', () => {
 	/** How many levels of children below an element */
 	function depthBelow(el: TreeElement<EmberElement>): number {
 		let depth = 0
-		for (let child = el.children?.[1]; child; child = child.children?.[1]) depth++
+		for (let child = el.children?.get(1); child; child = child.children?.get(1)) depth++
 		return depth
 	}
 

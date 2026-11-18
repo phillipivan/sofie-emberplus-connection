@@ -1,7 +1,9 @@
-import { Collection, RelativeOID, RootElement } from '../types/types.js'
+import { RelativeOID, RootElement } from '../types/types.js'
 import { EmberElement } from './EmberElement.js'
 
 export {
+	Children,
+	childrenOf,
 	TreeElement,
 	NumberedTreeNode,
 	QualifiedElement,
@@ -11,10 +13,23 @@ export {
 	isQualified,
 }
 
+/**
+ * An element's children (the Glow DTD's ElementCollection), each by its number, in the order they came; also the tree's
+ * top level, the root's children. A Map, so that a number has one child; childrenOf files each under its own number.
+ */
+type Children = Map<number, NumberedTreeNode<EmberElement>>
+
+/** The elements given, each under its number: of two with one number, the later */
+function childrenOf(elements: Iterable<NumberedTreeNode<EmberElement>>): Children {
+	const children: Children = new Map()
+	for (const element of elements) children.set(element.number, element)
+	return children
+}
+
 interface TreeElement<T extends EmberElement> {
 	parent?: RootElement
 	contents: T
-	children?: Collection<NumberedTreeNode<EmberElement>>
+	children?: Children
 }
 
 interface NumberedTreeNode<T extends EmberElement> extends TreeElement<T> {
@@ -29,7 +44,7 @@ interface QualifiedElement<T extends EmberElement> extends TreeElement<T> {
 abstract class TreeElementImpl<T extends EmberElement> implements TreeElement<T> {
 	constructor(
 		public contents: T,
-		public children?: Collection<NumberedTreeNode<EmberElement>>,
+		public children?: Children,
 		public parent?: RootElement
 	) {}
 }
@@ -38,7 +53,7 @@ class NumberedTreeNodeImpl<T extends EmberElement> extends TreeElementImpl<T> im
 	constructor(
 		public number: number,
 		contents: T,
-		children?: Collection<NumberedTreeNode<EmberElement>>,
+		children?: Children,
 		parent?: RootElement
 	) {
 		super(contents, children, parent)
@@ -51,7 +66,7 @@ class QualifiedElementImpl<T extends EmberElement> extends TreeElementImpl<T> im
 	constructor(
 		public path: RelativeOID,
 		contents: T,
-		children?: Collection<NumberedTreeNode<EmberElement>>
+		children?: Children
 	) {
 		super(contents, children)
 	}

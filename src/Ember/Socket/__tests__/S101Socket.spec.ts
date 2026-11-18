@@ -251,7 +251,7 @@ describe('EmberServer maxClients', () => {
 		const server = new EmberServer(0, '127.0.0.1', options)
 		const warnings: string[] = []
 		server.on('warn', (e) => warnings.push(e.message))
-		await server.init({})
+		await server.init(new Map())
 		const s101 = (server as unknown as { _server: S101Server })._server
 		const port = (s101.server?.address() as AddressInfo).port
 		return { server, s101, warnings, port }

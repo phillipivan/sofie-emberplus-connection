@@ -1,9 +1,9 @@
 import * as Ber from '../../../Ber/index.js'
 import { Command } from '../../../model/Command.js'
-import { ElementType, EmberElement } from '../../../model/EmberElement.js'
+import { ElementType } from '../../../model/EmberElement.js'
 import { EmberNode, EmberNodeImpl } from '../../../model/EmberNode.js'
 import { EmberFunction, EmberFunctionImpl, Parameter, ParameterImpl, ParameterType } from '../../../model/index.js'
-import { isNumbered, NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElementImpl } from '../../../model/Tree.js'
+import { Children, isNumbered, NumberedTreeNodeImpl, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, RelativeOID, RootElement } from '../../../types/types.js'
 import {
 	CommandBERID,
@@ -22,6 +22,7 @@ import {
 } from '../constants.js'
 import { decodeCommand } from './Command.js'
 import {
+	addError,
 	appendErrors,
 	check,
 	DecodeOptions,
@@ -46,9 +47,9 @@ export function decodeChildren(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode,
 	depth = 0
-): DecodeResult<Collection<NumberedTreeNode<EmberElement>>> {
+): DecodeResult<Children> {
 	reader.readSequence(ElementCollectionBERID)
-	const kids = makeResult<Collection<NumberedTreeNode<EmberElement>>>({})
+	const kids = makeResult<Children>(new Map())
 
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
@@ -67,7 +68,10 @@ export function decodeChildren(
 			)
 			continue
 		}
-		kids.value[kid.number] = kid
+		// An ElementCollection may give a number twice: it is kept once, the later element
+		if (kids.value.has(kid.number))
+			addError(kids, new Error(`decode children: child ${kid.number} is listed more than once`))
+		kids.value.set(kid.number, kid)
 	}
 
 	return kids
@@ -107,7 +111,7 @@ export function decodeGenericElement(
 	let path: RelativeOID | null = null
 	let number: number | null = null
 	let contents: EmberNode | Parameter | EmberFunction | undefined = undefined
-	let children: Collection<NumberedTreeNode<EmberElement>> | undefined
+	let children: Children | undefined
 
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
@@ -194,7 +198,7 @@ export function decodeGenericElement(
 	}
 
 	if (children) {
-		for (const kid of Object.values<NumberedTreeNode<EmberElement>>(children)) {
+		for (const kid of children.values()) {
 			kid.parent = el
 		}
 	}

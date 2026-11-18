@@ -45,6 +45,8 @@ import { StreamDescription, StreamFormat } from './StreamDescription.js'
 import { StreamEntry } from './StreamEntry.js'
 import { Template, TemplateImpl } from './Template.js'
 import {
+	Children,
+	childrenOf,
 	isNumbered,
 	isQualified,
 	NumberedTreeNode,
@@ -114,4 +116,6 @@ export {
 	QualifiedElementImpl,
 	isNumbered,
 	isQualified,
+	Children,
+	childrenOf,
 }

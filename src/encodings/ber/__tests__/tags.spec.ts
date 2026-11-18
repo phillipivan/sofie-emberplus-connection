@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'util'
+
 import * as Ber from '../../../Ber/index.js'
 import { Reader } from '../../../Ber/Reader.js'
 import { Parameter, ParameterType } from '../../../model/Parameter.js'
@@ -24,7 +26,9 @@ describe('tags in the multi-byte form', () => {
 
 			const decoded = berDecode(rewritten)
 			expect(decoded.errors ?? []).toEqual([])
-			expect(decoded.value).toEqual(berDecode(message).value)
+			// (Node's comparison, which follows the children's links to their parents through the Maps they are in, where
+			// jest's runs out of stack)
+			expect(isDeepStrictEqual(decoded.value, berDecode(message).value)).toBe(true)
 		})
 	})
 

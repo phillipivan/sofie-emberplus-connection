@@ -132,6 +132,47 @@ describe('encodings/ber/EmberNode', () => {
 		expect(decoded).toEqual(en)
 	})
 
+	// An ElementCollection is a SEQUENCE of elements, so a number can come twice: the later is kept, with an error
+	test('a child listed twice is kept once, with an error', () => {
+		const w = new Ber.Writer()
+		const node = (number: number, identifier: string) => {
+			w.startSequence(Ber.CONTEXT(0))
+			w.startSequence(Ber.APPLICATION(3)) // Node
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeInt(number)
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(1))
+			w.startSequence(Ber.BERDataTypes.SET)
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeString(identifier, Ber.BERDataTypes.STRING)
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+		}
+		w.startSequence(Ber.APPLICATION(3)) // Node 1
+		w.startSequence(Ber.CONTEXT(0))
+		w.writeInt(1)
+		w.endSequence()
+		w.startSequence(Ber.CONTEXT(2)) // children
+		w.startSequence(Ber.APPLICATION(4)) // ElementCollection
+		node(5, 'first')
+		node(6, 'other')
+		node(5, 'later')
+		w.endSequence()
+		w.endSequence()
+		w.endSequence()
+		const decoded = decodeGenericElement(new Ber.Reader(w.buffer))
+
+		const children = [...(decoded.value.children?.values() ?? [])]
+		expect(children.map((c) => [c.number, c.contents.type === ElementType.Node && c.contents.identifier])).toEqual([
+			[5, 'later'],
+			[6, 'other'],
+		])
+		expect(decoded.errors.map((e) => e.message)).toEqual(['decode children: child 5 is listed more than once'])
+	})
+
 	test('decode indefinite length', () => {
 		const decoded = berDecode(indefiniteLength)
 

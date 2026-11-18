@@ -21,6 +21,7 @@ import {
 	Parameter,
 } from '../../model/index.js'
 import { InvocationResultImpl } from '../../model/InvocationResult.js'
+import { Children } from '../../model/Tree.js'
 import {
 	Collection,
 	EmberValue,
@@ -64,7 +65,7 @@ interface PendingValueReply {
 export class EmberServer extends EventEmitter<EmberServerEvents> {
 	address: string | undefined
 	port: number
-	tree: Collection<NumberedTreeNode<EmberElement>> = {}
+	tree: Children = new Map()
 
 	onInvocation?: (
 		emberFunction: NumberedTreeNode<EmberFunction>,
@@ -111,18 +112,18 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		})
 	}
 
-	async init(tree: Collection<NumberedTreeNode<EmberElement>>): Promise<void> {
+	async init(tree: Children): Promise<void> {
 		const setParent = (parent: NumberedTreeNode<EmberElement>, child: NumberedTreeNode<EmberElement>) => {
 			child.parent = parent
 			if (child.children) {
-				for (const c of Object.values<NumberedTreeNode<EmberElement>>(child.children)) {
+				for (const c of child.children.values()) {
 					setParent(child, c)
 				}
 			}
 		}
-		for (const rootEl of Object.values<NumberedTreeNode<EmberElement>>(tree)) {
+		for (const rootEl of tree.values()) {
 			if (rootEl.children) {
-				for (const c of Object.values<NumberedTreeNode<EmberElement>>(rootEl.children)) {
+				for (const c of rootEl.children.values()) {
 					setParent(rootEl, c)
 				}
 			}
@@ -295,7 +296,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		el: QualifiedElement<EmberElement> | NumberedTreeNode<EmberElement>,
 		client: S101Socket
 	) {
-		const children = Object.values<NumberedTreeNode<EmberElement>>(el.children || {})
+		const children = [...(el.children?.values() ?? [])]
 
 		if (children[0] && isElementOfType(children[0], ElementType.Command)) {
 			this._handleCommand(path, children[0], client).catch((e) => this.emit('error', e))
@@ -416,8 +417,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	getElementByPath(path: string, delimiter = '.'): NumberedTreeNode<EmberElement> | undefined {
-		const getNext = (elements: Collection<NumberedTreeNode<EmberElement>>, i?: string) =>
-			Object.values<NumberedTreeNode<EmberElement>>(elements || {}).find(
+		const getNext = (elements: Children, i?: string) =>
+			[...elements.values()].find(
 				(r) =>
 					r.number === Number(i) ||
 					('identifier' in r.contents && r.contents.identifier === i) ||
@@ -468,49 +469,51 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	private _handleGetDirectory(
-		tree: Collection<NumberedTreeNode<EmberElement>> | NumberedTreeNode<EmberElement>,
+		tree: Children | NumberedTreeNode<EmberElement>,
 		_dirFieldMasks: FieldFlags,
 		client: S101Socket
 	) {
-		if (!('contents' in tree)) {
-			// getDir on root: the top-level elements, without their children, keyed by number
-			const response: Collection<NumberedTreeNode<EmberElement>> = {}
-			for (const rootEl of Object.values<NumberedTreeNode<EmberElement>>(tree)) {
-				response[rootEl.number] = new NumberedTreeNodeImpl(rootEl.number, rootEl.contents)
-			}
+		if (tree instanceof Map) {
+			// getDir on root: the top-level elements, without their children
+			const response = [...tree.values()].map(
+				(rootEl) => new NumberedTreeNodeImpl(rootEl.number, rootEl.contents)
+			)
 			const data = berEncode(response, RootType.Elements)
 			client.sendBER(data)
 		} else {
 			const qualified = toQualifiedEmberNode(tree)
-			qualified.children = {} // destroy ref to this.tree
+			qualified.children = new Map() // destroy ref to this.tree
 			if (tree.children) {
 				// the children, without their children, keyed by number
-				for (const child of Object.values<NumberedTreeNode<EmberElement>>(tree.children)) {
+				for (const child of tree.children.values()) {
 					if (child.contents.type === ElementType.Matrix) {
 						// matrix should not have connections, targets and sources:
-						qualified.children[child.number] = new NumberedTreeNodeImpl(
+						qualified.children.set(
 							child.number,
-							new MatrixImpl(
-								child.contents.identifier,
-								undefined,
-								undefined,
-								undefined,
-								child.contents.description,
-								child.contents.matrixType,
-								child.contents.addressingMode,
-								child.contents.targetCount,
-								child.contents.sourceCount,
-								child.contents.maximumTotalConnects,
-								child.contents.maximumConnectsPerTarget,
-								child.contents.parametersLocation,
-								child.contents.gainParameterNumber,
-								child.contents.labels,
-								child.contents.schemaIdentifiers,
-								child.contents.templateReference
+							new NumberedTreeNodeImpl(
+								child.number,
+								new MatrixImpl(
+									child.contents.identifier,
+									undefined,
+									undefined,
+									undefined,
+									child.contents.description,
+									child.contents.matrixType,
+									child.contents.addressingMode,
+									child.contents.targetCount,
+									child.contents.sourceCount,
+									child.contents.maximumTotalConnects,
+									child.contents.maximumConnectsPerTarget,
+									child.contents.parametersLocation,
+									child.contents.gainParameterNumber,
+									child.contents.labels,
+									child.contents.schemaIdentifiers,
+									child.contents.templateReference
+								)
 							)
 						)
 					} else {
-						qualified.children[child.number] = new NumberedTreeNodeImpl(child.number, child.contents)
+						qualified.children.set(child.number, new NumberedTreeNodeImpl(child.number, child.contents))
 					}
 				}
 			} else if (qualified.contents.type === ElementType.Node) {

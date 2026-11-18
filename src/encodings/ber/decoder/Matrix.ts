@@ -1,5 +1,4 @@
 import * as Ber from '../../../Ber/index.js'
-import { EmberElement } from '../../../model/EmberElement.js'
 import { Label } from '../../../model/Label.js'
 import {
 	Connections,
@@ -10,8 +9,14 @@ import {
 	SignalContents,
 	Signals,
 } from '../../../model/Matrix.js'
-import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
-import { Collection, EmberTreeNode, RelativeOID } from '../../../types/types.js'
+import {
+	Children,
+	NumberedTreeNode,
+	NumberedTreeNodeImpl,
+	QualifiedElement,
+	QualifiedElementImpl,
+} from '../../../model/Tree.js'
+import { RelativeOID } from '../../../types/types.js'
 import { MatrixBERID, QualifiedMatrixBERID, SourceBERID, TargetBERID } from '../constants.js'
 import { decodeConnection } from './Connection.js'
 import {
@@ -44,7 +49,7 @@ function decodeMatrix(
 	let sources: Signals | undefined = undefined
 	let connections: Connections | undefined = undefined
 	let contents: Matrix | null = null
-	let kids: Collection<EmberTreeNode<EmberElement>> | undefined = undefined
+	let kids: Children | undefined = undefined
 	const errors: Array<Error> = []
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
@@ -96,7 +101,7 @@ function decodeMatrix(
 	}
 
 	if (kids) {
-		for (const kiddo of Object.values<EmberTreeNode<EmberElement>>(kids)) {
+		for (const kiddo of kids.values()) {
 			kiddo.parent = el
 		}
 	}

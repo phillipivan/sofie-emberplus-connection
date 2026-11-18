@@ -20,6 +20,7 @@ import {
 } from '../../../model/Command.js'
 import { ConnectionOperation } from '../../../model/Connection.js'
 import {
+	childrenOf,
 	Connection,
 	ConnectionImpl,
 	Connections,
@@ -61,9 +62,11 @@ class FakeConnection extends EventEmitter {
 
 	/** Sends the server a command for an element */
 	request(path: RelativeOID, command: Command): void {
-		const element = new QualifiedElementImpl<EmberElement>(path, new EmberNodeImpl(), {
-			0: new NumberedTreeNodeImpl(0, command),
-		})
+		const element = new QualifiedElementImpl<EmberElement>(
+			path,
+			new EmberNodeImpl(),
+			childrenOf([new NumberedTreeNodeImpl(0, command)])
+		)
 		this.emit('emberTree', { rootType: RootType.Elements, value: { 0: element } })
 	}
 
@@ -94,10 +97,10 @@ describe('EmberServer subscriptions', () => {
 	beforeEach(async () => {
 		jest.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
 		parameter = new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0))
-		node = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'), { 1: parameter })
-		const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: node })
+		node = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'), childrenOf([parameter]))
+		const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([node]))
 		server = new EmberServer(9000)
-		await server.init({ 1: device })
+		await server.init(childrenOf([device]))
 	})
 	afterEach(() => {
 		jest.restoreAllMocks()
@@ -387,7 +390,9 @@ describe('EmberServer invocations', () => {
 		const node = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'))
 		const fn = new NumberedTreeNodeImpl(2, new EmberFunctionImpl('reset'))
 		server = new EmberServer(9000)
-		await server.init({ 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: node, 2: fn }) })
+		await server.init(
+			childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([node, fn]))])
+		)
 		invoked = []
 		server.onInvocation = async (emberFunction, invocation) => {
 			invoked.push(emberFunction.contents.identifier ?? '?')
@@ -447,9 +452,9 @@ describe('EmberServer matrices', () => {
 		)
 		contents.matrixType = matrixType
 		matrix = new NumberedTreeNodeImpl(1, contents)
-		const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: matrix })
+		const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([matrix]))
 		server = new EmberServer(9000)
-		await server.init({ 1: device })
+		await server.init(childrenOf([device]))
 	}
 	afterEach(() => {
 		jest.restoreAllMocks()

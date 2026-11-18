@@ -6,6 +6,8 @@ import { at } from '../../../lib/at.js'
 import { CommandType } from '../../../model/Command.js'
 import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation } from '../../../model/Connection.js'
 import {
+	Children,
+	childrenOf,
 	Connections,
 	connectionsOf,
 	ElementType,
@@ -51,6 +53,20 @@ import { EmberClient, EmberClientOptions } from '../index.js'
 
 // eslint-disable-next-line
 jest.mock('../../Socket/S101Client', () => require('../../../__mocks__/S101Client'))
+
+/** An element's child, which the test has made: throws if there isn't one */
+function childOf(node: TreeElement<EmberElement>, number: number): NumberedTreeNode<EmberElement> {
+	const child = node.children?.get(number)
+	if (!child) throw new Error(`Expected a child ${number}`)
+	return child
+}
+
+/** The device the test put at the top of the client's tree, as 1 */
+function device(client: EmberClient): NumberedTreeNode<EmberElement> {
+	const top = client.tree.get(1)
+	if (!top) throw new Error('Expected a device, 1')
+	return top
+}
 
 /** The first element of a message the client sent */
 function firstElement(data: Buffer): RootElement {
@@ -131,19 +147,19 @@ describe('client', () => {
 	function createQualifiedNodeResponse(
 		path: RelativeOID,
 		content: EmberElement,
-		children: Collection<NumberedTreeNode<EmberElement>> | undefined
+		children: Children | undefined
 	): DecodeResult<Root> {
 		const parent = new QualifiedElementImpl<EmberElement>(path, content, children)
 
 		const fixLevel = (node: NumberedTreeNode<EmberElement>, parent: NumberedTreeNode<EmberElement>) => {
 			node.parent = parent
 
-			for (const child of Object.values<NumberedTreeNode<EmberElement>>(node.children ?? {})) {
+			for (const child of node.children?.values() ?? []) {
 				fixLevel(child, node)
 			}
 		}
 		if (children) {
-			for (const child of Object.values<NumberedTreeNode<EmberElement>>(children)) {
+			for (const child of children.values()) {
 				fixLevel(child, parent as any as NumberedTreeNode<EmberElement>)
 			}
 		}
@@ -235,9 +251,11 @@ describe('client', () => {
 			expect(onSocketWrite).toHaveBeenCalledTimes(1)
 			socket.mockData({
 				value: {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true), {
-						1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, true)),
-					}),
+					1: new NumberedTreeNodeImpl(
+						1,
+						new EmberNodeImpl('Ruby', undefined, undefined, true),
+						childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, true))])
+					),
 				},
 			})
 
@@ -250,12 +268,12 @@ describe('client', () => {
 					1: new QualifiedElementImpl<EmberElement>(
 						'1.1',
 						new EmberNodeImpl('Sums', undefined, undefined, false),
-						{
-							1: new NumberedTreeNodeImpl(
+						childrenOf([
+							new NumberedTreeNodeImpl(
 								1,
 								new ParameterImpl(ParameterType.Boolean, 'On', undefined, false)
 							),
-						}
+						])
 					) as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
 				},
 			})
@@ -304,15 +322,19 @@ describe('client', () => {
 			// First lookup from both
 			expect(onSocketWrite).toHaveBeenCalledTimes(2)
 			socket.mockData(
-				createQualifiedNodeResponse('1', new EmberNodeImpl('Ruby', undefined, undefined, true), {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, false)),
-				})
+				createQualifiedNodeResponse(
+					'1',
+					new EmberNodeImpl('Ruby', undefined, undefined, true),
+					childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, false))])
+				)
 			)
 
 			socket.mockData(
-				createQualifiedNodeResponse('1', new EmberNodeImpl('Ruby', undefined, undefined, true), {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, false)),
-				})
+				createQualifiedNodeResponse(
+					'1',
+					new EmberNodeImpl('Ruby', undefined, undefined, true),
+					childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, false))])
+				)
 			)
 
 			await new Promise(setImmediate)
@@ -320,15 +342,19 @@ describe('client', () => {
 			// Second lookup
 			expect(onSocketWrite).toHaveBeenCalledTimes(4)
 			socket.mockData(
-				createQualifiedNodeResponse('1.1', new EmberNodeImpl('Sums', undefined, undefined, false), {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('MAIN', undefined, undefined, false)),
-				})
+				createQualifiedNodeResponse(
+					'1.1',
+					new EmberNodeImpl('Sums', undefined, undefined, false),
+					childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('MAIN', undefined, undefined, false))])
+				)
 			)
 			await new Promise(setImmediate)
 			socket.mockData(
-				createQualifiedNodeResponse('1.1', new EmberNodeImpl('Sums', undefined, undefined, false), {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('MAIN', undefined, undefined, false)),
-				})
+				createQualifiedNodeResponse(
+					'1.1',
+					new EmberNodeImpl('Sums', undefined, undefined, false),
+					childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('MAIN', undefined, undefined, false))])
+				)
 			)
 
 			await new Promise(setImmediate)
@@ -336,13 +362,17 @@ describe('client', () => {
 			// Final tree node
 			expect(onSocketWrite).toHaveBeenCalledTimes(6)
 			socket.mockData(
-				createQualifiedNodeResponse('1.1.1', new EmberNodeImpl('MAIN', undefined, undefined, false), {
-					1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Boolean, 'On', undefined, false)),
-					2: new NumberedTreeNodeImpl(
-						2,
-						new ParameterImpl(ParameterType.Boolean, 'Second', undefined, false)
-					),
-				})
+				createQualifiedNodeResponse(
+					'1.1.1',
+					new EmberNodeImpl('MAIN', undefined, undefined, false),
+					childrenOf([
+						new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Boolean, 'On', undefined, false)),
+						new NumberedTreeNodeImpl(
+							2,
+							new ParameterImpl(ParameterType.Boolean, 'Second', undefined, false)
+						),
+					])
+				)
 			)
 
 			await new Promise(setImmediate)
@@ -390,7 +420,7 @@ describe('client', () => {
 			await getRootDirReq.response
 
 			// Request the empty node
-			const req = await client.getDirectory(at(client.tree, 1))
+			const req = await client.getDirectory(at([...client.tree.values()], 0))
 
 			// Returns empty node
 			expect(onSocketWrite).toHaveBeenCalledTimes(1)
@@ -430,9 +460,11 @@ describe('client', () => {
 			expect(onSocketWrite).toHaveBeenCalledTimes(1)
 			socket.mockData({
 				value: {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true), {
-						1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, true)),
-					}),
+					1: new NumberedTreeNodeImpl(
+						1,
+						new EmberNodeImpl('Ruby', undefined, undefined, true),
+						childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, true))])
+					),
 				},
 			})
 
@@ -445,9 +477,9 @@ describe('client', () => {
 					1: new QualifiedElementImpl<EmberElement>(
 						'1.1',
 						new EmberNodeImpl('Sums', undefined, undefined, false),
-						{
-							1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Empty', undefined, undefined, true)),
-						}
+						childrenOf([
+							new NumberedTreeNodeImpl(1, new EmberNodeImpl('Empty', undefined, undefined, true)),
+						])
 					) as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
 				},
 			})
@@ -457,7 +489,7 @@ describe('client', () => {
 			const getByPathRes = await getByPathPromise
 			expect(getByPathRes).toBeTruthy()
 
-			const node = client.tree[1]?.children?.[1]?.children?.[1]
+			const node = client.tree.get(1)?.children?.get(1)?.children?.get(1)
 			if (!node) throw new Error('Empty res') // really just a typeguard
 
 			// Request the empty node
@@ -517,13 +549,15 @@ describe('client', () => {
 
 		// A device, 1, with a parameter, 1.1, that has plenty of properties besides its value
 		function seedParameter(client: EmberClient, parameter: Parameter) {
-			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
-				1: new NumberedTreeNodeImpl(1, parameter),
-			})
-			if (!device.children?.[1]) throw new Error('Expected seeded parameter')
-			device.children[1].parent = device
-			client.tree[1] = device
-			return device.children[1] as NumberedTreeNode<Parameter>
+			const device = new NumberedTreeNodeImpl(
+				1,
+				new EmberNodeImpl('device'),
+				childrenOf([new NumberedTreeNodeImpl(1, parameter)])
+			)
+			if (!device.children?.get(1)) throw new Error('Expected seeded parameter')
+			childOf(device, 1).parent = device
+			client.tree.set(1, device)
+			return childOf(device, 1) as NumberedTreeNode<Parameter>
 		}
 
 		// As the specification's examples, Lawo's libember and Ember+ Viewer do: a QualifiedParameter holding the path
@@ -669,35 +703,39 @@ describe('client', () => {
 		// A device, 1, with a matrix, 1.1, as a provider reports it in reply to a GetDirectory on the matrix: its
 		// contents, targets, sources and the connections of every target
 		function seedMatrix(client: EmberClient) {
-			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
-				1: new NumberedTreeNodeImpl(
-					1,
-					new MatrixImpl(
-						'matrix',
-						signalsOf([1, 2, 3]),
-						signalsOf([1, 2, 3, 4]),
-						connectionsOf([
-							{ target: 1, sources: [1] },
-							{ target: 2, sources: [2] },
-							{ target: 3, sources: [] },
-						]),
-						'Matrix',
-						MatrixType.OneToN,
-						MatrixAddressingMode.NonLinear,
-						3,
-						4,
-						undefined,
-						undefined,
-						undefined,
-						undefined,
-						[{ basePath: '1.2', description: 'labels' }]
-					)
-				),
-			})
-			if (!device.children?.[1]) throw new Error('Expected seeded matrix')
-			device.children[1].parent = device
-			client.tree[1] = device
-			return device.children[1] as NumberedTreeNode<Matrix>
+			const device = new NumberedTreeNodeImpl(
+				1,
+				new EmberNodeImpl('device'),
+				childrenOf([
+					new NumberedTreeNodeImpl(
+						1,
+						new MatrixImpl(
+							'matrix',
+							signalsOf([1, 2, 3]),
+							signalsOf([1, 2, 3, 4]),
+							connectionsOf([
+								{ target: 1, sources: [1] },
+								{ target: 2, sources: [2] },
+								{ target: 3, sources: [] },
+							]),
+							'Matrix',
+							MatrixType.OneToN,
+							MatrixAddressingMode.NonLinear,
+							3,
+							4,
+							undefined,
+							undefined,
+							undefined,
+							undefined,
+							[{ basePath: '1.2', description: 'labels' }]
+						)
+					),
+				])
+			)
+			if (!device.children?.get(1)) throw new Error('Expected seeded matrix')
+			childOf(device, 1).parent = device
+			client.tree.set(1, device)
+			return childOf(device, 1) as NumberedTreeNode<Matrix>
 		}
 
 		// A provider ignores a request naming a target or source its matrix doesn't have (the XACI does), so the
@@ -909,12 +947,21 @@ describe('client', () => {
 
 				const response = track((await client.matrixConnect(node, 2, [3])).response)
 				const inParent = (target: number) =>
-					createQualifiedNodeResponse('1', new EmberNodeImpl(), {
-						1: new NumberedTreeNodeImpl(
-							1,
-							new MatrixImpl(undefined, undefined, undefined, connectionsOf([{ target, sources: [3] }]))
-						),
-					})
+					createQualifiedNodeResponse(
+						'1',
+						new EmberNodeImpl(),
+						childrenOf([
+							new NumberedTreeNodeImpl(
+								1,
+								new MatrixImpl(
+									undefined,
+									undefined,
+									undefined,
+									connectionsOf([{ target, sources: [3] }])
+								)
+							),
+						])
+					)
 				socket.mockData(inParent(1))
 				await new Promise(setImmediate)
 				expect(response.settled).toBe('pending')
@@ -945,13 +992,17 @@ describe('client', () => {
 	describe('getElementByPath on a parameter', () => {
 		// A device, 1, with a parameter, 1.1, already in the tree from an earlier GetDirectory on the device
 		function seedParameter(client: EmberClient) {
-			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
-				1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0)),
-			})
-			if (!device.children?.[1]) throw new Error('Expected seeded parameter')
-			device.children[1].parent = device
-			client.tree[1] = device
-			return device.children[1] as NumberedTreeNode<Parameter>
+			const device = new NumberedTreeNodeImpl(
+				1,
+				new EmberNodeImpl('device'),
+				childrenOf([
+					new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0)),
+				])
+			)
+			if (!device.children?.get(1)) throw new Error('Expected seeded parameter')
+			childOf(device, 1).parent = device
+			client.tree.set(1, device)
+			return childOf(device, 1) as NumberedTreeNode<Parameter>
 		}
 
 		// Some providers never answer a GetDirectory on a parameter
@@ -970,7 +1021,7 @@ describe('client', () => {
 				expect(onSocketWrite).toHaveBeenCalledTimes(1)
 				const request = firstElement(at(onSocketWrite.mock.calls, 0)[0])
 				expect(request).toMatchObject({ path: '1.1', contents: { type: ElementType.Parameter } })
-				expect(Object.values<NumberedTreeNode<EmberElement>>(request.children ?? {})).toMatchObject([
+				expect([...(request.children?.values() ?? [])]).toMatchObject([
 					{ contents: { type: ElementType.Command, number: CommandType.GetDirectory } },
 				])
 			})
@@ -1014,7 +1065,7 @@ describe('client', () => {
 	describe('getElementByPath path forms', () => {
 		// A device, 1 "device", with loaded parameters, as [number, identifier, description]
 		function seedDevice(client: EmberClient, parameters: Array<[number, string, string]>) {
-			const children: Collection<NumberedTreeNode<EmberElement>> = {}
+			const children: Children = new Map()
 			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device', 'Device'), children)
 			for (const [number, identifier, description] of parameters) {
 				const parameter = new NumberedTreeNodeImpl(
@@ -1022,9 +1073,9 @@ describe('client', () => {
 					new ParameterImpl(ParameterType.Integer, identifier, description, 0)
 				)
 				parameter.parent = device
-				children[number] = parameter
+				children.set(number, parameter)
 			}
-			client.tree[1] = device
+			client.tree.set(1, device)
 			return children
 		}
 
@@ -1050,7 +1101,7 @@ describe('client', () => {
 				await runWithConnection(async (client) => {
 					const elements = seedDevice(client, parameters)
 
-					await expect(client.getElementByPath('1.2')).resolves.toBe(elements[2])
+					await expect(client.getElementByPath('1.2')).resolves.toBe(elements.get(2))
 				})
 			}
 		)
@@ -1062,7 +1113,7 @@ describe('client', () => {
 					[2, 'level', 'Level'],
 				])
 
-				await expect(client.getElementByPath('device.level')).resolves.toBe(elements[2])
+				await expect(client.getElementByPath('device.level')).resolves.toBe(elements.get(2))
 			})
 		})
 
@@ -1073,8 +1124,8 @@ describe('client', () => {
 					[2, 'gain', 'Gain'],
 				])
 
-				await expect(client.getElementByPath('Device.Gain')).resolves.toBe(elements[2])
-				await expect(client.getElementByPath('device.2')).resolves.toBe(elements[2])
+				await expect(client.getElementByPath('Device.Gain')).resolves.toBe(elements.get(2))
+				await expect(client.getElementByPath('device.2')).resolves.toBe(elements.get(2))
 			})
 		})
 	})
@@ -1101,50 +1152,52 @@ describe('client', () => {
 				if (inner !== null) reader.readStringAsBuffer(inner)
 			}
 			const element = firstElement(data)
-			const commands = Object.values<NumberedTreeNode<EmberElement>>(element.children ?? {}).map(
-				(child) => child.contents
-			)
+			const commands = [...(element.children?.values() ?? [])].map((child) => child.contents)
 			return { elementTag, path, fields, commands }
 		}
 
 		// A device, 1, with a node, a parameter, a matrix and a function that have plenty of properties, as discovered
 		function seedDevice(client: EmberClient) {
-			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
-				1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('node', 'Node', false, true)),
-				2: new NumberedTreeNodeImpl(
-					2,
-					new ParameterImpl(ParameterType.Integer, 'gain', 'Gain', 0, 70, -20, ParameterAccess.ReadWrite)
-				),
-				3: new NumberedTreeNodeImpl(
-					3,
-					new MatrixImpl(
-						'matrix',
-						undefined,
-						undefined,
-						undefined,
-						'Matrix',
-						MatrixType.OneToN,
-						undefined,
+			const device = new NumberedTreeNodeImpl(
+				1,
+				new EmberNodeImpl('device'),
+				childrenOf([
+					new NumberedTreeNodeImpl(1, new EmberNodeImpl('node', 'Node', false, true)),
+					new NumberedTreeNodeImpl(
+						2,
+						new ParameterImpl(ParameterType.Integer, 'gain', 'Gain', 0, 70, -20, ParameterAccess.ReadWrite)
+					),
+					new NumberedTreeNodeImpl(
+						3,
+						new MatrixImpl(
+							'matrix',
+							undefined,
+							undefined,
+							undefined,
+							'Matrix',
+							MatrixType.OneToN,
+							undefined,
+							4,
+							4
+						)
+					),
+					new NumberedTreeNodeImpl(
 						4,
-						4
-					)
-				),
-				4: new NumberedTreeNodeImpl(
-					4,
-					new EmberFunctionImpl(
-						'add',
-						'Add',
-						[
-							new FunctionArgumentImpl(ParameterType.Integer, 'a'),
-							new FunctionArgumentImpl(ParameterType.Integer, 'b'),
-						],
-						[new FunctionArgumentImpl(ParameterType.Integer, 'sum')]
-					)
-				),
-			})
-			const elements = device.children ?? {}
-			for (const element of Object.values<NumberedTreeNode<EmberElement>>(elements)) element.parent = device
-			client.tree[1] = device
+						new EmberFunctionImpl(
+							'add',
+							'Add',
+							[
+								new FunctionArgumentImpl(ParameterType.Integer, 'a'),
+								new FunctionArgumentImpl(ParameterType.Integer, 'b'),
+							],
+							[new FunctionArgumentImpl(ParameterType.Integer, 'sum')]
+						)
+					),
+				])
+			)
+			const elements = device.children ?? new Map<number, NumberedTreeNode<EmberElement>>()
+			for (const element of elements.values()) element.parent = device
+			client.tree.set(1, device)
 			return elements
 		}
 
@@ -1177,9 +1230,9 @@ describe('client', () => {
 			],
 		])('%s sends only the path and the command', async (_, number, elementTag, send, command) => {
 			await runWithConnection(async (client) => {
-				const elements = seedDevice(client)
+				seedDevice(client)
 
-				const request = await send(client, at(elements, number))
+				const request = await send(client, childOf(device(client), number))
 				request.response?.catch(() => null) // no reply here, so the request is cancelled on disconnect
 
 				expect(onSocketWrite).toHaveBeenCalledTimes(1)
@@ -1198,7 +1251,7 @@ describe('client', () => {
 		it('resolves with the invocation result, not with a report on the function', async () => {
 			await runWithConnection(async (client, socket) => {
 				const fn = new NumberedTreeNodeImpl(1, new EmberFunctionImpl('add', 'Add'))
-				client.tree[1] = fn
+				client.tree.set(1, fn)
 				const request = await client.invoke(fn, { type: ParameterType.Integer, value: 1 })
 				let response: unknown = 'pending'
 				request.response?.then((r) => (response = r)).catch(() => null)
@@ -1274,46 +1327,60 @@ describe('client', () => {
 			await runWithConnection(async (client, socket) => {
 				socket.mockData({
 					value: {
-						1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Root', undefined, undefined, true), {
-							1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Existing', undefined, undefined, true)),
-						}),
+						1: new NumberedTreeNodeImpl(
+							1,
+							new EmberNodeImpl('Root', undefined, undefined, true),
+							childrenOf([
+								new NumberedTreeNodeImpl(1, new EmberNodeImpl('Existing', undefined, undefined, true)),
+							])
+						),
 					},
 				})
 				await new Promise(setImmediate)
 
-				const update = createQualifiedNodeResponse('1', new EmberNodeImpl('Root', undefined, undefined, true), {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Existing', undefined, undefined, true)),
-					2: new NumberedTreeNodeImpl(2, new EmberNodeImpl('Inserted', undefined, undefined, true)),
-				})
+				const update = createQualifiedNodeResponse(
+					'1',
+					new EmberNodeImpl('Root', undefined, undefined, true),
+					childrenOf([
+						new NumberedTreeNodeImpl(1, new EmberNodeImpl('Existing', undefined, undefined, true)),
+						new NumberedTreeNodeImpl(2, new EmberNodeImpl('Inserted', undefined, undefined, true)),
+					])
+				)
 
 				expect(() => socket.mockData(update)).not.toThrow()
 				await new Promise(setImmediate)
 
-				expect(client.tree[1]?.children?.[2]).toBeDefined()
+				expect(client.tree.get(1)?.children?.get(2)).toBeDefined()
 			})
 		})
 
 		it('queues one parent-path change when several missing children are inserted', async () => {
 			await runWithConnection(async (client) => {
-				const root = new NumberedTreeNodeImpl(1, new EmberNodeImpl('Root', undefined, undefined, true), {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Existing', undefined, undefined, true)),
-				})
-				if (!root.children?.[1]) throw new Error('Expected seeded child')
-				root.children[1].parent = root
-				client.tree[1] = root
+				const root = new NumberedTreeNodeImpl(
+					1,
+					new EmberNodeImpl('Root', undefined, undefined, true),
+					childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('Existing', undefined, undefined, true))])
+				)
+				if (!root.children?.get(1)) throw new Error('Expected seeded child')
+				childOf(root, 1).parent = root
+				client.tree.set(1, root)
 
-				const update = createQualifiedNodeResponse('1', new EmberNodeImpl('Root', undefined, undefined, true), {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Existing', undefined, undefined, true)),
-					2: new NumberedTreeNodeImpl(2, new EmberNodeImpl('Inserted A', undefined, undefined, true)),
-					3: new NumberedTreeNodeImpl(3, new EmberNodeImpl('Inserted B', undefined, undefined, true)),
-				})
+				const update = createQualifiedNodeResponse(
+					'1',
+					new EmberNodeImpl('Root', undefined, undefined, true),
+					childrenOf([
+						new NumberedTreeNodeImpl(1, new EmberNodeImpl('Existing', undefined, undefined, true)),
+						new NumberedTreeNodeImpl(2, new EmberNodeImpl('Inserted A', undefined, undefined, true)),
+						new NumberedTreeNodeImpl(3, new EmberNodeImpl('Inserted B', undefined, undefined, true)),
+					])
+				)
 
 				//@ts-expect-error - private method under regression test
 				const changes = client._applyRootToTree({ ...update, rootType: RootType.Elements })
 
 				expect(changes.filter((change) => change.path === '1')).toHaveLength(1)
-				expect(client.tree[1].children?.[2]?.parent).toBe(client.tree[1])
-				expect(client.tree[1].children?.[3]?.parent).toBe(client.tree[1])
+				expect(client.tree.get(1)?.children?.get(2)?.parent).toBe(client.tree.get(1))
+				expect(client.tree.get(1)?.children?.get(3)?.parent).toBe(client.tree.get(1))
 			})
 		})
 	})
@@ -1324,22 +1391,26 @@ describe('client', () => {
 			await runWithConnection(async (client, socket) => {
 				socket.mockData({
 					value: {
-						1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('router'), {
-							1: new NumberedTreeNodeImpl(
-								1,
-								new MatrixImpl(
-									'matrix',
-									undefined,
-									undefined,
-									connectionsOf([
-										{ target: 0, sources: [1] },
-										{ target: 1, sources: [2] },
-										{ target: 2, sources: [0] },
-										{ target: 3, sources: [3] },
-									])
-								)
-							),
-						}),
+						1: new NumberedTreeNodeImpl(
+							1,
+							new EmberNodeImpl('router'),
+							childrenOf([
+								new NumberedTreeNodeImpl(
+									1,
+									new MatrixImpl(
+										'matrix',
+										undefined,
+										undefined,
+										connectionsOf([
+											{ target: 0, sources: [1] },
+											{ target: 1, sources: [2] },
+											{ target: 2, sources: [0] },
+											{ target: 3, sources: [3] },
+										])
+									)
+								),
+							])
+						),
 					},
 				})
 				await new Promise(setImmediate)
@@ -1353,7 +1424,7 @@ describe('client', () => {
 				)
 				await new Promise(setImmediate)
 
-				const matrix = client.tree[1]?.children?.[1]?.contents as Matrix
+				const matrix = client.tree.get(1)?.children?.get(1)?.contents as Matrix
 				expect(matrix.connections).toEqual(
 					connectionsOf([
 						{ target: 0, sources: [1] },
@@ -1380,24 +1451,32 @@ describe('client', () => {
 			await runWithConnection(async (client, socket) => {
 				socket.mockData({
 					value: {
-						0: new NumberedTreeNodeImpl(0, new EmberNodeImpl('device'), {
-							5: new NumberedTreeNodeImpl(5, new EmberNodeImpl('routing'), {
-								2: new NumberedTreeNodeImpl(
-									2,
-									new MatrixImpl(
-										'matrix',
-										signalsOf([10, 11, 12, 13]),
-										signalsOf([170, 171, 172, 173]),
-										undefined,
-										undefined,
-										undefined,
-										MatrixAddressingMode.NonLinear,
-										4,
-										4
-									)
+						0: new NumberedTreeNodeImpl(
+							0,
+							new EmberNodeImpl('device'),
+							childrenOf([
+								new NumberedTreeNodeImpl(
+									5,
+									new EmberNodeImpl('routing'),
+									childrenOf([
+										new NumberedTreeNodeImpl(
+											2,
+											new MatrixImpl(
+												'matrix',
+												signalsOf([10, 11, 12, 13]),
+												signalsOf([170, 171, 172, 173]),
+												undefined,
+												undefined,
+												undefined,
+												MatrixAddressingMode.NonLinear,
+												4,
+												4
+											)
+										),
+									])
 								),
-							}),
-						}),
+							])
+						),
 					},
 				})
 				await new Promise(setImmediate)
@@ -1407,7 +1486,7 @@ describe('client', () => {
 					await new Promise(setImmediate)
 				}
 
-				const matrix = client.tree[0]?.children?.[5]?.children?.[2]?.contents as Matrix
+				const matrix = client.tree.get(0)?.children?.get(5)?.children?.get(2)?.contents as Matrix
 				expect([...(matrix.connections?.values() ?? [])].map((c) => [c.target, c.sources])).toEqual([
 					[10, [173]],
 					[11, [171]],
@@ -1443,12 +1522,14 @@ describe('client', () => {
 				}
 				const counted = new CountedConnections()
 				for (let target = 0; target < 2000; target++) counted.set(target, { target, sources: [0] })
-				const router = new NumberedTreeNodeImpl(1, new EmberNodeImpl('router'), {
-					1: new NumberedTreeNodeImpl(1, new MatrixImpl('matrix', undefined, undefined, counted)),
-				})
-				if (!router.children?.[1]) throw new Error('Expected seeded matrix')
-				router.children[1].parent = router
-				client.tree[1] = router
+				const router = new NumberedTreeNodeImpl(
+					1,
+					new EmberNodeImpl('router'),
+					childrenOf([new NumberedTreeNodeImpl(1, new MatrixImpl('matrix', undefined, undefined, counted))])
+				)
+				if (!router.children?.get(1)) throw new Error('Expected seeded matrix')
+				childOf(router, 1).parent = router
+				client.tree.set(1, router)
 
 				socket.mockData(
 					createQualifiedNodeResponse(
@@ -1475,13 +1556,17 @@ describe('client', () => {
 		describe('dispositions', () => {
 			// A router, 1, with a matrix, 1.1, whose connections are loaded or not
 			function seedMatrix(client: EmberClient, connections?: Connections) {
-				const router = new NumberedTreeNodeImpl(1, new EmberNodeImpl('router'), {
-					1: new NumberedTreeNodeImpl(1, new MatrixImpl('matrix', undefined, undefined, connections)),
-				})
-				if (!router.children?.[1]) throw new Error('Expected seeded matrix')
-				router.children[1].parent = router
-				client.tree[1] = router
-				return router.children[1].contents as Matrix
+				const router = new NumberedTreeNodeImpl(
+					1,
+					new EmberNodeImpl('router'),
+					childrenOf([
+						new NumberedTreeNodeImpl(1, new MatrixImpl('matrix', undefined, undefined, connections)),
+					])
+				)
+				if (!router.children?.get(1)) throw new Error('Expected seeded matrix')
+				childOf(router, 1).parent = router
+				client.tree.set(1, router)
+				return childOf(router, 1).contents as Matrix
 			}
 			// A provider's report on the matrix: the connections of some targets
 			const report = (...connections: Connection[]) =>
@@ -1782,13 +1867,15 @@ describe('client', () => {
 			function seedMeter(client: EmberClient) {
 				const meter = new ParameterImpl(ParameterType.Integer, 'meter', undefined, 0)
 				meter.streamIdentifier = 7
-				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
-					1: new NumberedTreeNodeImpl(1, meter),
-				})
-				if (!device.children?.[1]) throw new Error('Expected seeded meter')
-				device.children[1].parent = device
-				client.tree[1] = device
-				return device.children[1] as NumberedTreeNode<Parameter>
+				const device = new NumberedTreeNodeImpl(
+					1,
+					new EmberNodeImpl('device'),
+					childrenOf([new NumberedTreeNodeImpl(1, meter)])
+				)
+				if (!device.children?.get(1)) throw new Error('Expected seeded meter')
+				childOf(device, 1).parent = device
+				client.tree.set(1, device)
+				return childOf(device, 1) as NumberedTreeNode<Parameter>
 			}
 			const level = (value: number) =>
 				createStreamEntryResponse([{ identifier: 7, value: { type: ParameterType.Integer, value } }])
@@ -1853,7 +1940,7 @@ describe('client', () => {
 					client.on('streamUpdate', events)
 
 					await client.subscribe(node, cb)
-					await client.unsubscribe(at(client.tree, 1))
+					await client.unsubscribe(at([...client.tree.values()], 0))
 					socket.mockStreamData(level(-18))
 
 					expect(cb).not.toHaveBeenCalled()
@@ -1867,11 +1954,13 @@ describe('client', () => {
 		// A matrix is a leaf, so a provider's reply to a GetDirectory on it doesn't have to include children
 		it('resolves a GetDirectory on a matrix when the reply has no children', async () => {
 			await runWithConnection(async (client, socket) => {
-				const router = new NumberedTreeNodeImpl(1, new EmberNodeImpl('router'), {
-					1: new NumberedTreeNodeImpl(1, new MatrixImpl('matrix')),
-				})
-				if (!router.children?.[1]) throw new Error('Expected seeded matrix')
-				router.children[1].parent = router
+				const router = new NumberedTreeNodeImpl(
+					1,
+					new EmberNodeImpl('router'),
+					childrenOf([new NumberedTreeNodeImpl(1, new MatrixImpl('matrix'))])
+				)
+				if (!router.children?.get(1)) throw new Error('Expected seeded matrix')
+				childOf(router, 1).parent = router
 				socket.mockData({ value: { 1: router } })
 				await new Promise(setImmediate)
 
@@ -1899,18 +1988,20 @@ describe('client', () => {
 			],
 		])('resolves for %s when the reply has no children', async (_, contents) => {
 			await runWithConnection(async (client, socket) => {
-				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
-					1: new NumberedTreeNodeImpl(1, contents()),
-				})
-				if (!device.children?.[1]) throw new Error('Expected seeded element')
-				device.children[1].parent = device
+				const device = new NumberedTreeNodeImpl(
+					1,
+					new EmberNodeImpl('device'),
+					childrenOf([new NumberedTreeNodeImpl(1, contents())])
+				)
+				if (!device.children?.get(1)) throw new Error('Expected seeded element')
+				childOf(device, 1).parent = device
 				socket.mockData({ value: { 1: device } })
 				await new Promise(setImmediate)
 
-				const request = await client.getDirectory(device.children[1])
+				const request = await client.getDirectory(childOf(device, 1))
 				socket.mockData(createQualifiedNodeResponse('1.1', contents(), undefined))
 
-				await expect(request.response).resolves.toBe(device.children[1])
+				await expect(request.response).resolves.toBe(childOf(device, 1))
 			})
 		})
 
@@ -1919,7 +2010,7 @@ describe('client', () => {
 		it('refuses a template, sending nothing and keeping no callback', async () => {
 			await runWithConnection(async (client, socket) => {
 				const template = new NumberedTreeNodeImpl(1, new TemplateImpl(undefined, 'Channel template'))
-				client.tree[1] = template // so that a report on it is a change at its path
+				client.tree.set(1, template) // so that a report on it is a change at its path
 				const cb = jest.fn()
 
 				await expect(client.getDirectory(template, undefined, cb)).rejects.toThrow(
@@ -1940,23 +2031,27 @@ describe('client', () => {
 	// from them left the tree there.
 	describe('a qualified element put into the tree', () => {
 		const reported = (path: RelativeOID) =>
-			createQualifiedNodeResponse(path, new EmberNodeImpl('channel'), {
-				3: new NumberedTreeNodeImpl(3, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0)),
-			})
+			createQualifiedNodeResponse(
+				path,
+				new EmberNodeImpl('channel'),
+				childrenOf([
+					new NumberedTreeNodeImpl(3, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0)),
+				])
+			)
 
 		test.each<[string, RelativeOID, (client: EmberClient) => NumberedTreeNode<EmberElement> | undefined]>([
-			['below a loaded element', '1.2', (client) => client.tree[1]?.children?.[2]],
-			['at the top', '2', (client) => client.tree[2]],
+			['below a loaded element', '1.2', (client) => client.tree.get(1)?.children?.get(2)],
+			['at the top', '2', (client) => client.tree.get(2)],
 		])('%s is a numbered element, the parent of its children', async (_, path, inserted) => {
 			await runWithConnection(async (client, socket) => {
-				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {})
+				client.tree.set(1, new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), new Map()))
 				socket.mockData(reported(path))
 				await new Promise(setImmediate)
 
 				const element = inserted(client)
 				if (!element) throw new Error('Expected the element in the tree')
 				expect(isQualified(element)).toBe(false)
-				const child = at(element.children ?? {}, 3)
+				const child = childOf(element, 3)
 				expect(child.parent).toBe(element)
 				expect(client.getInternalNodePath(child)).toBe(`${path}.3`)
 			})
@@ -1968,14 +2063,16 @@ describe('client', () => {
 	// the element into the tree, but made a change only at its parent's path, so the request timed out.
 	describe('a request about an element the tree does not have yet', () => {
 		const parametersNode = () =>
-			createQualifiedNodeResponse('1.7', new EmberNodeImpl(), {
-				1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('targets')),
-			})
+			createQualifiedNodeResponse(
+				'1.7',
+				new EmberNodeImpl(),
+				childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('targets'))])
+			)
 
 		it('is answered by the reply, below an element the tree has', async () => {
 			await runWithConnection(async (client, socket) => {
-				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {})
-				client.tree[1] = device
+				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), new Map())
+				client.tree.set(1, device)
 				const cb = jest.fn()
 
 				const request = await client.getDirectory(
@@ -1985,7 +2082,7 @@ describe('client', () => {
 				)
 				socket.mockData(parametersNode())
 
-				const inserted = device.children?.[7]
+				const inserted = device.children?.get(7)
 				await expect(request.response).resolves.toBe(inserted)
 				expect(inserted?.parent).toBe(device)
 				expect(cb).toHaveBeenCalledTimes(1)
@@ -1995,22 +2092,24 @@ describe('client', () => {
 
 		it('is answered by the reply, at the top of the tree', async () => {
 			await runWithConnection(async (client, socket) => {
-				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+				client.tree.set(1, new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')))
 
 				const request = await client.getDirectory(new QualifiedElementImpl('2', new EmberNodeImpl()))
 				socket.mockData(
-					createQualifiedNodeResponse('2', new EmberNodeImpl('other'), {
-						1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('child')),
-					})
+					createQualifiedNodeResponse(
+						'2',
+						new EmberNodeImpl('other'),
+						childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('child'))])
+					)
 				)
 
-				await expect(request.response).resolves.toBe(client.tree[2])
+				await expect(request.response).resolves.toBe(client.tree.get(2))
 			})
 		})
 
 		it("is answered by a connection report on a matrix the tree doesn't have", async () => {
 			await runWithConnection(async (client, socket) => {
-				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {})
+				client.tree.set(1, new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), new Map()))
 
 				const matrix = new QualifiedElementImpl<Matrix>('1.4', { type: ElementType.Matrix })
 				const request = await client.matrixConnect(matrix, 2, [3])
@@ -2022,7 +2121,7 @@ describe('client', () => {
 					)
 				)
 
-				await expect(request.response).resolves.toBe(client.tree[1]?.children?.[4])
+				await expect(request.response).resolves.toBe(client.tree.get(1)?.children?.get(4))
 			})
 		})
 	})
@@ -2053,7 +2152,7 @@ describe('client', () => {
 
 				const found = await client.getElementByPath('device')
 
-				expect(found).toBe(client.tree[1])
+				expect(found).toBe(client.tree.get(1))
 				expect(counted.rootRequests).toBe(1)
 			})
 		})
@@ -2064,7 +2163,7 @@ describe('client', () => {
 
 				const found = await Promise.all([client.getElementByPath('device'), client.getElementByPath('1')])
 
-				expect(found).toEqual([client.tree[1], client.tree[1]])
+				expect(found).toEqual([client.tree.get(1), client.tree.get(1)])
 				expect(counted.rootRequests).toBe(1)
 			})
 		})
@@ -2083,9 +2182,9 @@ describe('client', () => {
 		it('does not load it when the top level has the first element', async () => {
 			await runWithConnection(async (client, socket) => {
 				const counted = answerRootRequests(socket)
-				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+				client.tree.set(1, new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')))
 
-				await expect(client.getElementByPath('device')).resolves.toBe(client.tree[1])
+				await expect(client.getElementByPath('device')).resolves.toBe(client.tree.get(1))
 				expect(counted.rootRequests).toBe(0)
 			})
 		})
@@ -2099,7 +2198,7 @@ describe('client', () => {
 					await expect(client.getElementByPath('device')).rejects.toThrow('Request timed out')
 					const found = await client.getElementByPath('device')
 
-					expect(found).toBe(client.tree[1])
+					expect(found).toBe(client.tree.get(1))
 					expect(counted.rootRequests).toBe(2)
 				},
 				{ timeout: 300 }
@@ -2116,16 +2215,16 @@ describe('client', () => {
 			[
 				'only its device is loaded',
 				(client) => {
-					client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {})
+					client.tree.set(1, new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), new Map()))
 				},
 			],
 			[
 				'the node above it is loaded',
 				(client) => {
 					const labels = new NumberedTreeNodeImpl(0, new EmberNodeImpl('labels'))
-					const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 0: labels })
+					const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([labels]))
 					labels.parent = device
-					client.tree[1] = device
+					client.tree.set(1, device)
 				},
 			],
 		])('settles the request when %s', async (_, seed) => {
@@ -2186,14 +2285,14 @@ describe('client', () => {
 			new NumberedTreeNodeImpl(
 				0,
 				new EmberNodeImpl(kind),
-				Object.fromEntries(
-					Object.entries<string | null>(values).map(([n, value]) => [
-						n,
-						new NumberedTreeNodeImpl(
-							Number(n),
-							new ParameterImpl(ParameterType.String, undefined, undefined, value)
-						),
-					])
+				childrenOf(
+					Object.entries<string | null>(values).map(
+						([n, value]) =>
+							new NumberedTreeNodeImpl(
+								Number(n),
+								new ParameterImpl(ParameterType.String, undefined, undefined, value)
+							)
+					)
 				)
 			)
 		// A provider holding the label nodes by path: each GetDirectory sent is answered with the node at its path
@@ -2304,13 +2403,17 @@ describe('client', () => {
 	describe('GetDirectory on the root of a loaded tree', () => {
 		// A device, 1, with a parameter, 1.1, already loaded
 		function seedDevice(client: EmberClient) {
-			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), {
-				1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0)),
-			})
-			if (!device.children?.[1]) throw new Error('Expected seeded parameter')
-			device.children[1].parent = device
-			client.tree[1] = device
-			return { device, parameter: device.children[1] }
+			const device = new NumberedTreeNodeImpl(
+				1,
+				new EmberNodeImpl('device'),
+				childrenOf([
+					new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0)),
+				])
+			)
+			if (!device.children?.get(1)) throw new Error('Expected seeded parameter')
+			childOf(device, 1).parent = device
+			client.tree.set(1, device)
+			return { device, parameter: childOf(device, 1) }
 		}
 
 		// A reply to a GetDirectory on the root lists the top-level elements without their children: numbered, or
@@ -2332,8 +2435,8 @@ describe('client', () => {
 				await new Promise(setImmediate)
 
 				expect(response).toBe(device)
-				expect(client.tree[1]).toBe(device)
-				expect(device.children?.[1]).toBe(parameter)
+				expect(client.tree.get(1)).toBe(device)
+				expect(device.children?.get(1)).toBe(parameter)
 			})
 		})
 	})
@@ -2346,7 +2449,7 @@ describe('client', () => {
 
 		it('resolves the request for that element', async () => {
 			await runWithConnection(async (client, socket) => {
-				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+				client.tree.set(1, new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')))
 
 				const request = await client.setValue(new QualifiedElementImpl('1.1.1', gain(0)), 6)
 				let response: unknown = 'pending'
@@ -2360,7 +2463,7 @@ describe('client', () => {
 
 		it('calls the callbacks for that element', async () => {
 			await runWithConnection(async (client, socket) => {
-				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
+				client.tree.set(1, new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')))
 				const values: unknown[] = []
 				await client.subscribe(new QualifiedElementImpl('1.1.1', gain(0)), (node) =>
 					values.push((node.contents as Parameter).value)
@@ -2376,25 +2479,25 @@ describe('client', () => {
 		it('does not put the element in the place of the node that is missing', async () => {
 			await runWithConnection(async (client, socket) => {
 				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))
-				client.tree[1] = device
+				client.tree.set(1, device)
 
 				socket.mockData(report(6))
 				await new Promise(setImmediate)
 
-				expect(device.children?.[1]).toBeUndefined()
+				expect(device.children?.get(1)).toBeUndefined()
 			})
 		})
 
 		it('still adds an element whose parent is loaded', async () => {
 			await runWithConnection(async (client, socket) => {
-				const channel = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'), {})
-				client.tree[1] = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: channel })
-				channel.parent = client.tree[1]
+				const channel = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'), new Map())
+				client.tree.set(1, new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([channel])))
+				channel.parent = client.tree.get(1)
 
 				socket.mockData(report(6))
 				await new Promise(setImmediate)
 
-				expect(channel.children?.[1]).toMatchObject({ number: 1, contents: { value: 6 } })
+				expect(channel.children?.get(1)).toMatchObject({ number: 1, contents: { value: 6 } })
 			})
 		})
 	})
@@ -2406,9 +2509,9 @@ describe('client', () => {
 		/** A device, 1, with the element at 1.1, loaded without children, and a callback registered for 1.1 */
 		async function seedWithCallback<T extends EmberElement>(client: EmberClient, contents: T) {
 			const element = new NumberedTreeNodeImpl(1, contents)
-			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: element })
+			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([element]))
 			element.parent = device
-			client.tree[1] = device
+			client.tree.set(1, device)
 			const calls: unknown[] = []
 			const request = await client.getDirectory(element, undefined, (node) => calls.push(node))
 			request.response?.catch(() => null)
@@ -2427,7 +2530,7 @@ describe('client', () => {
 					createQualifiedNodeResponse(
 						'1.1',
 						new ParameterImpl(ParameterType.Integer, 'gain', undefined, 3),
-						{}
+						new Map()
 					)
 				)
 				await new Promise(setImmediate)
@@ -2435,7 +2538,7 @@ describe('client', () => {
 					createQualifiedNodeResponse(
 						'1.1',
 						new ParameterImpl(ParameterType.Integer, 'gain', undefined, 4),
-						{}
+						new Map()
 					)
 				)
 				await new Promise(setImmediate)
@@ -2450,14 +2553,16 @@ describe('client', () => {
 				const { element, calls } = await seedWithCallback(client, new EmberNodeImpl('channel'))
 
 				socket.mockData(
-					createQualifiedNodeResponse('1.1', new EmberNodeImpl('channel'), {
-						1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain')),
-					})
+					createQualifiedNodeResponse(
+						'1.1',
+						new EmberNodeImpl('channel'),
+						childrenOf([new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain'))])
+					)
 				)
 				await new Promise(setImmediate)
 
 				expect(calls).toEqual([element])
-				expect(element.children?.[1]?.contents).toMatchObject({ identifier: 'gain' })
+				expect(element.children?.get(1)?.contents).toMatchObject({ identifier: 'gain' })
 			})
 		})
 	})
@@ -2466,9 +2571,9 @@ describe('client', () => {
 		/** A device, 1, with the element at 1.1, as loaded */
 		function seed<T extends EmberElement>(client: EmberClient, contents: T): NumberedTreeNode<T> {
 			const element = new NumberedTreeNodeImpl(1, contents)
-			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: element })
+			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([element]))
 			element.parent = device
-			client.tree[1] = device
+			client.tree.set(1, device)
 			return element
 		}
 
@@ -2663,7 +2768,7 @@ describe('client', () => {
 			return onSocketWrite.mock.calls.map(([data]: [Buffer]) => {
 				const element = firstElement(data)
 				if (element.contents.type === ElementType.Command) return ['', element.contents.number]
-				const command = at(Object.values<NumberedTreeNode<EmberElement>>(element.children ?? {}), 0).contents
+				const command = at([...(element.children?.values() ?? [])], 0).contents
 				if (command.type !== ElementType.Command || !isQualified(element)) {
 					throw new Error('Expected a command request')
 				}
@@ -2672,9 +2777,13 @@ describe('client', () => {
 		}
 
 		const deviceReply = (value: number) =>
-			createQualifiedNodeResponse('1', new EmberNodeImpl('device'), {
-				1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, value)),
-			})
+			createQualifiedNodeResponse(
+				'1',
+				new EmberNodeImpl('device'),
+				childrenOf([
+					new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, value)),
+				])
+			)
 
 		// Loads the root and looks up the parameter 1.1, as a consumer does
 		async function lookUpParameter(client: EmberClient, socket: S101ClientMock, cb?: () => void) {
@@ -2717,7 +2826,7 @@ describe('client', () => {
 				await new Promise(setImmediate)
 
 				expect(cb).toHaveBeenCalledWith(parameter)
-				expect(client.tree[1]?.children?.[1]).toBe(parameter)
+				expect(client.tree.get(1)?.children?.get(1)).toBe(parameter)
 				expect((parameter.contents as Parameter).value).toBe(7)
 			})
 		})
@@ -2757,7 +2866,7 @@ describe('client', () => {
 			await runWithConnection(async (client, socket) => {
 				const parameter = await lookUpParameter(client, socket)
 				await client.subscribe(parameter)
-				await client.unsubscribe(at(client.tree, 1))
+				await client.unsubscribe(at([...client.tree.values()], 0))
 				onSocketWrite.mockClear()
 
 				await reconnect(socket)
@@ -2769,9 +2878,9 @@ describe('client', () => {
 		it('does not ask again for the top-level parameters when it has unsubscribed from the root', async () => {
 			await runWithConnection(async (client, socket) => {
 				const parameter = new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'level'))
-				client.tree[1] = parameter
+				client.tree.set(1, parameter)
 				await client.subscribe(parameter)
-				const unsubscribe = await client.unsubscribe(client.tree as unknown as Array<RootElement>)
+				const unsubscribe = await client.unsubscribe(client.tree)
 				unsubscribe.response?.catch(() => null) // no reply here, so the request is cancelled on disconnect
 				onSocketWrite.mockClear()
 
@@ -2786,11 +2895,11 @@ describe('client', () => {
 			await runWithConnection(async (client, socket) => {
 				// a device, 1, with a channel, 1.1, holding a parameter, 1.1.1
 				const gain = new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain'))
-				const channel = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'), { 1: gain })
-				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: channel })
+				const channel = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'), childrenOf([gain]))
+				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([channel]))
 				gain.parent = channel
 				channel.parent = device
-				client.tree[1] = device
+				client.tree.set(1, device)
 				const directory = await client.getDirectory(channel)
 				directory.response?.catch(() => null) // no reply here, so the request is cancelled on disconnect
 				await client.subscribe(gain)

@@ -11,7 +11,7 @@ import { ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Pa
 import { StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { TemplateImpl } from '../../../model/Template.js'
-import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../../model/Tree.js'
+import { childrenOf, NumberedTreeNodeImpl, QualifiedElementImpl } from '../../../model/Tree.js'
 import { RootType } from '../../../types/types.js'
 import { berEncode } from '../index.js'
 import { toIndefiniteLength } from './indefiniteLength.js'
@@ -73,22 +73,30 @@ export function messages(): Array<[string, Buffer]> {
 	)
 	const tree = berEncode(
 		[
-			new NumberedTreeNodeImpl(1, new EmberNodeImpl('device', 'Device', true, true), {
-				1: new NumberedTreeNodeImpl(1, parameter),
-				2: new NumberedTreeNodeImpl(2, matrix),
-				3: new NumberedTreeNodeImpl(3, fn, {
-					0: new NumberedTreeNodeImpl(
-						0,
-						new InvokeImpl(
-							new InvocationImpl(9, [
-								{ type: ParameterType.Integer, value: 2 },
-								{ type: ParameterType.Real, value: 0.5 },
-							])
-						)
+			new NumberedTreeNodeImpl(
+				1,
+				new EmberNodeImpl('device', 'Device', true, true),
+				childrenOf([
+					new NumberedTreeNodeImpl(1, parameter),
+					new NumberedTreeNodeImpl(2, matrix),
+					new NumberedTreeNodeImpl(
+						3,
+						fn,
+						childrenOf([
+							new NumberedTreeNodeImpl(
+								0,
+								new InvokeImpl(
+									new InvocationImpl(9, [
+										{ type: ParameterType.Integer, value: 2 },
+										{ type: ParameterType.Real, value: 0.5 },
+									])
+								)
+							),
+						])
 					),
-				}),
-				4: new NumberedTreeNodeImpl(4, new TemplateImpl(new NumberedTreeNodeImpl(0, parameter), 'T')),
-			}),
+					new NumberedTreeNodeImpl(4, new TemplateImpl(new NumberedTreeNodeImpl(0, parameter), 'T')),
+				])
+			),
 		],
 		RootType.Elements
 	)
@@ -98,9 +106,11 @@ export function messages(): Array<[string, Buffer]> {
 			new QualifiedElementImpl('1.2', matrix),
 			new QualifiedElementImpl('1.3', fn),
 			new QualifiedElementImpl('1.4', new TemplateImpl(undefined, 'T')),
-			new QualifiedElementImpl('1', new EmberNodeImpl('device'), {
-				0: new NumberedTreeNodeImpl(0, new GetDirectoryImpl()),
-			}),
+			new QualifiedElementImpl(
+				'1',
+				new EmberNodeImpl('device'),
+				childrenOf([new NumberedTreeNodeImpl(0, new GetDirectoryImpl())])
+			),
 		],
 		RootType.Elements
 	)

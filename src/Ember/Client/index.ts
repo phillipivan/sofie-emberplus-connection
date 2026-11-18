@@ -23,9 +23,8 @@ import { InvocationResult } from '../../model/InvocationResult.js'
 import { LabelSet } from '../../model/Label.js'
 import { Connections, connectionsOf, hasSignal, Matrix } from '../../model/Matrix.js'
 import { fitsItsType, isValueOfType, Parameter, ParameterImpl } from '../../model/Parameter.js'
-import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
+import { Children, NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
 import {
-	Collection,
 	CommandableElementType,
 	ElementOf,
 	EmberTypedValue,
@@ -121,7 +120,8 @@ export interface EmberClientOptions {
 export class EmberClient extends EventEmitter<EmberClientEvents> {
 	host: string
 	port: number
-	tree: Collection<NumberedTreeNode<EmberElement>> = []
+	/** The tree's top level, the root's children, by number */
+	tree: Children = new Map()
 
 	private _streamManager: StreamManager
 	private _requests = new Map<string, Request>()
@@ -266,7 +266,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 	/** Ember+ commands: */
 	async getDirectory(
-		node: RootElement | Collection<RootElement>,
+		node: RootElement | Children,
 		dirFieldMask?: FieldFlags,
 		cb?: (EmberNode: TreeElement<EmberElement>) => void
 	): RequestPromise<RootElement> {
@@ -312,7 +312,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		return sent
 	}
 	async subscribe(
-		node: RootElement | Array<RootElement>,
+		node: RootElement | Children,
 		cb?: (EmberNode: TreeElement<EmberElement>) => void
 	): RequestPromise<RootElement> {
 		if (!node) {
@@ -321,7 +321,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		const command: Subscribe = new SubscribeImpl()
 
-		if (Array.isArray(node)) {
+		if (node instanceof Map) {
 			if (cb)
 				this._subscriptions.push({
 					path: undefined,
@@ -361,14 +361,14 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (sent.sentOk) this._sentSubscribes.set(request.path, { elementType: request.elementType })
 		return sent
 	}
-	async unsubscribe(node: NumberedTreeNode<EmberElement> | Array<RootElement>): RequestPromise<RootElement> {
+	async unsubscribe(node: NumberedTreeNode<EmberElement> | Children): RequestPromise<RootElement> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
 
 		const command: Unsubscribe = new UnsubscribeImpl()
 
-		if (Array.isArray(node)) {
+		if (node instanceof Map) {
 			// root subscriptions are tracked with undefined path
 			this._subscriptions = this._subscriptions.filter((subscription) => subscription.path !== undefined)
 			this._sentGetDirectories.delete('')
@@ -387,7 +387,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (node.contents.type === ElementType.Node) this._forgetParametersBelow(path)
 
 		// Deregister from StreamManager if this was a Parameter with streamIdentifier
-		if (!Array.isArray(node) && node.contents.type === ElementType.Parameter) {
+		if (!(node instanceof Map) && node.contents.type === ElementType.Parameter) {
 			const parameter = node.contents
 			if (parameter.streamIdentifier !== undefined) {
 				this._streamManager.unregisterParameter(path)
@@ -482,16 +482,16 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	}
 
 	/** Getting the tree: */
-	async expand(node: NumberedTreeNode<EmberElement> | Collection<RootElement>): Promise<void> {
+	async expand(node: NumberedTreeNode<EmberElement> | Children): Promise<void> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
 
-		if (!('number' in node)) {
+		if (node instanceof Map) {
 			await (
 				await this.getDirectory(node)
 			).response
-			for (const root of Object.values<NumberedTreeNode<EmberElement>>(this.tree)) await this.expand(root)
+			for (const root of this.tree.values()) await this.expand(root)
 			return
 		}
 
@@ -507,17 +507,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		let curEmberNode
 		while ((curEmberNode = emberNodes.shift())) {
 			if (curEmberNode.children) {
-				emberNodes.push(
-					...Object.values<NumberedTreeNode<EmberElement>>(curEmberNode.children).filter(canBeExpanded)
-				)
+				emberNodes.push(...[...curEmberNode.children.values()].filter(canBeExpanded))
 			} else {
 				const req = await this.getDirectory(curEmberNode)
 				if (!req.response) continue
 				const res = await req.response
 				if (res.children) {
-					Object.values<NumberedTreeNode<EmberElement>>(res.children).forEach(
-						(c) => canBeExpanded(c) && emberNodes.push(c)
-					)
+					for (const c of res.children.values()) if (canBeExpanded(c)) emberNodes.push(c)
 				}
 			}
 		}
@@ -535,8 +531,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		// first child that matched any of the three let a number match an earlier sibling labelled with it.)
 		const isNumber = (segment: string) => /^\d+$/.test(segment)
 		const numbered = pathArr.every(isNumber)
-		const getNodeInCollection = (elements: Collection<NumberedTreeNode<EmberElement>>, segment: string) => {
-			const nodes = Object.values<NumberedTreeNode<EmberElement>>(elements || {})
+		const getNodeInCollection = (elements: Children, segment: string) => {
+			const nodes = [...elements.values()]
 			const byNumber = () => (isNumber(segment) ? nodes.find((r) => r.number === Number(segment)) : undefined)
 			if (numbered) return byNumber()
 			return (
@@ -683,8 +679,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	private _loadedElement(path: RelativeOID): NumberedTreeNode<EmberElement> | undefined {
 		if (path === '') return undefined
 		const [top, ...below] = path.split('.').map(Number)
-		let element = top === undefined ? undefined : this.tree[top]
-		for (const number of below) element = element?.children?.[number]
+		let element = top === undefined ? undefined : this.tree.get(top)
+		for (const number of below) element = element?.children?.get(number)
 		return element
 	}
 
@@ -694,7 +690,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (!request.response) throw new Error(`The request for the labels at ${path} was not sent`)
 		const reply = await request.response
 		const labels: { [signal: number]: string } = {}
-		for (const label of Object.values<NumberedTreeNode<EmberElement>>(reply.children ?? {})) {
+		for (const label of reply.children?.values() ?? []) {
 			if (label.contents.type === ElementType.Parameter && typeof label.contents.value === 'string') {
 				labels[label.number] = label.contents.value
 			}
@@ -949,7 +945,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					// the top-level element's number, and the numbers below it ('' splits to [''], which is 0)
 					const numbers = rootElement.path.split('.').map(Number)
 					const path = numbers.slice(1)
-					let tree = this.tree[at(numbers, 0)]
+					let tree = this.tree.get(at(numbers, 0))
 					const topLevel = !path.length
 					let inserted = false
 
@@ -962,7 +958,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 							const number = Number(rootElement.path)
 							// Insert node into root
 							const inserted = toTreeElement(rootElement, number)
-							this.tree[number] = inserted
+							this.tree.set(number, inserted)
 							changes.push({ path: undefined, node: inserted }, insertedChange(rootElement, inserted))
 							continue
 						}
@@ -970,7 +966,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 					let notLoaded = false
 					for (const [i, number] of path.entries()) {
-						const child: NumberedTreeNode<EmberElement> | undefined = tree.children?.[number]
+						const child: NumberedTreeNode<EmberElement> | undefined = tree.children?.get(number)
 						if (!child && i < path.length - 1) {
 							// A node above the element isn't loaded, so there is no place for it in the tree: report it
 							// as it came, as when the device itself isn't loaded
@@ -978,9 +974,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 							break
 						}
 						if (!child) {
-							tree.children ??= {}
+							tree.children ??= new Map()
 							const element = toTreeElement(rootElement, number, tree)
-							tree.children[number] = element
+							tree.children.set(number, element)
 							changes.push(
 								{ path: rootElement.path.split('.').slice(0, -1).join('.'), node: tree },
 								insertedChange(rootElement, element)
@@ -1001,7 +997,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					// as when it was inserted, which is what resolves that request
 					if (topLevel) changes.push({ path: undefined, node: tree })
 				} else {
-					const cached = this.tree[rootElement.number]
+					const cached = this.tree.get(rootElement.number)
 					if (!rootElement.children && isEmptyNode(rootElement)) {
 						// empty node on the root of the tree must mean we have done a getDir on that specific node
 						changes.push({ path: rootElement.number + '', node: rootElement, emptyNode: true })
@@ -1012,7 +1008,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						changes.push(...this._updateTree(rootElement, cached))
 						changes.push({ path: undefined, node: cached })
 					} else {
-						this.tree[rootElement.number] = rootElement
+						this.tree.set(rootElement.number, rootElement)
 						changes.push({ path: undefined, node: rootElement })
 					}
 				}
@@ -1086,20 +1082,20 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					changes.push({ path: treePath, node: tree })
 				}
 				tree.children = update.children
-				for (const c of Object.values<NumberedTreeNode<EmberElement>>(update.children)) {
+				for (const c of update.children.values()) {
 					c.parent = tree
 				}
 			} else {
 				// Update existing children and insert missing children without recursing into undefined nodes.
 				let insertedChild = false
-				for (const child of Object.values<NumberedTreeNode<EmberElement>>(update.children)) {
+				for (const child of update.children.values()) {
 					const i = child.number
-					const oldChild = tree.children[i]
+					const oldChild = tree.children.get(i)
 					if (oldChild) {
 						changes.push(...this._updateTree(child, oldChild))
 					} else {
 						child.parent = tree
-						tree.children[i] = child
+						tree.children.set(i, child)
 						insertedChild = true
 					}
 				}
@@ -1232,7 +1228,7 @@ function toTreeElement(
 	parent?: NumberedTreeNode<EmberElement>
 ): NumberedTreeNode<EmberElement> {
 	const numbered = new NumberedTreeNodeImpl<EmberElement>(number, element.contents, element.children, parent)
-	for (const child of Object.values<NumberedTreeNode<EmberElement>>(element.children ?? {})) child.parent = numbered
+	for (const child of element.children?.values() ?? []) child.parent = numbered
 	return numbered
 }
 

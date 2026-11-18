@@ -250,6 +250,7 @@ const {
 	MatrixType,
 	MatrixAddressingMode,
 	signalsOf,
+	childrenOf,
 } = require('@phillipivan/emberplus-connection')
 
 const s = new EmberServer(9000) // start server on port 9000
@@ -273,73 +274,87 @@ s.onMatrixOperation = async (matrix, connections) => {
 	}
 }
 
-const tree = {
-	// create a tree for the provider
-	1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Root', undefined, undefined, true), {
-		1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Node', undefined, undefined, true), {
-			1: new NumberedTreeNodeImpl(
+// create a tree for the provider: childrenOf keeps each element under its own number
+const tree = childrenOf([
+	new NumberedTreeNodeImpl(
+		1,
+		new EmberNodeImpl('Root', undefined, undefined, true),
+		childrenOf([
+			new NumberedTreeNodeImpl(
 				1,
-				new ParameterImpl(
-					ParameterType.Integer,
-					'Value1',
-					undefined,
-					2,
-					undefined,
-					undefined,
-					ParameterAccess.ReadWrite
-				)
+				new EmberNodeImpl('Node', undefined, undefined, true),
+				childrenOf([
+					new NumberedTreeNodeImpl(
+						1,
+						new ParameterImpl(
+							ParameterType.Integer,
+							'Value1',
+							undefined,
+							2,
+							undefined,
+							undefined,
+							ParameterAccess.ReadWrite
+						)
+					),
+					new NumberedTreeNodeImpl(
+						2,
+						new ParameterImpl(
+							ParameterType.Integer,
+							'Value2',
+							undefined,
+							2,
+							undefined,
+							undefined,
+							ParameterAccess.ReadWrite
+						)
+					),
+					new NumberedTreeNodeImpl(
+						3,
+						new ParameterImpl(
+							ParameterType.Integer,
+							'Value3',
+							undefined,
+							2,
+							undefined,
+							undefined,
+							ParameterAccess.ReadWrite
+						)
+					),
+				])
 			),
-			2: new NumberedTreeNodeImpl(
+			new NumberedTreeNodeImpl(
 				2,
-				new ParameterImpl(
-					ParameterType.Integer,
-					'Value2',
-					undefined,
-					2,
-					undefined,
-					undefined,
-					ParameterAccess.ReadWrite
-				)
+				new EmberNodeImpl('Functions', undefined, undefined, true),
+				childrenOf([
+					new NumberedTreeNodeImpl(
+						1,
+						new EmberFunctionImpl(undefined, undefined) //, [{ type: ParameterType.Boolean, name: 'Test' }])
+					),
+				])
 			),
-			3: new NumberedTreeNodeImpl(
+			new NumberedTreeNodeImpl(
 				3,
-				new ParameterImpl(
-					ParameterType.Integer,
-					'Value3',
-					undefined,
-					2,
-					undefined,
-					undefined,
-					ParameterAccess.ReadWrite
-				)
+				new EmberNodeImpl('Matrices', undefined, undefined, true),
+				childrenOf([
+					new NumberedTreeNodeImpl(
+						1,
+						new MatrixImpl(
+							'Test Matrix',
+							signalsOf([1, 2, 3, 4, 5]),
+							signalsOf([1, 2, 3, 4, 5]),
+							new Map(),
+							undefined,
+							MatrixType.NToN,
+							MatrixAddressingMode.NonLinear,
+							5,
+							5
+						)
+					),
+				])
 			),
-		}),
-
-		2: new NumberedTreeNodeImpl(2, new EmberNodeImpl('Functions', undefined, undefined, true), {
-			1: new NumberedTreeNodeImpl(
-				1,
-				new EmberFunctionImpl(undefined, undefined) //, [{ type: ParameterType.Boolean, name: 'Test' }])
-			),
-		}),
-
-		3: new NumberedTreeNodeImpl(3, new EmberNodeImpl('Matrices', undefined, undefined, true), {
-			1: new NumberedTreeNodeImpl(
-				1,
-				new MatrixImpl(
-					'Test Matrix',
-					signalsOf([1, 2, 3, 4, 5]),
-					signalsOf([1, 2, 3, 4, 5]),
-					new Map(),
-					undefined,
-					MatrixType.NToN,
-					MatrixAddressingMode.NonLinear,
-					5,
-					5
-				)
-			),
-		}),
-	}),
-}
+		])
+	),
+])
 
 s.init(tree) // initiate the provider with the tree
 ```

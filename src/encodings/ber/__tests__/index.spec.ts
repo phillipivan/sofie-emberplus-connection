@@ -7,7 +7,7 @@ import { InvocationResultImpl } from '../../../model/InvocationResult.js'
 import { connectionsOf, Matrix } from '../../../model/Matrix.js'
 import { ParameterType } from '../../../model/Parameter.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
-import { NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
+import { childrenOf, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, RelativeOID, Root, RootElement, RootType } from '../../../types/types.js'
 import { ElementCollectionBERID, QualifiedNodeBERID, RootBERID, RootElementsBERID } from '../constants.js'
 import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
@@ -112,7 +112,7 @@ describe('encoders/Ber/index', () => {
 		test('is left out, with an error', () => {
 			const decoded = berDecode(message())
 			const kid = numbered(3, 'kid')
-			const parent = new QualifiedElementImpl('1', new EmberNodeImpl(), { 3: kid })
+			const parent = new QualifiedElementImpl('1', new EmberNodeImpl(), childrenOf([kid]))
 			kid.parent = parent
 
 			expect(decoded.value).toEqual({ 0: parent })
@@ -142,26 +142,30 @@ describe('encoders/Ber/index', () => {
 	})
 	test('Numbered tree', () => {
 		const res = {
-			0: new NumberedTreeNodeImpl(0, new EmberNodeImpl('Test node'), {
-				0: new NumberedTreeNodeImpl(0, new EmberNodeImpl('Test node 1')),
-			}),
+			0: new NumberedTreeNodeImpl(
+				0,
+				new EmberNodeImpl('Test node'),
+				childrenOf([new NumberedTreeNodeImpl(0, new EmberNodeImpl('Test node 1'))])
+			),
 		}
 		if (!res[0].children) {
 			throw new Error(`Tree must have children`)
 		}
-		at(res[0].children, 0).parent = res[0]
+		at([...res[0].children.values()], 0).parent = res[0]
 		roundTrip(res, RootType.Elements)
 	})
 	test('Qualified tree', () => {
 		const res = {
-			0: new QualifiedElementImpl('2.3.1', new EmberNodeImpl('Test node'), {
-				0: new NumberedTreeNodeImpl(0, new EmberNodeImpl('Node A'), {}),
-			}),
+			0: new QualifiedElementImpl(
+				'2.3.1',
+				new EmberNodeImpl('Test node'),
+				childrenOf([new NumberedTreeNodeImpl(0, new EmberNodeImpl('Node A'), new Map())])
+			),
 		}
 		if (!res[0].children) {
 			throw new Error(`Tree must have children`)
 		}
-		at(res[0].children, 0).parent = res[0]
+		at([...res[0].children.values()], 0).parent = res[0]
 		roundTrip(res, RootType.Elements)
 	})
 	// A connect request as the specification's examples, Lawo's libember and Ember+ Viewer send it: a QualifiedMatrix
