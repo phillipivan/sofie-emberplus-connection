@@ -1,8 +1,14 @@
 import * as Ber from '../../../Ber/index.js'
-import { at } from '../../../lib/at.js'
-import { ConnectionDisposition, ConnectionOperation } from '../../../model/Connection.js'
+import { Connection, ConnectionDisposition, ConnectionOperation } from '../../../model/Connection.js'
 import { ElementType } from '../../../model/EmberElement.js'
-import { Matrix, MatrixAddressingMode, MatrixImpl, MatrixType, signalsOf } from '../../../model/Matrix.js'
+import {
+	connectionsOf,
+	Matrix,
+	MatrixAddressingMode,
+	MatrixImpl,
+	MatrixType,
+	signalsOf,
+} from '../../../model/Matrix.js'
 import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, RelativeOID, RootElement } from '../../../types/types.js'
 import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
@@ -58,62 +64,58 @@ describe('encodings/ber/Matrix', () => {
 		})
 		test('connections', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
-			matrix.connections = {
-				1: {
+			matrix.connections = connectionsOf([
+				{
 					target: 1,
 				},
-			}
+			])
 			roundtripMatrix(matrix, qualified)
 		})
 		describe('connections', () => {
 			test('sources', () => {
 				const matrix: Matrix = new MatrixImpl('identifier')
-				matrix.connections = {
-					1: {
+				matrix.connections = connectionsOf([
+					{
 						target: 1,
 						sources: [2, 3],
 					},
-				}
+				])
 				roundtripMatrix(matrix, qualified)
 			})
 			test('operation', () => {
 				const matrix: Matrix = new MatrixImpl('identifier')
-				matrix.connections = {
-					1: {
+				matrix.connections = connectionsOf([
+					{
 						target: 1,
 						operation: ConnectionOperation.Absolute,
 					},
-				}
+				])
 				roundtripMatrix(matrix, qualified)
-				matrix.connections = {
-					1: {
+				matrix.connections = connectionsOf([
+					{
 						target: 1,
 						operation: ConnectionOperation.Connect,
 					},
-				}
+				])
 				roundtripMatrix(matrix, qualified)
-				matrix.connections = {
-					1: {
+				matrix.connections = connectionsOf([
+					{
 						target: 1,
 						operation: ConnectionOperation.Disconnect,
 					},
-				}
+				])
 				roundtripMatrix(matrix, qualified)
 			})
 			test('disposition', () => {
 				const matrix: Matrix = new MatrixImpl('identifier')
-				matrix.connections = {
-					1: {
-						target: 1,
-						disposition: ConnectionDisposition.Locked,
-					},
-				}
+				const connection: Connection = { target: 1, disposition: ConnectionDisposition.Locked }
+				matrix.connections = connectionsOf([connection])
 				roundtripMatrix(matrix, qualified)
-				at(matrix.connections, 1).disposition = ConnectionDisposition.Modified
+				connection.disposition = ConnectionDisposition.Modified
 				roundtripMatrix(matrix, qualified)
-				at(matrix.connections, 1).disposition = ConnectionDisposition.Pending
+				connection.disposition = ConnectionDisposition.Pending
 				roundtripMatrix(matrix, qualified)
-				at(matrix.connections, 1).disposition = ConnectionDisposition.Tally
+				connection.disposition = ConnectionDisposition.Tally
 				roundtripMatrix(matrix, qualified)
 			})
 		})
@@ -221,11 +223,11 @@ describe('encodings/ber/Matrix', () => {
 		})
 		test('multiple connections', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
-			matrix.connections = {
-				0: { target: 0, sources: [1] },
-				1: { target: 1, sources: [2] },
-				2: { target: 2, sources: [0, 3] },
-			}
+			matrix.connections = connectionsOf([
+				{ target: 0, sources: [1] },
+				{ target: 1, sources: [2] },
+				{ target: 2, sources: [0, 3] },
+			])
 			roundtripMatrix(matrix, qualified, true)
 		})
 		test('all lists', () => {
@@ -240,11 +242,11 @@ describe('encodings/ber/Matrix', () => {
 			]
 			matrix.targets = signalsOf([0, 1, 2])
 			matrix.sources = signalsOf([0, 1, 2, 3])
-			matrix.connections = {
-				0: { target: 0, sources: [1] },
-				1: { target: 1, sources: [2] },
-				2: { target: 2, sources: [3] },
-			}
+			matrix.connections = connectionsOf([
+				{ target: 0, sources: [1] },
+				{ target: 1, sources: [2] },
+				{ target: 2, sources: [3] },
+			])
 			roundtripMatrix(matrix, qualified, true)
 		})
 	}
@@ -416,7 +418,7 @@ describe('encodings/ber/Matrix', () => {
 					[1, { identifier: 'source-1', isOnline: true, labelsLocation: '1.8.1' }],
 					[2, {}],
 				]),
-				{ 10: { target: 10, sources: [2] } }
+				connectionsOf([{ target: 10, sources: [2] }])
 			)
 			expect(decoded.value.contents).toEqual(expected)
 		})
@@ -470,6 +472,44 @@ describe('encodings/ber/Matrix', () => {
 			expect(decoded.value.contents.targets).toEqual(new Map([[4, { identifier: 'out-4' }]]))
 			expect(decoded.errors.map((e) => e.message)).toEqual([
 				"decode targets contents: Unexpected BER context tag '167'",
+			])
+		})
+
+		// Connections are a SEQUENCE OF Connection, so a target can come twice: the later is kept, with an error
+		test('a connection for a target listed twice is kept once, with an error', () => {
+			const w = new Ber.Writer()
+			const connection = (target: number, sources: string) => {
+				w.startSequence(Ber.CONTEXT(0))
+				w.startSequence(Ber.APPLICATION(16))
+				w.startSequence(Ber.CONTEXT(0))
+				w.writeInt(target)
+				w.endSequence()
+				w.startSequence(Ber.CONTEXT(1))
+				w.writeRelativeOID(sources, Ber.BERDataTypes.RELATIVE_OID)
+				w.endSequence()
+				w.endSequence()
+				w.endSequence()
+			}
+			w.startSequence(Ber.APPLICATION(17)) // QualifiedMatrix
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeRelativeOID('1.1', Ber.BERDataTypes.RELATIVE_OID)
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(5)) // connections
+			w.startSequence(Ber.BERDataTypes.SEQUENCE)
+			connection(2, '1')
+			connection(4, '1')
+			connection(2, '3')
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			const decoded = decodeMatrix(new Ber.Reader(w.buffer), true)
+
+			expect([...(decoded.value.contents.connections?.entries() ?? [])]).toEqual([
+				[2, { target: 2, sources: [3] }],
+				[4, { target: 4, sources: [1] }],
+			])
+			expect(decoded.errors.map((e) => e.message)).toEqual([
+				'decode connections: target 2 is listed more than once',
 			])
 		})
 

@@ -219,7 +219,7 @@ try {
 
 `matrixDisconnect()` removes sources from a target, and `matrixSetConnection()` replaces a target's sources with the ones given. The response resolves, with the matrix, once the provider reports the connection of the target asked for. Reports on the matrix's other targets, which may arrive in between, are applied to the tree but don't settle it. It rejects if the provider reports the target as locked. If the provider reports the connection as pending, it has queued the request: the response resolves, and the tree changes when the provider reports the connection as made.
 
-Once a matrix's connections are loaded, with a `getDirectory()` on the matrix, `matrix.contents.connections[target]` holds the target's current sources and the disposition the provider last reported for it. So after a request has resolved, `disposition` tells whether the change is made or only queued:
+Once a matrix's connections are loaded, with a `getDirectory()` on the matrix, `matrix.contents.connections.get(target)` holds the target's current sources and the disposition the provider last reported for it. So after a request has resolved, `disposition` tells whether the change is made or only queued:
 
 ```javascript
 const { Model } = require('@phillipivan/emberplus-connection')
@@ -230,8 +230,8 @@ await (
 await (
 	await client.matrixConnect(matrix, 2, [3])
 ).response
-if (matrix.contents.connections[2].disposition === Model.ConnectionDisposition.Pending) {
-	console.log('Queued: target 2 still has', matrix.contents.connections[2].sources)
+if (matrix.contents.connections.get(2)?.disposition === Model.ConnectionDisposition.Pending) {
+	console.log('Queued: target 2 still has', matrix.contents.connections.get(2).sources)
 }
 ```
 
@@ -249,6 +249,7 @@ const {
 	MatrixImpl,
 	MatrixType,
 	MatrixAddressingMode,
+	signalsOf,
 } = require('@phillipivan/emberplus-connection')
 
 const s = new EmberServer(9000) // start server on port 9000
@@ -267,7 +268,7 @@ s.onMatrixOperation = async (matrix, connections) => {
 	// handle matrix operations. updateMatrixConnection applies a change by the matrix's type (and, n-to-n, its
 	// maximumConnectsPerTarget and maximumTotalConnects: it returns false when it refuses one) and reports it. The
 	// consumer that asked is always answered, with the target's current state when nothing changed.
-	for (const connection of Object.values(connections)) {
+	for (const connection of connections.values()) {
 		s.updateMatrixConnection(matrix, connection)
 	}
 }
@@ -326,9 +327,9 @@ const tree = {
 				1,
 				new MatrixImpl(
 					'Test Matrix',
-					[1, 2, 3, 4, 5],
-					[1, 2, 3, 4, 5],
-					{},
+					signalsOf([1, 2, 3, 4, 5]),
+					signalsOf([1, 2, 3, 4, 5]),
+					new Map(),
 					undefined,
 					MatrixType.NToN,
 					MatrixAddressingMode.NonLinear,

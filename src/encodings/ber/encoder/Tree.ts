@@ -1,5 +1,4 @@
 import * as Ber from '../../../Ber/index.js'
-import { Connection } from '../../../model/Connection.js'
 import { ElementType, EmberElement } from '../../../model/EmberElement.js'
 import { Matrix, Template } from '../../../model/index.js'
 import { isQualified } from '../../../model/Tree.js'
@@ -120,7 +119,7 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 			writer.startSequence(Ber.CONTEXT(5))
 			writer.startSequence(Ber.BERDataTypes.SEQUENCE)
 			// write connections collection
-			for (const connection of Object.values<Connection>(el.contents.connections)) {
+			for (const connection of el.contents.connections.values()) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeConnection(connection, writer)
 				writer.endSequence()

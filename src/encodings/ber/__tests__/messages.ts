@@ -6,7 +6,7 @@ import { FunctionArgumentImpl } from '../../../model/FunctionArgument.js'
 import { InvocationImpl } from '../../../model/Invocation.js'
 import { InvocationResultImpl } from '../../../model/InvocationResult.js'
 import { LabelImpl } from '../../../model/Label.js'
-import { MatrixAddressingMode, MatrixImpl, MatrixType, signalsOf } from '../../../model/Matrix.js'
+import { connectionsOf, MatrixAddressingMode, MatrixImpl, MatrixType, signalsOf } from '../../../model/Matrix.js'
 import { ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
@@ -48,10 +48,10 @@ export function messages(): Array<[string, Buffer]> {
 		'router',
 		signalsOf([0, 1, 2]),
 		signalsOf([0, 1]),
-		{
-			0: new ConnectionImpl(0, [1], ConnectionOperation.Absolute, ConnectionDisposition.Modified),
-			2: new ConnectionImpl(2, []),
-		},
+		connectionsOf([
+			new ConnectionImpl(0, [1], ConnectionOperation.Absolute, ConnectionDisposition.Modified),
+			new ConnectionImpl(2, []),
+		]),
 		'Router',
 		MatrixType.NToN,
 		MatrixAddressingMode.Linear,

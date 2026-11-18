@@ -6,6 +6,8 @@ import { at } from '../../../lib/at.js'
 import { CommandType } from '../../../model/Command.js'
 import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation } from '../../../model/Connection.js'
 import {
+	Connections,
+	connectionsOf,
 	ElementType,
 	EmberElement,
 	EmberFunctionImpl,
@@ -674,11 +676,11 @@ describe('client', () => {
 						'matrix',
 						signalsOf([1, 2, 3]),
 						signalsOf([1, 2, 3, 4]),
-						{
-							1: { target: 1, sources: [1] },
-							2: { target: 2, sources: [2] },
-							3: { target: 3, sources: [] },
-						},
+						connectionsOf([
+							{ target: 1, sources: [1] },
+							{ target: 2, sources: [2] },
+							{ target: 3, sources: [] },
+						]),
 						'Matrix',
 						MatrixType.OneToN,
 						MatrixAddressingMode.NonLinear,
@@ -772,7 +774,7 @@ describe('client', () => {
 					sources: new Map([[4, { labelsLocation: '1.8.4' }]]),
 				})
 				await new Promise(setImmediate)
-				report({ type: ElementType.Matrix, connections: { 3: { target: 3, sources: [4] } } }) // no signals
+				report({ type: ElementType.Matrix, connections: connectionsOf([{ target: 3, sources: [4] }]) }) // no signals
 				await new Promise(setImmediate)
 
 				expect(node.contents.targets).toEqual(
@@ -803,15 +805,17 @@ describe('client', () => {
 				const sent = readConnectRequest(onSocketWrite.mock.calls[0][0])
 				expect(sent.path).toBe('1.1')
 				expect(sent.fields).toEqual([Ber.CONTEXT(5)])
-				expect(sent.connections).toEqual({ 2: { target: 2, sources: [3], operation } })
+				expect(sent.connections).toEqual(connectionsOf([{ target: 2, sources: [3], operation }]))
 
 				// the cached matrix is unchanged until the provider replies
 				expect(node.contents.connections).toBe(stored)
-				expect(node.contents.connections).toEqual({
-					1: { target: 1, sources: [1] },
-					2: { target: 2, sources: [2] },
-					3: { target: 3, sources: [] },
-				})
+				expect(node.contents.connections).toEqual(
+					connectionsOf([
+						{ target: 1, sources: [1] },
+						{ target: 2, sources: [2] },
+						{ target: 3, sources: [] },
+					])
+				)
 			})
 		})
 
@@ -824,13 +828,13 @@ describe('client', () => {
 				socket.mockData(
 					createQualifiedNodeResponse(
 						'1.1',
-						new MatrixImpl(undefined, undefined, undefined, { 2: { target: 2, sources: [3] } }),
+						new MatrixImpl(undefined, undefined, undefined, connectionsOf([{ target: 2, sources: [3] }])),
 						undefined
 					)
 				)
 
 				await expect(request.response).resolves.toBeDefined()
-				expect(node.contents.connections?.[2]).toEqual({ target: 2, sources: [3] })
+				expect(node.contents.connections?.get(2)).toEqual({ target: 2, sources: [3] })
 				expect(node.contents.identifier).toBe('matrix')
 				expect(node.contents.targets).toEqual(signalsOf([1, 2, 3]))
 			})
@@ -840,7 +844,7 @@ describe('client', () => {
 		const report = (target: number, sources: number[], disposition?: ConnectionDisposition) =>
 			createQualifiedNodeResponse(
 				'1.1',
-				new MatrixImpl(undefined, undefined, undefined, { [target]: { target, sources, disposition } }),
+				new MatrixImpl(undefined, undefined, undefined, connectionsOf([{ target, sources, disposition }])),
 				undefined
 			)
 
@@ -863,7 +867,7 @@ describe('client', () => {
 				socket.mockData(report(1, [4], ConnectionDisposition.Modified))
 				await new Promise(setImmediate)
 				expect(response.settled).toBe('pending')
-				expect(node.contents.connections?.[1]?.sources).toEqual([4])
+				expect(node.contents.connections?.get(1)?.sources).toEqual([4])
 
 				socket.mockData(report(2, [3], ConnectionDisposition.Modified))
 				await new Promise(setImmediate)
@@ -881,7 +885,7 @@ describe('client', () => {
 				socket.mockData(report(2, [2], ConnectionDisposition.Locked))
 
 				await expect(request.response).rejects.toThrow('Matrix 1.1: target 2 is locked')
-				expect(node.contents.connections?.[2]?.sources).toEqual([2])
+				expect(node.contents.connections?.get(2)?.sources).toEqual([2])
 			})
 		})
 
@@ -895,7 +899,7 @@ describe('client', () => {
 				socket.mockData(report(2, [3], ConnectionDisposition.Pending))
 
 				await expect(request.response).resolves.toBe(node)
-				expect(node.contents.connections?.[2]?.sources).toEqual([2])
+				expect(node.contents.connections?.get(2)?.sources).toEqual([2])
 			})
 		})
 
@@ -908,7 +912,7 @@ describe('client', () => {
 					createQualifiedNodeResponse('1', new EmberNodeImpl(), {
 						1: new NumberedTreeNodeImpl(
 							1,
-							new MatrixImpl(undefined, undefined, undefined, { [target]: { target, sources: [3] } })
+							new MatrixImpl(undefined, undefined, undefined, connectionsOf([{ target, sources: [3] }]))
 						),
 					})
 				socket.mockData(inParent(1))
@@ -1323,12 +1327,17 @@ describe('client', () => {
 						1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('router'), {
 							1: new NumberedTreeNodeImpl(
 								1,
-								new MatrixImpl('matrix', undefined, undefined, {
-									0: { target: 0, sources: [1] },
-									1: { target: 1, sources: [2] },
-									2: { target: 2, sources: [0] },
-									3: { target: 3, sources: [3] },
-								})
+								new MatrixImpl(
+									'matrix',
+									undefined,
+									undefined,
+									connectionsOf([
+										{ target: 0, sources: [1] },
+										{ target: 1, sources: [2] },
+										{ target: 2, sources: [0] },
+										{ target: 3, sources: [3] },
+									])
+								)
 							),
 						}),
 					},
@@ -1338,19 +1347,21 @@ describe('client', () => {
 				socket.mockData(
 					createQualifiedNodeResponse(
 						'1.1',
-						new MatrixImpl('matrix', undefined, undefined, { 1: { target: 1, sources: [3] } }),
+						new MatrixImpl('matrix', undefined, undefined, connectionsOf([{ target: 1, sources: [3] }])),
 						undefined
 					)
 				)
 				await new Promise(setImmediate)
 
 				const matrix = client.tree[1]?.children?.[1]?.contents as Matrix
-				expect(matrix.connections).toEqual({
-					0: { target: 0, sources: [1] },
-					1: { target: 1, sources: [3] },
-					2: { target: 2, sources: [0] },
-					3: { target: 3, sources: [3] },
-				})
+				expect(matrix.connections).toEqual(
+					connectionsOf([
+						{ target: 0, sources: [1] },
+						{ target: 1, sources: [3] },
+						{ target: 2, sources: [0] },
+						{ target: 3, sources: [3] },
+					])
+				)
 			})
 		})
 
@@ -1397,7 +1408,7 @@ describe('client', () => {
 				}
 
 				const matrix = client.tree[0]?.children?.[5]?.children?.[2]?.contents as Matrix
-				expect(Object.values<Connection>(matrix.connections ?? {}).map((c) => [c.target, c.sources])).toEqual([
+				expect([...(matrix.connections?.values() ?? [])].map((c) => [c.target, c.sources])).toEqual([
 					[10, [173]],
 					[11, [171]],
 					[12, [172]],
@@ -1410,15 +1421,28 @@ describe('client', () => {
 		// report on a matrix that already had its connections take targets x targets steps: seconds, for a big one.
 		it("finds a reported target's connection without going through all of them", async () => {
 			await runWithConnection(async (client, socket) => {
-				const connections: { [target: number]: Connection } = {}
-				for (let target = 0; target < 2000; target++) connections[target] = { target, sources: [0] }
-				let reads = 0
-				const counted = new Proxy(connections, {
-					get: (object, key, receiver) => {
-						reads++
-						return Reflect.get(object, key, receiver) as unknown
-					},
-				})
+				// Counts the connections looked at: one for a lookup, all of them for a pass through them
+				class CountedConnections extends Map<number, Connection> {
+					reads = 0
+					override get(target: number) {
+						this.reads++
+						return super.get(target)
+					}
+					override values() {
+						this.reads += this.size
+						return super.values()
+					}
+					override entries() {
+						this.reads += this.size
+						return super.entries()
+					}
+					override [Symbol.iterator]() {
+						this.reads += this.size
+						return super[Symbol.iterator]()
+					}
+				}
+				const counted = new CountedConnections()
+				for (let target = 0; target < 2000; target++) counted.set(target, { target, sources: [0] })
 				const router = new NumberedTreeNodeImpl(1, new EmberNodeImpl('router'), {
 					1: new NumberedTreeNodeImpl(1, new MatrixImpl('matrix', undefined, undefined, counted)),
 				})
@@ -1429,14 +1453,19 @@ describe('client', () => {
 				socket.mockData(
 					createQualifiedNodeResponse(
 						'1.1',
-						new MatrixImpl(undefined, undefined, undefined, { 1500: { target: 1500, sources: [7] } }),
+						new MatrixImpl(
+							undefined,
+							undefined,
+							undefined,
+							connectionsOf([{ target: 1500, sources: [7] }])
+						),
 						undefined
 					)
 				)
 				await new Promise(setImmediate)
 
-				expect(connections[1500]?.sources).toEqual([7])
-				expect(reads).toBeLessThan(10)
+				expect(counted.get(1500)?.sources).toEqual([7])
+				expect(counted.reads).toBeLessThan(10)
 			})
 		})
 
@@ -1445,7 +1474,7 @@ describe('client', () => {
 		// Locked: "sources contains current state".
 		describe('dispositions', () => {
 			// A router, 1, with a matrix, 1.1, whose connections are loaded or not
-			function seedMatrix(client: EmberClient, connections?: { [target: number]: Connection }) {
+			function seedMatrix(client: EmberClient, connections?: Connections) {
 				const router = new NumberedTreeNodeImpl(1, new EmberNodeImpl('router'), {
 					1: new NumberedTreeNodeImpl(1, new MatrixImpl('matrix', undefined, undefined, connections)),
 				})
@@ -1458,39 +1487,34 @@ describe('client', () => {
 			const report = (...connections: Connection[]) =>
 				createQualifiedNodeResponse(
 					'1.1',
-					new MatrixImpl(
-						'',
-						undefined,
-						undefined,
-						Object.fromEntries(connections.map((connection) => [connection.target, connection]))
-					),
+					new MatrixImpl('', undefined, undefined, connectionsOf(connections)),
 					undefined
 				)
 			const { Tally, Modified, Pending, Locked } = ConnectionDisposition
 
 			it('keeps the sources of a connection while a change to it is pending, and marks it', async () => {
 				await runWithConnection(async (client, socket) => {
-					const matrix = seedMatrix(client, { 2: { target: 2, sources: [2] } })
+					const matrix = seedMatrix(client, connectionsOf([{ target: 2, sources: [2] }]))
 
 					socket.mockData(report({ target: 2, sources: [3], disposition: Pending }))
-					expect(matrix.connections?.[2]).toEqual({ target: 2, sources: [2], disposition: Pending })
+					expect(matrix.connections?.get(2)).toEqual({ target: 2, sources: [2], disposition: Pending })
 
 					socket.mockData(report({ target: 2, sources: [3], disposition: Modified }))
-					expect(matrix.connections?.[2]).toEqual({ target: 2, sources: [3], disposition: Modified })
+					expect(matrix.connections?.get(2)).toEqual({ target: 2, sources: [3], disposition: Modified })
 				})
 			})
 
 			it('takes the current sources from a report that the target is locked', async () => {
 				await runWithConnection(async (client, socket) => {
-					const matrix = seedMatrix(client, { 2: { target: 2, sources: [2] } })
+					const matrix = seedMatrix(client, connectionsOf([{ target: 2, sources: [2] }]))
 
 					// the target's connection had changed without this consumer hearing of it
 					socket.mockData(report({ target: 2, sources: [4], disposition: Locked }))
-					expect(matrix.connections?.[2]).toEqual({ target: 2, sources: [4], disposition: Locked })
+					expect(matrix.connections?.get(2)).toEqual({ target: 2, sources: [4], disposition: Locked })
 
 					// a later report without a disposition is a tally
 					socket.mockData(report({ target: 2, sources: [4] }))
-					expect(matrix.connections?.[2]?.disposition).toBeUndefined()
+					expect(matrix.connections?.get(2)?.disposition).toBeUndefined()
 				})
 			})
 
@@ -1499,10 +1523,10 @@ describe('client', () => {
 					const matrix = seedMatrix(client)
 
 					socket.mockData(report({ target: 2, sources: [1], disposition: Pending }))
-					expect(matrix.connections?.[2]).toBeUndefined()
+					expect(matrix.connections?.get(2)).toBeUndefined()
 
 					socket.mockData(report({ target: 2, sources: [], disposition: Locked }))
-					expect(matrix.connections?.[2]).toEqual({ target: 2, sources: [], disposition: Locked })
+					expect(matrix.connections?.get(2)).toEqual({ target: 2, sources: [], disposition: Locked })
 				})
 			})
 
@@ -1519,11 +1543,13 @@ describe('client', () => {
 						)
 					)
 
-					expect(matrix.connections).toEqual({
-						0: { target: 0, sources: [1], disposition: Tally },
-						1: { target: 1, sources: [2], disposition: Modified },
-						3: { target: 3 },
-					})
+					expect(matrix.connections).toEqual(
+						connectionsOf([
+							{ target: 0, sources: [1], disposition: Tally },
+							{ target: 1, sources: [2], disposition: Modified },
+							{ target: 3 },
+						])
+					)
 				})
 			})
 		})
@@ -1853,7 +1879,7 @@ describe('client', () => {
 				socket.mockData(
 					createQualifiedNodeResponse(
 						'1.1',
-						new MatrixImpl('matrix', undefined, undefined, { 0: { target: 0, sources: [1] } }),
+						new MatrixImpl('matrix', undefined, undefined, connectionsOf([{ target: 0, sources: [1] }])),
 						undefined
 					)
 				)
@@ -1991,7 +2017,7 @@ describe('client', () => {
 				socket.mockData(
 					createQualifiedNodeResponse(
 						'1.4',
-						new MatrixImpl(undefined, undefined, undefined, { 2: { target: 2, sources: [3] } }),
+						new MatrixImpl(undefined, undefined, undefined, connectionsOf([{ target: 2, sources: [3] }])),
 						undefined
 					)
 				)
@@ -2549,15 +2575,20 @@ describe('client', () => {
 
 		it('takes the properties of a matrix update, and still merges its connections by target', async () => {
 			await runWithConnection(async (client, socket) => {
-				const matrix = new MatrixImpl('router', signalsOf([0, 1]), signalsOf([0, 1]), {
-					0: new ConnectionImpl(0, [0]),
-					1: new ConnectionImpl(1, [1]),
-				})
+				const matrix = new MatrixImpl(
+					'router',
+					signalsOf([0, 1]),
+					signalsOf([0, 1]),
+					connectionsOf([new ConnectionImpl(0, [0]), new ConnectionImpl(1, [1])])
+				)
 				const { contents } = seed(client, matrix)
 
-				const update = new MatrixImpl(undefined, undefined, undefined, {
-					0: new ConnectionImpl(0, [1]),
-				})
+				const update = new MatrixImpl(
+					undefined,
+					undefined,
+					undefined,
+					connectionsOf([new ConnectionImpl(0, [1])])
+				)
 				update.description = 'Main router'
 				update.labels = [new LabelImpl('1.2.1', 'Primary')]
 				socket.mockData(createQualifiedNodeResponse('1.1', update, undefined))
@@ -2568,8 +2599,8 @@ describe('client', () => {
 					description: 'Main router',
 					labels: [{ basePath: '1.2.1', description: 'Primary' }],
 				})
-				expect(contents.connections?.[0]?.sources).toEqual([1])
-				expect(contents.connections?.[1]?.sources).toEqual([1])
+				expect(contents.connections?.get(0)?.sources).toEqual([1])
+				expect(contents.connections?.get(1)?.sources).toEqual([1])
 			})
 		})
 

@@ -321,7 +321,7 @@ function decodeSignalContents(
 }
 
 function decodeConnections(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Connections> {
-	const connections = makeResult<Connections>({})
+	const connections = makeResult<Connections>(new Map())
 	reader.readSequence(Ber.BERDataTypes.SEQUENCE)
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
@@ -329,7 +329,13 @@ function decodeConnections(reader: Ber.Reader, options: DecodeOptions = defaultD
 		if (tag === 0) continue // indefinite length
 		if (tag === Ber.CONTEXT(0)) {
 			const connection = appendErrors(decodeConnection(reader, options), connections)
-			connections.value[connection.target] = connection
+			// A SEQUENCE OF Connection may give a target twice: it is kept once, the later connection
+			if (connections.value.has(connection.target)) {
+				connections.errors.push(
+					new Error(`decode connections: target ${connection.target} is listed more than once`)
+				)
+			}
+			connections.value.set(connection.target, connection)
 		} else {
 			// unknownContext(errors, 'decode invocation arguments', tag, options)
 			skipNext(reader)

@@ -8,6 +8,7 @@ export {
 	MatrixType,
 	MatrixAddressingMode,
 	Connections,
+	connectionsOf,
 	MatrixImpl,
 	SignalContents,
 	Signals,
@@ -42,10 +43,17 @@ enum MatrixAddressingMode {
 }
 
 /**
- *  Dictionary of targets, indexed by element number. A type, not an interface: an interface has no implicit index
- *  signature, so `Object.values` would not take one without a cast.
+ * A matrix's connections, each under its target, in the order they were given. A Map, so that a target has one
+ * connection; isConnections also checks that each is under its own target, which connectionsOf makes so.
  */
-type Connections = { [target: number]: Connection }
+type Connections = Map<number, Connection>
+
+/** The connections given, each under its target: of two for one target, the later */
+function connectionsOf(connections: Iterable<Connection>): Connections {
+	const byTarget: Connections = new Map()
+	for (const connection of connections) byTarget.set(connection.target, connection)
+	return byTarget
+}
 
 /** A target's or source's contents (the Glow DTD's SignalContents, all of them optional) */
 interface SignalContents {
@@ -146,14 +154,16 @@ class MatrixImpl implements Matrix {
 	) {}
 }
 
-/** Whether a value is a matrix's connections: an object of connections. For a value from a caller that doesn't check types. */
+/**
+ * Whether a value is a matrix's connections: a Map of connections, each under its own target. For a value from a caller
+ * that doesn't check types.
+ */
 function isConnections(value: unknown): value is Connections {
-	return (
-		typeof value === 'object' &&
-		value !== null &&
-		!Array.isArray(value) &&
-		Object.values<unknown>({ ...value }).every((connection) => isConnection(connection))
-	)
+	if (!(value instanceof Map)) return false
+	for (const [target, connection] of value as Map<unknown, unknown>) {
+		if (!isConnection(connection) || connection.target !== target) return false
+	}
+	return true
 }
 
 /**

@@ -4,7 +4,7 @@ import { ConnectionImpl, ConnectionOperation } from '../../../model/Connection.j
 import { ElementType } from '../../../model/EmberElement.js'
 import { EmberNodeImpl } from '../../../model/EmberNode.js'
 import { InvocationResultImpl } from '../../../model/InvocationResult.js'
-import { Matrix } from '../../../model/Matrix.js'
+import { connectionsOf, Matrix } from '../../../model/Matrix.js'
 import { ParameterType } from '../../../model/Parameter.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
@@ -170,7 +170,7 @@ describe('encoders/Ber/index', () => {
 		const matrix = (contents: Partial<Matrix>) =>
 			new QualifiedElementImpl<Matrix>('1.1', {
 				type: ElementType.Matrix,
-				connections: { 2: new ConnectionImpl(2, [3], ConnectionOperation.Connect) },
+				connections: connectionsOf([new ConnectionImpl(2, [3], ConnectionOperation.Connect)]),
 				...contents,
 			})
 
@@ -211,6 +211,6 @@ describe('encoders/Ber/index', () => {
 
 		expect(matrix.path).toBe('0.5.2')
 		expect(matrix.contents.type).toBe(ElementType.Matrix)
-		expect(matrix.contents.connections?.[10]).toMatchObject({ target: 10, sources: [172] })
+		expect(matrix.contents.connections?.get(10)).toMatchObject({ target: 10, sources: [172] })
 	})
 })

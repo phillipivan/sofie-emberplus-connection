@@ -21,7 +21,7 @@ import { EmberFunction } from '../../model/EmberFunction.js'
 import { EmberNodeImpl } from '../../model/EmberNode.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
 import { LabelSet } from '../../model/Label.js'
-import { Connections, hasSignal, Matrix } from '../../model/Matrix.js'
+import { Connections, connectionsOf, hasSignal, Matrix } from '../../model/Matrix.js'
 import { fitsItsType, isValueOfType, Parameter, ParameterImpl } from '../../model/Parameter.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
 import {
@@ -738,7 +738,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		// the contents leaves out the identifier they require. The tree is updated when the provider replies.
 		const request = new QualifiedElementImpl<Matrix>(getPath(matrix), {
 			type: ElementType.Matrix,
-			connections: { [target]: connection },
+			connections: connectionsOf([connection]),
 		})
 
 		return this._sendRequest(
@@ -1128,10 +1128,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		// update connections
 		if (update.connections) {
-			const connections = (matrix.connections ??= {})
-			for (const connection of Object.values<Connection>(update.connections)) {
+			const connections = (matrix.connections ??= new Map<number, Connection>())
+			for (const connection of update.connections.values()) {
 				// (connections are kept by their target: no need to go through them all to find it)
-				const cached = connections[connection.target]
+				const cached = connections.get(connection.target)
 
 				if (connection.disposition === ConnectionDisposition.Pending) {
 					// The change is queued: "sources contains future state". The target's connection stays as it
@@ -1147,11 +1147,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					cached.sources = connection.sources
 					cached.disposition = connection.disposition
 				} else {
-					connections[connection.target] = {
+					connections.set(connection.target, {
 						target: connection.target,
 						sources: connection.sources,
 						disposition: connection.disposition,
-					}
+					})
 				}
 			}
 		}
@@ -1187,8 +1187,7 @@ function reportedConnections(update: TreeElement<EmberElement>): Connections | u
 }
 
 function findConnection(connections: Connections | undefined, target: number): Connection | undefined {
-	if (!connections) return undefined
-	return Object.values<Connection>(connections).find((connection) => connection.target === target)
+	return connections?.get(target)
 }
 
 /**

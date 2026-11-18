@@ -23,6 +23,7 @@ import {
 	Connection,
 	ConnectionImpl,
 	Connections,
+	connectionsOf,
 	ElementType,
 	EmberElement,
 	EmberFunctionImpl,
@@ -438,11 +439,12 @@ describe('EmberServer matrices', () => {
 
 	async function init(matrixType?: MatrixType) {
 		jest.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
-		const contents = new MatrixImpl('router', signalsOf([0, 1, 2]), signalsOf([0, 1, 2, 3]), {
-			0: new ConnectionImpl(0, [1]),
-			1: new ConnectionImpl(1, [2]),
-			2: new ConnectionImpl(2, []),
-		})
+		const contents = new MatrixImpl(
+			'router',
+			signalsOf([0, 1, 2]),
+			signalsOf([0, 1, 2, 3]),
+			connectionsOf([new ConnectionImpl(0, [1]), new ConnectionImpl(1, [2]), new ConnectionImpl(2, [])])
+		)
 		contents.matrixType = matrixType
 		matrix = new NumberedTreeNodeImpl(1, contents)
 		const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), { 1: matrix })
@@ -454,33 +456,34 @@ describe('EmberServer matrices', () => {
 	})
 
 	/** Each target's sources, as the server holds them */
-	const connectionsOf = () =>
-		Object.fromEntries(
-			Object.values<Connection>(matrix.contents.connections ?? {}).map((c) => [c.target, c.sources])
-		)
+	const sourcesByTarget = () =>
+		Object.fromEntries([...(matrix.contents.connections?.values() ?? [])].map((c) => [c.target, c.sources]))
 
 	describe('update()', () => {
 		beforeEach(async () => init())
 
 		it('changes the targets it reports and keeps the others', () => {
-			server.update(matrix, { connections: { 0: new ConnectionImpl(0, [3]) } })
+			server.update(matrix, { connections: connectionsOf([new ConnectionImpl(0, [3])]) })
 
-			expect(connectionsOf()).toEqual({ 0: [3], 1: [2], 2: [] })
+			expect(sourcesByTarget()).toEqual({ 0: [3], 1: [2], 2: [] })
 		})
 
 		it('applies the other properties given with the connections', () => {
-			server.update(matrix, { description: 'Router', connections: { 2: new ConnectionImpl(2, [0]) } })
+			server.update(matrix, { description: 'Router', connections: connectionsOf([new ConnectionImpl(2, [0])]) })
 
 			expect(matrix.contents.description).toBe('Router')
-			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [0] })
+			expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [0] })
 		})
 
 		// From a caller that doesn't check types. TypeScript can't tie the update to the matrix, so the update was cast
 		// to a matrix's, and what it held was used as connections whatever it was.
 		it.each<[string, unknown]>([
-			['a connection without a target', { 0: { sources: [1] } }],
-			['sources that are not numbers', { 0: { target: 0, sources: ['1'] } }],
+			['a connection without a target', new Map([[0, { sources: [1] }]])],
+			['sources that are not numbers', new Map([[0, { target: 0, sources: ['1'] }]])],
 			['a list of targets', [0, 1]],
+			['an object, as connections were', { 0: new ConnectionImpl(0, [3]) }],
+			// The key is the target the connection is kept under: one under another target would be reported for its own
+			['a connection under another target than its own', new Map([[1, new ConnectionImpl(0, [3])]])],
 		])('refuses connections that are %s, applying nothing', (_, connections) => {
 			const update: Partial<Matrix> = { description: 'Router' }
 			Object.assign(update, { connections })
@@ -489,7 +492,7 @@ describe('EmberServer matrices', () => {
 				'update: what was given as the connections of 1.1 are not connections'
 			)
 			expect(matrix.contents.description).toBeUndefined()
-			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [] })
+			expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [] })
 		})
 	})
 
@@ -510,20 +513,20 @@ describe('EmberServer matrices', () => {
 				connect(2, 3)
 				connect(0, 1)
 
-				expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [0, 3] })
+				expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [0, 3] })
 			})
 
 			it('connects a source listed twice in one request only once', () => {
 				connect(2, 3, 3)
 				absolute(1, 0, 0)
 
-				expect(connectionsOf()).toEqual({ 0: [1], 1: [0], 2: [3] })
+				expect(sourcesByTarget()).toEqual({ 0: [1], 1: [0], 2: [3] })
 			})
 
 			it('connects several sources to one target', () => {
 				connect(0, 2, 3)
 
-				expect(connectionsOf()).toEqual({ 0: [1, 2, 3], 1: [2], 2: [] })
+				expect(sourcesByTarget()).toEqual({ 0: [1, 2, 3], 1: [2], 2: [] })
 			})
 		})
 
@@ -537,20 +540,20 @@ describe('EmberServer matrices', () => {
 			it('replaces the source of a target that had one', () => {
 				connect(0, 3)
 
-				expect(connectionsOf()).toEqual({ 0: [3], 1: [2], 2: [] })
+				expect(sourcesByTarget()).toEqual({ 0: [3], 1: [2], 2: [] })
 			})
 
 			it('keeps one source of several requested', () => {
 				connect(2, 0, 3)
 				absolute(1, 0, 3)
 
-				expect(connectionsOf()).toEqual({ 0: [1], 1: [3], 2: [3] })
+				expect(sourcesByTarget()).toEqual({ 0: [1], 1: [3], 2: [3] })
 			})
 
 			it('leaves a source connected to other targets', () => {
 				connect(2, 1)
 
-				expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [1] })
+				expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [1] })
 			})
 		})
 
@@ -562,7 +565,7 @@ describe('EmberServer matrices', () => {
 			it('moves a source off the target that had it', () => {
 				connect(0, 2)
 
-				expect(connectionsOf()).toEqual({ 0: [2], 1: [], 2: [] })
+				expect(sourcesByTarget()).toEqual({ 0: [2], 1: [], 2: [] })
 			})
 
 			it('reports the target the source moved off too', async () => {
@@ -592,7 +595,7 @@ describe('EmberServer matrices', () => {
 				expect(connect(0, 2)).toBe(true)
 				expect(connect(0, 3)).toBe(false)
 				expect(absolute(2, 0, 1, 3)).toBe(false)
-				expect(connectionsOf()).toEqual({ 0: [1, 2], 1: [2], 2: [] })
+				expect(sourcesByTarget()).toEqual({ 0: [1, 2], 1: [2], 2: [] })
 			})
 
 			it('connects sources up to the total limit and refuses more', () => {
@@ -601,7 +604,7 @@ describe('EmberServer matrices', () => {
 				expect(connect(2, 0)).toBe(true)
 				expect(connect(2, 3)).toBe(false)
 				expect(absolute(1, 2, 3)).toBe(false)
-				expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [0] })
+				expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [0] })
 			})
 
 			it('refuses a change that would exceed either limit', () => {
@@ -609,7 +612,7 @@ describe('EmberServer matrices', () => {
 
 				expect(connect(0, 0, 2, 3)).toBe(false)
 				expect(connect(2, 0, 1, 3)).toBe(false)
-				expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [] })
+				expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [] })
 			})
 
 			it('allows a change that adds no sources, even to a matrix over its limits', () => {
@@ -619,7 +622,7 @@ describe('EmberServer matrices', () => {
 				expect(
 					server.updateMatrixConnection(matrix, new ConnectionImpl(1, [2], ConnectionOperation.Disconnect))
 				).toBe(true)
-				expect(connectionsOf()).toEqual({ 0: [3], 1: [], 2: [] })
+				expect(sourcesByTarget()).toEqual({ 0: [3], 1: [], 2: [] })
 			})
 
 			it('reports the unchanged target when it refuses a change', async () => {
@@ -652,7 +655,7 @@ describe('EmberServer matrices', () => {
 		/** The consumer sends a connection request, and waits for the server to handle it */
 		async function request(consumer: FakeConnection, ...connections: Connection[]) {
 			consumer.received.length = 0
-			const requested: Connections = Object.fromEntries(connections.map((c) => [c.target, c]))
+			const requested = connectionsOf(connections)
 			consumer.emit('emberTree', {
 				rootType: RootType.Elements,
 				value: {
@@ -693,13 +696,13 @@ describe('EmberServer matrices', () => {
 			let given: Connections | undefined
 			server.onMatrixOperation = async (m, connections) => {
 				given = connections
-				for (const c of Object.values<Connection>(connections)) server.updateMatrixConnection(m, c)
+				for (const c of connections.values()) server.updateMatrixConnection(m, c)
 				return Promise.resolve()
 			}
 			const consumer = await connectConsumer()
 
 			expect(await request(consumer, connect(2, 3), connect(9, 1))).toEqual([{ 2: [3] }])
-			expect(Object.keys(given ?? {})).toEqual(['2'])
+			expect([...(given?.keys() ?? [])]).toEqual([2])
 		})
 
 		it('updateMatrixConnection refuses a change for a target it does not have, reporting nothing', async () => {
@@ -712,7 +715,7 @@ describe('EmberServer matrices', () => {
 			await new Promise(setImmediate)
 
 			expect(consumer.received).toEqual([])
-			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [] })
+			expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [] })
 			expect(warnings).toEqual(['Matrix 1.1: connection change not applied: target 9 is not one of its targets'])
 		})
 
@@ -726,7 +729,7 @@ describe('EmberServer matrices', () => {
 			await new Promise(setImmediate)
 
 			expect(consumer.received.map(reportedConnections)).toEqual([{ 0: [1] }])
-			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [] })
+			expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [] })
 			expect(warnings).toEqual(['Matrix 1.1: connection change not applied: source 7 not among its sources'])
 		})
 	})
@@ -742,9 +745,12 @@ describe('EmberServer matrices', () => {
 				value: {
 					0: new QualifiedElementImpl(
 						'1.1',
-						new MatrixImpl('router', undefined, undefined, {
-							2: new ConnectionImpl(2, [3], ConnectionOperation.Connect),
-						})
+						new MatrixImpl(
+							'router',
+							undefined,
+							undefined,
+							connectionsOf([new ConnectionImpl(2, [3], ConnectionOperation.Connect)])
+						)
 					),
 				},
 			})
@@ -752,7 +758,7 @@ describe('EmberServer matrices', () => {
 			return consumer.received.map(reportedConnections)
 		}
 		const applyRequest = async (m: NumberedTreeNode<Matrix>, connections: Connections) => {
-			for (const connection of Object.values<Connection>(connections)) {
+			for (const connection of connections.values()) {
 				server.updateMatrixConnection(m, connection)
 			}
 		}
@@ -781,7 +787,7 @@ describe('EmberServer matrices', () => {
 			const consumer = await connectConsumer()
 
 			expect(await requestConnect(consumer)).toEqual([{ 2: [] }])
-			expect(connectionsOf()).toEqual({ 0: [1], 1: [2], 2: [] })
+			expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [] })
 		})
 
 		it('answers with the current state when the handler changes nothing', async () => {
@@ -833,7 +839,7 @@ describe('EmberServer matrices', () => {
 	function reportedConnections(data: Buffer) {
 		const report = onlyElement(data)
 		if (report.contents.type !== ElementType.Matrix) throw new Error('Expected a matrix')
-		const connections = report.contents.connections ?? {}
-		return Object.fromEntries(Object.values<Connection>(connections).map((c) => [c.target, c.sources]))
+		const connections = report.contents.connections?.values() ?? []
+		return Object.fromEntries([...connections].map((c) => [c.target, c.sources]))
 	}
 })

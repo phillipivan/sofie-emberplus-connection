@@ -6,6 +6,7 @@ import { Command, CommandType, FieldFlags, Invoke, isGetDirectory } from '../../
 import { Connection, ConnectionImpl, ConnectionOperation } from '../../model/Connection.js'
 import {
 	Connections,
+	connectionsOf,
 	ElementType,
 	EmberElement,
 	EmberFunction,
@@ -146,7 +147,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			if (!isConnections(connections)) {
 				throw new Error(`update: what was given as the connections of ${getPath(element)} are not connections`)
 			}
-			for (const connection of Object.values<Connection>(connections)) {
+			for (const connection of connections.values()) {
 				this.updateMatrixConnection(element, connection)
 			}
 		}
@@ -194,18 +195,19 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		if (missing) {
 			this.emit('warn', new Error(`Matrix ${getPath(element)}: connection change not applied: ${missing}`))
 			if (hasSignal(element.contents, 'target', update.target) !== false) {
-				const current = element.contents.connections?.[update.target] ?? new ConnectionImpl(update.target, [])
-				this._reportMatrixConnections(element, { [update.target]: current })
+				const current =
+					element.contents.connections?.get(update.target) ?? new ConnectionImpl(update.target, [])
+				this._reportMatrixConnections(element, connectionsOf([current]))
 			}
 			return false
 		}
-		const connections = (element.contents.connections ??= {})
+		const connections = (element.contents.connections ??= new Map<number, Connection>())
 		const matrixType = element.contents.matrixType ?? MatrixType.OneToN
 		const oneSourcePerTarget = matrixType !== MatrixType.NToN
-		let connection = connections[update.target]
+		let connection = connections.get(update.target)
 		if (!connection) {
 			connection = new ConnectionImpl(update.target, [])
-			connections[update.target] = connection
+			connections.set(update.target, connection)
 		}
 		const current = connection.sources ?? []
 		const requested = update.sources ?? []
@@ -228,7 +230,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 				break
 		}
 
-		const changed: Connections = { [connection.target]: connection }
+		const changed = connectionsOf([connection])
 		if (matrixType === MatrixType.NToN && exceedsConnectLimits(element.contents, current, sources)) {
 			this._reportMatrixConnections(element, changed)
 			return false
@@ -237,11 +239,11 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 
 		if (matrixType === MatrixType.OneToOne) {
 			const sources = connection.sources ?? []
-			for (const other of Object.values<Connection>(connections)) {
+			for (const other of connections.values()) {
 				if (other.target === connection.target) continue
 				if (!other.sources?.some((source) => sources.includes(source))) continue
 				other.sources = other.sources.filter((source) => !sources.includes(source))
-				changed[other.target] = other
+				changed.set(other.target, other)
 			}
 		}
 
@@ -260,7 +262,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		for (const pending of this._pendingMatrixReplies) {
 			if (pending.path !== path) continue
 			let covered = false
-			for (const target of Object.keys(changed)) covered = pending.targets.delete(Number(target)) || covered
+			for (const target of changed.keys()) covered = pending.targets.delete(target) || covered
 			if (covered) recipients.add(pending.client)
 		}
 
@@ -330,17 +332,17 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		const matrix = this.getElementByPath(path)
 		if (!matrix || !isElementOfType(matrix, ElementType.Matrix) || !el.contents.connections) return
 
-		const requested = Object.values<Connection>(el.contents.connections)
+		const requested = [...el.contents.connections.values()]
 		const pending: PendingMatrixReply = {
 			path: toQualifiedEmberNode(matrix).path,
 			client,
 			targets: new Set(requested.map((connection) => connection.target)),
 		}
-		const valid: Connections = {}
+		const valid: Connections = new Map()
 		for (const connection of requested) {
 			const missing = missingSignals(matrix.contents, connection)
 			if (!missing) {
-				valid[connection.target] = connection
+				valid.set(connection.target, connection)
 				continue
 			}
 			this.emit('warn', new Error(`Matrix ${pending.path}: dropped a consumer's connection request: ${missing}`))
@@ -350,13 +352,13 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		this._pendingMatrixReplies.add(pending)
 
 		try {
-			if (this.onMatrixOperation && Object.keys(valid).length) await this.onMatrixOperation(matrix, valid)
+			if (this.onMatrixOperation && valid.size) await this.onMatrixOperation(matrix, valid)
 		} finally {
 			this._pendingMatrixReplies.delete(pending)
 			if (pending.targets.size) {
-				const current: Connections = {}
+				const current: Connections = new Map()
 				for (const target of pending.targets) {
-					current[target] = matrix.contents.connections?.[target] ?? new ConnectionImpl(target, [])
+					current.set(target, matrix.contents.connections?.get(target) ?? new ConnectionImpl(target, []))
 				}
 				client.sendBER(this._encodeMatrixConnections(matrix, current))
 			}
@@ -543,7 +545,7 @@ function exceedsConnectLimits(matrix: Matrix, current: number[], next: number[])
 	if (maximumConnectsPerTarget !== undefined && next.length > maximumConnectsPerTarget) return true
 	if (maximumTotalConnects === undefined) return false
 	let total = next.length - current.length
-	for (const connection of Object.values<Connection>(matrix.connections ?? {})) {
+	for (const connection of matrix.connections?.values() ?? []) {
 		total += connection.sources?.length ?? 0
 	}
 	return total > maximumTotalConnects
