@@ -36,15 +36,7 @@ import { LabelImpl, LabelSet } from '../../../model/Label.js'
 import { Parameter, ParameterAccess, TypedParameter } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl } from '../../../model/StreamDescription.js'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
-import {
-	Collection,
-	EmberTypedValue,
-	EmberValue,
-	RelativeOID,
-	Root,
-	RootElement,
-	RootType,
-} from '../../../types/types.js'
+import { EmberTypedValue, EmberValue, RelativeOID, Root, RootElement, RootType } from '../../../types/types.js'
 import { EmberClient, EmberClientOptions } from '../index.js'
 
 // import { EmberTreeNode, RootElement } from '../../../types/types.js'
@@ -72,7 +64,7 @@ function device(client: EmberClient): NumberedTreeNode<EmberElement> {
 function firstElement(data: Buffer): RootElement {
 	const decoded = berDecode(data)
 	if (decoded.rootType !== RootType.Elements) throw new Error('Expected elements')
-	return at(Object.values<RootElement>(decoded.value), 0)
+	return at(decoded.value, 0)
 }
 
 describe('client', () => {
@@ -164,9 +156,7 @@ describe('client', () => {
 			}
 		}
 		return {
-			value: {
-				0: parent as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
-			},
+			value: [parent as Exclude<RootElement, NumberedTreeNode<EmberElement>>],
 			errors: [],
 		}
 	}
@@ -215,9 +205,7 @@ describe('client', () => {
 
 			// Mock a valid response
 			socket.mockData({
-				value: {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true)),
-				},
+				value: [new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true))],
 			})
 
 			// Should have a response
@@ -238,9 +226,7 @@ describe('client', () => {
 
 			// Mock a valid response
 			socket.mockData({
-				value: {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true)),
-				},
+				value: [new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true))],
 			})
 			await getRootDirReq.response
 
@@ -250,13 +236,13 @@ describe('client', () => {
 			// First lookup
 			expect(onSocketWrite).toHaveBeenCalledTimes(1)
 			socket.mockData({
-				value: {
-					1: new NumberedTreeNodeImpl(
+				value: [
+					new NumberedTreeNodeImpl(
 						1,
 						new EmberNodeImpl('Ruby', undefined, undefined, true),
 						childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, true))])
 					),
-				},
+				],
 			})
 
 			await new Promise(setImmediate)
@@ -264,8 +250,8 @@ describe('client', () => {
 			// Second lookup
 			expect(onSocketWrite).toHaveBeenCalledTimes(2)
 			socket.mockData({
-				value: {
-					1: new QualifiedElementImpl<EmberElement>(
+				value: [
+					new QualifiedElementImpl<EmberElement>(
 						'1.1',
 						new EmberNodeImpl('Sums', undefined, undefined, false),
 						childrenOf([
@@ -275,7 +261,7 @@ describe('client', () => {
 							),
 						])
 					) as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
-				},
+				],
 			})
 
 			await new Promise(setImmediate)
@@ -283,12 +269,12 @@ describe('client', () => {
 			// lookup on the parameter
 			expect(onSocketWrite).toHaveBeenCalledTimes(3)
 			socket.mockData({
-				value: {
-					1: new QualifiedElementImpl<EmberElement>(
+				value: [
+					new QualifiedElementImpl<EmberElement>(
 						'1.1.1',
 						new ParameterImpl(ParameterType.Boolean, 'On', undefined, false)
 					) as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
-				},
+				],
 			})
 
 			await new Promise(setImmediate)
@@ -309,9 +295,7 @@ describe('client', () => {
 
 			// Mock a valid response
 			socket.mockData({
-				value: {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true)),
-				},
+				value: [new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true))],
 			})
 			await getRootDirReq.response
 
@@ -413,9 +397,7 @@ describe('client', () => {
 
 			// Mock a valid response
 			socket.mockData({
-				value: {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true)),
-				},
+				value: [new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true))],
 			})
 			await getRootDirReq.response
 
@@ -425,9 +407,7 @@ describe('client', () => {
 			// Returns empty node
 			expect(onSocketWrite).toHaveBeenCalledTimes(1)
 			socket.mockData({
-				value: {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl()),
-				},
+				value: [new NumberedTreeNodeImpl(1, new EmberNodeImpl())],
 			})
 
 			await new Promise(setImmediate)
@@ -447,9 +427,7 @@ describe('client', () => {
 
 			// Mock a valid response
 			socket.mockData({
-				value: {
-					1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true)),
-				},
+				value: [new NumberedTreeNodeImpl(1, new EmberNodeImpl('Ruby', undefined, undefined, true))],
 			})
 			await getRootDirReq.response
 
@@ -459,13 +437,13 @@ describe('client', () => {
 			// First lookup
 			expect(onSocketWrite).toHaveBeenCalledTimes(1)
 			socket.mockData({
-				value: {
-					1: new NumberedTreeNodeImpl(
+				value: [
+					new NumberedTreeNodeImpl(
 						1,
 						new EmberNodeImpl('Ruby', undefined, undefined, true),
 						childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('Sums', undefined, undefined, true))])
 					),
-				},
+				],
 			})
 
 			await new Promise(setImmediate)
@@ -473,15 +451,15 @@ describe('client', () => {
 			// Second lookup
 			expect(onSocketWrite).toHaveBeenCalledTimes(2)
 			socket.mockData({
-				value: {
-					1: new QualifiedElementImpl<EmberElement>(
+				value: [
+					new QualifiedElementImpl<EmberElement>(
 						'1.1',
 						new EmberNodeImpl('Sums', undefined, undefined, false),
 						childrenOf([
 							new NumberedTreeNodeImpl(1, new EmberNodeImpl('Empty', undefined, undefined, true)),
 						])
 					) as Exclude<RootElement, NumberedTreeNode<EmberElement>>,
-				},
+				],
 			})
 
 			await new Promise(setImmediate)
@@ -498,12 +476,12 @@ describe('client', () => {
 			// lookup on the empty node
 			expect(onSocketWrite).toHaveBeenCalledTimes(3)
 			socket.mockData({
-				value: {
-					1: new QualifiedElementImpl<EmberElement>('1.1.1', new EmberNodeImpl()) as Exclude<
+				value: [
+					new QualifiedElementImpl<EmberElement>('1.1.1', new EmberNodeImpl()) as Exclude<
 						RootElement,
 						NumberedTreeNode<EmberElement>
 					>,
-				},
+				],
 			})
 
 			await new Promise(setImmediate)
@@ -696,7 +674,7 @@ describe('client', () => {
 				const inner = reader.peek()
 				if (inner !== null) reader.readStringAsBuffer(inner)
 			}
-			const matrix = (berDecode(data).value as Collection<RootElement>)[0] as QualifiedElement<Matrix>
+			const matrix = (berDecode(data).value as Array<RootElement>)[0] as QualifiedElement<Matrix>
 			return { path, fields, connections: matrix.contents.connections }
 		}
 
@@ -1284,9 +1262,9 @@ describe('client', () => {
 
 				// Prime the tree first so subsequent qualified updates match path "1".
 				socket.mockData({
-					value: {
-						1: new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'Level', undefined, 1)),
-					},
+					value: [
+						new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'Level', undefined, 1)),
+					],
 				})
 				await new Promise(setImmediate)
 
@@ -1326,15 +1304,15 @@ describe('client', () => {
 		it('handles qualified updates that introduce new child nodes', async () => {
 			await runWithConnection(async (client, socket) => {
 				socket.mockData({
-					value: {
-						1: new NumberedTreeNodeImpl(
+					value: [
+						new NumberedTreeNodeImpl(
 							1,
 							new EmberNodeImpl('Root', undefined, undefined, true),
 							childrenOf([
 								new NumberedTreeNodeImpl(1, new EmberNodeImpl('Existing', undefined, undefined, true)),
 							])
 						),
-					},
+					],
 				})
 				await new Promise(setImmediate)
 
@@ -1390,8 +1368,8 @@ describe('client', () => {
 		it('keeps the other targets when a report covers one target', async () => {
 			await runWithConnection(async (client, socket) => {
 				socket.mockData({
-					value: {
-						1: new NumberedTreeNodeImpl(
+					value: [
+						new NumberedTreeNodeImpl(
 							1,
 							new EmberNodeImpl('router'),
 							childrenOf([
@@ -1411,7 +1389,7 @@ describe('client', () => {
 								),
 							])
 						),
-					},
+					],
 				})
 				await new Promise(setImmediate)
 
@@ -1450,8 +1428,8 @@ describe('client', () => {
 
 			await runWithConnection(async (client, socket) => {
 				socket.mockData({
-					value: {
-						0: new NumberedTreeNodeImpl(
+					value: [
+						new NumberedTreeNodeImpl(
 							0,
 							new EmberNodeImpl('device'),
 							childrenOf([
@@ -1477,7 +1455,7 @@ describe('client', () => {
 								),
 							])
 						),
-					},
+					],
 				})
 				await new Promise(setImmediate)
 
@@ -1751,14 +1729,10 @@ describe('client', () => {
 
 				// Mock successful subscriptions with qualified paths
 				socket.mockData({
-					value: {
-						1: param1Element,
-					},
+					value: [param1Element],
 				})
 				socket.mockData({
-					value: {
-						1: param2Element,
-					},
+					value: [param2Element],
 				})
 
 				await new Promise(setImmediate)
@@ -1843,7 +1817,7 @@ describe('client', () => {
 				//@ts-expect-error - private method
 				const streamManager = client._streamManager
 
-				const decoded: Collection<StreamEntry> = [
+				const decoded: Array<StreamEntry> = [
 					{
 						identifier: 1,
 						value: {
@@ -1961,7 +1935,7 @@ describe('client', () => {
 				)
 				if (!router.children?.get(1)) throw new Error('Expected seeded matrix')
 				childOf(router, 1).parent = router
-				socket.mockData({ value: { 1: router } })
+				socket.mockData({ value: [router] })
 				await new Promise(setImmediate)
 
 				const request = await client.getDirectory(new QualifiedElementImpl('1.1', new MatrixImpl('matrix')))
@@ -1995,7 +1969,7 @@ describe('client', () => {
 				)
 				if (!device.children?.get(1)) throw new Error('Expected seeded element')
 				childOf(device, 1).parent = device
-				socket.mockData({ value: { 1: device } })
+				socket.mockData({ value: [device] })
 				await new Promise(setImmediate)
 
 				const request = await client.getDirectory(childOf(device, 1))
@@ -2137,7 +2111,7 @@ describe('client', () => {
 				counted.rootRequests++
 				if (answer()) {
 					setImmediate(() =>
-						socket.mockData({ value: { 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')) } })
+						socket.mockData({ value: [new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))] })
 					)
 				}
 				return true
@@ -2419,10 +2393,7 @@ describe('client', () => {
 		// A reply to a GetDirectory on the root lists the top-level elements without their children: numbered, or
 		// qualified as a test device sends them
 		test.each<[string, () => DecodeResult<Root>]>([
-			[
-				'numbered',
-				() => ({ value: { 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')) }, errors: [] }),
-			],
+			['numbered', () => ({ value: [new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))], errors: [] })],
 			['qualified', () => createQualifiedNodeResponse('1', new EmberNodeImpl('device'), undefined)],
 		])('resolves, and keeps what is loaded below, when the reply is %s', async (_, reply) => {
 			await runWithConnection(async (client, socket) => {
@@ -2788,7 +2759,7 @@ describe('client', () => {
 		// Loads the root and looks up the parameter 1.1, as a consumer does
 		async function lookUpParameter(client: EmberClient, socket: S101ClientMock, cb?: () => void) {
 			const root = await client.getDirectory(client.tree)
-			socket.mockData({ value: { 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')) } })
+			socket.mockData({ value: [new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))] })
 			await root.response
 			const lookup = client.getElementByPath('1.1', cb)
 			await new Promise(setImmediate)
@@ -2821,7 +2792,7 @@ describe('client', () => {
 
 				// The provider answers the requests sent again, with a value that changed while disconnected
 				await reconnect(socket)
-				socket.mockData({ value: { 1: new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')) } })
+				socket.mockData({ value: [new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))] })
 				socket.mockData(deviceReply(7))
 				await new Promise(setImmediate)
 

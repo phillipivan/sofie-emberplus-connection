@@ -3,7 +3,7 @@ import { ElementType } from '../../../model/EmberElement.js'
 import { Parameter, ParameterType } from '../../../model/Parameter.js'
 import { StreamDescription, StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
-import { Collection, EmberTypedValue, EmberValue, RootType } from '../../../types/types.js'
+import { EmberTypedValue, EmberValue, RootType } from '../../../types/types.js'
 import { StreamManager } from '../StreamManager.js'
 
 // A parameter that reports its value in the stream `streamIdentifier`
@@ -29,8 +29,8 @@ const integer = (value: number): EmberTypedValue => ({ type: ParameterType.Integ
 const octets = (value: Buffer): EmberTypedValue => ({ type: ParameterType.Octets, value })
 
 // A stream collection as it arrives from a provider: encoded, then decoded
-function received(entries: StreamEntry[]): Collection<StreamEntry> {
-	return berDecode(berEncode(entries, RootType.Streams)).value as Collection<StreamEntry>
+function received(entries: StreamEntry[]): Array<StreamEntry> {
+	return berDecode(berEncode(entries, RootType.Streams)).value as Array<StreamEntry>
 }
 
 describe('StreamManager', () => {

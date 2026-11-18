@@ -6,7 +6,7 @@ import { ElementType } from '../../../model/EmberElement.js'
 import { MatrixAddressingMode, MatrixImpl, MatrixType } from '../../../model/Matrix.js'
 import { Parameter, ParameterAccess, ParameterImpl, ParameterType } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
-import { Collection, EmberValue, RootElement } from '../../../types/types.js'
+import { EmberValue, RootElement } from '../../../types/types.js'
 import * as Constants from '../constants.js'
 import { decodeCommand } from '../decoder/Command.js'
 import { decodeConnection } from '../decoder/Connection.js'
@@ -411,7 +411,7 @@ describe('BER and Glow compared with libember', () => {
 				w.endSequence()
 			})
 
-			const decoded = Object.values<RootElement>(berDecode(message).value as Collection<RootElement>)
+			const decoded = berDecode(message).value as Array<RootElement>
 			expect(decoded.map((el) => 'path' in el && el.path)).toEqual(['1', '2'])
 		})
 

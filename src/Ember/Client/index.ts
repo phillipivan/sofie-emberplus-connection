@@ -939,7 +939,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			})
 		} else if (root.rootType === RootType.Elements) {
 			// walk tree (a stream collection holds no elements)
-			for (const rootElement of Object.values<RootElement>(root.value)) {
+			for (const rootElement of root.value) {
 				if ('path' in rootElement) {
 					// element is qualified
 					// the top-level element's number, and the numbers below it ('' splits to [''], which is 0)

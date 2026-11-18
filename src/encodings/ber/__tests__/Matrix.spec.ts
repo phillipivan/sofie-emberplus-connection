@@ -10,7 +10,7 @@ import {
 	signalsOf,
 } from '../../../model/Matrix.js'
 import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
-import { Collection, RelativeOID, RootElement } from '../../../types/types.js'
+import { RelativeOID, RootElement } from '../../../types/types.js'
 import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
 import { decodeMatrix } from '../decoder/Matrix.js'
 import { decodeGenericElement } from '../decoder/Tree.js'
@@ -276,8 +276,8 @@ describe('encodings/ber/Matrix', () => {
 			'60806b80a0807180a0050d03000502a4803080a0806f80a004020200aa00000000a0806f80a004020200ab00000000a0806f80a004020200ac00000000a0806f80a004020200ad00000000000000000000000000000000'
 
 		function decodeMatrixAt(hex: string, path: string): Matrix {
-			const root = berDecode(Buffer.from(hex, 'hex')).value as Collection<RootElement>
-			const element = Object.values<RootElement>(root).find((el) => 'path' in el && el.path === path)
+			const root = berDecode(Buffer.from(hex, 'hex')).value as Array<RootElement>
+			const element = root.find((el) => 'path' in el && el.path === path)
 			expect(element?.contents.type).toBe(ElementType.Matrix)
 			return element?.contents as Matrix
 		}

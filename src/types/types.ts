@@ -23,7 +23,6 @@ export {
 	RootType,
 	RelativeOID,
 	isRelativeOID,
-	Collection,
 }
 
 type EmberTreeNode<T extends EmberElement> = NumberedTreeNode<T>
@@ -55,7 +54,8 @@ function isCommandableElementType(type: ElementType): type is CommandableElement
 		type === ElementType.Function
 	)
 }
-type Root = Collection<RootElement> | Collection<StreamEntry> | InvocationResult
+/** What a message holds: its elements, or its stream entries, as they came, in order; or an invocation's result */
+type Root = Array<RootElement> | Array<StreamEntry> | InvocationResult
 
 enum RootType {
 	Elements,
@@ -93,5 +93,3 @@ type RelativeOID = '' | `${number}` | `${number}.${string}`
 function isRelativeOID(s: string): s is RelativeOID {
 	return /^(\d+(\.\d+)*)?$/.test(s)
 }
-
-type Collection<T> = { [index: number]: T }

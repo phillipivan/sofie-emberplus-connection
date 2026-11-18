@@ -4,7 +4,7 @@ import { ElementType } from '../../../model/EmberElement.js'
 import { EmberNode, EmberNodeImpl } from '../../../model/EmberNode.js'
 import { EmberFunction, EmberFunctionImpl, Parameter, ParameterImpl, ParameterType } from '../../../model/index.js'
 import { Children, isNumbered, NumberedTreeNodeImpl, QualifiedElementImpl } from '../../../model/Tree.js'
-import { Collection, RelativeOID, RootElement } from '../../../types/types.js'
+import { RelativeOID, RootElement } from '../../../types/types.js'
 import {
 	CommandBERID,
 	ElementCollectionBERID,
@@ -209,9 +209,9 @@ export function decodeGenericElement(
 export function decodeRootElements(
 	reader: Ber.Reader,
 	options: DecodeOptions = defaultDecode
-): DecodeResult<Collection<RootElement>> {
+): DecodeResult<Array<RootElement>> {
 	reader.readSequence(RootElementsBERID)
-	const rootEls = makeResult<Collection<RootElement>>({})
+	const rootEls = makeResult<Array<RootElement>>([])
 
 	const endOffset = reader.offset + reader.length
 	while (reader.offset < endOffset) {
@@ -223,10 +223,10 @@ export function decodeRootElements(
 			continue
 		}
 		const rootEl = decodeGenericElement(reader, options)
-		// Keyed by place, in the order they came: an element's number or path is in the element. (Keyed by number, one
-		// could replace another with that key, and the collection lost the order the provider reported them in.)
+		// In the order they came, as many as came: an element's number or path is in the element, and a message may report
+		// one element twice. (Keyed by number, one could replace another, and the order was lost.)
 		safeSet(rootEl, rootEls, (x, y) => {
-			y[Object.keys(y).length] = x
+			y.push(x)
 			return y
 		})
 	}

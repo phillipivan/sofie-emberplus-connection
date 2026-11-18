@@ -3,7 +3,7 @@ import { EmberNodeImpl } from '../../model/EmberNode.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
 import { StreamEntry } from '../../model/StreamEntry.js'
 import { NumberedTreeNodeImpl } from '../../model/Tree.js'
-import { Collection, QualifiedCommand, RootElement, RootType } from '../../types/types.js'
+import { QualifiedCommand, RootElement, RootType } from '../../types/types.js'
 import { InvocationResultBERID, RootBERID, RootElementsBERID, StreamEntriesBERID } from './constants.js'
 import { DecodeOptions, DecodeResult, defaultDecode, makeResult, unknownApplication } from './decoder/DecodeResult.js'
 import { decodeInvocationResult } from './decoder/InvocationResult.js'
@@ -20,8 +20,8 @@ export { berEncode, berDecode, DecodedRoot, EncodableRoot }
  * may include commands for elements given by their path, as a consumer sends them.
  */
 type EncodableRoot =
-	| [el: Collection<RootElement | QualifiedCommand>, rootType: RootType.Elements]
-	| [el: Collection<StreamEntry>, rootType: RootType.Streams]
+	| [el: Array<RootElement | QualifiedCommand>, rootType: RootType.Elements]
+	| [el: Array<StreamEntry>, rootType: RootType.Streams]
 	| [el: InvocationResult, rootType: RootType.InvocationResult]
 
 /**
@@ -29,8 +29,8 @@ type EncodableRoot =
  * it is, to tell them apart by.
  */
 type DecodedRoot =
-	| (DecodeResult<Collection<RootElement>> & { rootType: RootType.Elements })
-	| (DecodeResult<Collection<StreamEntry>> & { rootType: RootType.Streams })
+	| (DecodeResult<Array<RootElement>> & { rootType: RootType.Elements })
+	| (DecodeResult<Array<StreamEntry>> & { rootType: RootType.Streams })
 	| (DecodeResult<InvocationResult> & { rootType: RootType.InvocationResult })
 
 /** Encodes a root: elements, a stream collection or an invocation result, with the RootType of that kind of root */
@@ -41,7 +41,7 @@ function berEncode(...[el, rootType]: EncodableRoot): Buffer {
 	switch (rootType) {
 		case RootType.Elements:
 			writer.startSequence(RootElementsBERID) // Start RootElementCollection
-			for (const rootEl of Object.values<RootElement | QualifiedCommand>(el)) {
+			for (const rootEl of el) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeRootElement(rootEl, writer)
 				writer.endSequence()
@@ -50,7 +50,7 @@ function berEncode(...[el, rootType]: EncodableRoot): Buffer {
 			break
 		case RootType.Streams:
 			writer.startSequence(StreamEntriesBERID) // Start StreamCollection
-			for (const entry of Object.values<StreamEntry>(el)) {
+			for (const entry of el) {
 				writer.startSequence(Ber.CONTEXT(0))
 				encodeStreamEntry(entry, writer)
 				writer.endSequence()

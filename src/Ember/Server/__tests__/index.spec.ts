@@ -67,7 +67,7 @@ class FakeConnection extends EventEmitter {
 			new EmberNodeImpl(),
 			childrenOf([new NumberedTreeNodeImpl(0, command)])
 		)
-		this.emit('emberTree', { rootType: RootType.Elements, value: { 0: element } })
+		this.emit('emberTree', { rootType: RootType.Elements, value: [element] })
 	}
 
 	/** How many messages the server sends this connection while `fn` runs */
@@ -83,7 +83,7 @@ class FakeConnection extends EventEmitter {
 function onlyElement(data: Buffer): RootElement {
 	const decoded = berDecode(data)
 	if (decoded.rootType !== RootType.Elements) throw new Error('Expected elements')
-	const elements = Object.values<RootElement>(decoded.value)
+	const elements = decoded.value
 	expect(elements).toHaveLength(1)
 	return at(elements, 0)
 }
@@ -294,12 +294,12 @@ describe('EmberServer subscriptions', () => {
 			consumer.received.length = 0
 			consumer.emit('emberTree', {
 				rootType: RootType.Elements,
-				value: {
-					0: new QualifiedElementImpl(
+				value: [
+					new QualifiedElementImpl(
 						'1.1.1',
 						new ParameterImpl(ParameterType.Integer, undefined, undefined, 6)
 					),
-				},
+				],
 			})
 			await new Promise(setImmediate)
 			return consumer.received.map(reportedValue)
@@ -413,7 +413,7 @@ describe('EmberServer invocations', () => {
 		else
 			consumer.emit('emberTree', {
 				rootType: RootType.Elements,
-				value: { 0: new NumberedTreeNodeImpl(0, command) },
+				value: [new NumberedTreeNodeImpl(0, command)],
 			})
 		await new Promise(setImmediate)
 
@@ -663,9 +663,7 @@ describe('EmberServer matrices', () => {
 			const requested = connectionsOf(connections)
 			consumer.emit('emberTree', {
 				rootType: RootType.Elements,
-				value: {
-					0: new QualifiedElementImpl('1.1', new MatrixImpl(undefined, undefined, undefined, requested)),
-				},
+				value: [new QualifiedElementImpl('1.1', new MatrixImpl(undefined, undefined, undefined, requested))],
 			})
 			await new Promise(setImmediate)
 			return consumer.received.map(reportedConnections)
@@ -747,8 +745,8 @@ describe('EmberServer matrices', () => {
 			consumer.received.length = 0
 			consumer.emit('emberTree', {
 				rootType: RootType.Elements,
-				value: {
-					0: new QualifiedElementImpl(
+				value: [
+					new QualifiedElementImpl(
 						'1.1',
 						new MatrixImpl(
 							'router',
@@ -757,7 +755,7 @@ describe('EmberServer matrices', () => {
 							connectionsOf([new ConnectionImpl(2, [3], ConnectionOperation.Connect)])
 						)
 					),
-				},
+				],
 			})
 			await new Promise(setImmediate)
 			return consumer.received.map(reportedConnections)

@@ -4,7 +4,7 @@ import * as Ber from '../../../Ber/index.js'
 import { Reader } from '../../../Ber/Reader.js'
 import { Parameter, ParameterType } from '../../../model/Parameter.js'
 import { QualifiedElement } from '../../../model/Tree.js'
-import { Collection, RootElement } from '../../../types/types.js'
+import { RootElement } from '../../../types/types.js'
 import { berDecode } from '../index.js'
 import { withTwoByteTags } from './encodingForms.js'
 import { messages } from './messages.js'
@@ -69,7 +69,7 @@ describe('tags in the multi-byte form', () => {
 	}
 	const parameter = (message: Buffer) => {
 		const decoded = berDecode(message)
-		const [element] = Object.values<RootElement>(decoded.value as Collection<RootElement>)
+		const [element] = decoded.value as Array<RootElement>
 		return {
 			element: element as QualifiedElement<Parameter>,
 			errors: decoded.errors ?? [],

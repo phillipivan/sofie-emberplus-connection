@@ -8,7 +8,7 @@ import { connectionsOf, Matrix } from '../../../model/Matrix.js'
 import { ParameterType } from '../../../model/Parameter.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { childrenOf, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
-import { Collection, RelativeOID, Root, RootElement, RootType } from '../../../types/types.js'
+import { RelativeOID, Root, RootElement, RootType } from '../../../types/types.js'
 import { ElementCollectionBERID, QualifiedNodeBERID, RootBERID, RootElementsBERID } from '../constants.js'
 import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
 import { encodeQualifedElement } from '../encoder/Qualified.js'
@@ -33,7 +33,7 @@ describe('encoders/Ber/index', () => {
 		const result = new InvocationResultImpl(3, true)
 
 		test.each<[string, EncodableRoot]>([
-			['elements', [{ 0: element }, RootType.Elements]], // decoded elements are keyed by their place
+			['elements', [[element], RootType.Elements]], // decoded elements are keyed by their place
 			['a stream collection', [[entry], RootType.Streams]],
 			['an invocation result', [result, RootType.InvocationResult]],
 		])('berDecode gives %s its RootType', (_, root) => {
@@ -70,14 +70,14 @@ describe('encoders/Ber/index', () => {
 		['qualified, then numbered 1', [qualified('1.1', 'q'), numbered(1, 'b')]],
 		['two numbered 3', [numbered(3, 'a'), numbered(3, 'b')]],
 	])('berDecode keeps every root element: %s', (_, elements) => {
-		const decoded = berDecode(berEncode({ ...elements }, RootType.Elements))
+		const decoded = berDecode(berEncode(elements, RootType.Elements))
 
-		expect(decoded.value).toEqual({ ...elements })
+		expect(decoded.value).toEqual(elements)
 	})
-	test('berDecode keys root elements by their place, in the order they came', () => {
-		const decoded = berDecode(berEncode({ 0: numbered(4, 'a'), 1: qualified('1.1', 'q') }, RootType.Elements))
+	test('berDecode gives the root elements in the order they came', () => {
+		const decoded = berDecode(berEncode([numbered(4, 'a'), qualified('1.1', 'q')], RootType.Elements))
 
-		expect(decoded.value).toEqual({ 0: numbered(4, 'a'), 1: qualified('1.1', 'q') })
+		expect(decoded.value).toEqual([numbered(4, 'a'), qualified('1.1', 'q')])
 	})
 
 	// The children are numbered elements (ElementCollection): a qualified element among them has no number to be
@@ -115,7 +115,7 @@ describe('encoders/Ber/index', () => {
 			const parent = new QualifiedElementImpl('1', new EmberNodeImpl(), childrenOf([kid]))
 			kid.parent = parent
 
-			expect(decoded.value).toEqual({ 0: parent })
+			expect(decoded.value).toEqual([parent])
 			expect(decoded.errors.map((e) => e.message)).toEqual([
 				'decode children: qualified element 1.2 is not a child: skipped',
 			])
@@ -133,39 +133,41 @@ describe('encoders/Ber/index', () => {
 		roundTrip(res, RootType.InvocationResult)
 	})
 	test('Qualified node', () => {
-		const res = { 0: new QualifiedElementImpl('2.3.1', new EmberNodeImpl('Test node')) }
+		const res = [new QualifiedElementImpl('2.3.1', new EmberNodeImpl('Test node'))]
 		roundTrip(res, RootType.Elements)
 	})
 	test('Numbered node', () => {
-		const res = { 0: new NumberedTreeNodeImpl(0, new EmberNodeImpl('Test node')) }
+		const res = [new NumberedTreeNodeImpl(0, new EmberNodeImpl('Test node'))]
 		roundTrip(res, RootType.Elements)
 	})
 	test('Numbered tree', () => {
-		const res = {
-			0: new NumberedTreeNodeImpl(
+		const res = [
+			new NumberedTreeNodeImpl(
 				0,
 				new EmberNodeImpl('Test node'),
 				childrenOf([new NumberedTreeNodeImpl(0, new EmberNodeImpl('Test node 1'))])
 			),
-		}
-		if (!res[0].children) {
+		]
+		const element = at(res, 0)
+		if (!element.children) {
 			throw new Error(`Tree must have children`)
 		}
-		at([...res[0].children.values()], 0).parent = res[0]
+		at([...element.children.values()], 0).parent = element
 		roundTrip(res, RootType.Elements)
 	})
 	test('Qualified tree', () => {
-		const res = {
-			0: new QualifiedElementImpl(
+		const res = [
+			new QualifiedElementImpl(
 				'2.3.1',
 				new EmberNodeImpl('Test node'),
 				childrenOf([new NumberedTreeNodeImpl(0, new EmberNodeImpl('Node A'), new Map())])
 			),
-		}
-		if (!res[0].children) {
+		]
+		const element = at(res, 0)
+		if (!element.children) {
 			throw new Error(`Tree must have children`)
 		}
-		at([...res[0].children.values()], 0).parent = res[0]
+		at([...element.children.values()], 0).parent = element
 		roundTrip(res, RootType.Elements)
 	})
 	// A connect request as the specification's examples, Lawo's libember and Ember+ Viewer send it: a QualifiedMatrix
@@ -178,11 +180,11 @@ describe('encoders/Ber/index', () => {
 				...contents,
 			})
 
-		expect(berEncode({ 0: matrix({}) }, RootType.Elements).toString('hex')).toBe(
+		expect(berEncode([matrix({})], RootType.Elements).toString('hex')).toBe(
 			'60236b21a01f711da0040d020101a5153013a011700fa003020102a1030d0103a203020101'
 		)
 		// anything that belongs in the contents still writes them
-		roundTrip({ 0: matrix({ identifier: 'matrix' }) }, RootType.Elements)
+		roundTrip([matrix({ identifier: 'matrix' })], RootType.Elements)
 	})
 	test('Unknown root', () => {
 		const testBuffer = Buffer.from([Ber.APPLICATION(30)])
@@ -210,7 +212,7 @@ describe('encoders/Ber/index', () => {
 			'60806b80a0807180a0050d03000502a5803080a0807080a00302010aa1040d02812ca30302010100000000000000000000000000000000',
 			'hex'
 		)
-		const decoded = guarded<Root>(berDecode(report)) as Collection<RootElement>
+		const decoded = guarded<Root>(berDecode(report)) as Array<RootElement>
 		const matrix = decoded[0] as QualifiedElement<Matrix>
 
 		expect(matrix.path).toBe('0.5.2')

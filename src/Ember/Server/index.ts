@@ -23,7 +23,6 @@ import {
 import { InvocationResultImpl } from '../../model/InvocationResult.js'
 import { Children } from '../../model/Tree.js'
 import {
-	Collection,
 	EmberValue,
 	NumberedTreeNode,
 	QualifiedElement,
@@ -278,8 +277,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		return berEncode([qualified], RootType.Elements)
 	}
 
-	private _handleIncoming(incoming: DecodeResult<Collection<RootElement>>, client: S101Socket) {
-		for (const rootEl of Object.values<RootElement>(incoming.value)) {
+	private _handleIncoming(incoming: DecodeResult<Array<RootElement>>, client: S101Socket) {
+		for (const rootEl of incoming.value) {
 			if (isElementOfType(rootEl, ElementType.Command) && 'number' in rootEl) {
 				// command on root
 				this._handleCommand('', rootEl, client).catch((e) => this.emit('error', e))

@@ -4,7 +4,7 @@ import * as Ber from '../../../Ber/index.js'
 import { at } from '../../../lib/at.js'
 import { EmberElement } from '../../../model/EmberElement.js'
 import { TreeElement } from '../../../model/Tree.js'
-import { Collection, RootElement } from '../../../types/types.js'
+import { RootElement } from '../../../types/types.js'
 import { ElementCollectionBERID, NodeBERID, RootBERID, RootElementsBERID, TemplateBERID } from '../constants.js'
 import { berDecode } from '../index.js'
 import { withTwoByteTags } from './encodingForms.js'
@@ -152,7 +152,7 @@ describe('decoding elements nested deep', () => {
 
 	const decode = (message: Buffer) => {
 		const decoded = berDecode(message)
-		return { errors: decoded.errors.map((e) => e.message), root: (decoded.value as Collection<RootElement>)[0] }
+		return { errors: decoded.errors.map((e) => e.message), root: (decoded.value as Array<RootElement>)[0] }
 	}
 
 	test("decodes nodes 64 levels below the root's", () => {

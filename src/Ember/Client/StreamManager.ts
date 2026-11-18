@@ -5,7 +5,6 @@ import { StreamEntry } from '../../model/index.js'
 import { isValueOfType, Parameter, ParameterType } from '../../model/Parameter.js'
 import { StreamFormat } from '../../model/StreamDescription.js'
 import { EmberValue } from '../../types/index.js'
-import { Collection } from '../../types/types.js'
 
 const debug = makeDebug('StreamManager')
 
@@ -121,8 +120,8 @@ export class StreamManager extends EventEmitter<StreamManagerEvents> {
 		return this.registeredStreams.has(identifier)
 	}
 
-	public updateStreamValues(streamEntries: Collection<StreamEntry>): void {
-		Object.values<StreamEntry>(streamEntries).forEach((streamEntry) => {
+	public updateStreamValues(streamEntries: Array<StreamEntry>): void {
+		streamEntries.forEach((streamEntry) => {
 			// O(1) lookup by identifier
 			const paths = this.streamsByIdentifier.get(streamEntry.identifier)
 
