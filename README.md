@@ -4,9 +4,9 @@ A TypeScript implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plu
 
 It has been tested with _Stagetec XACI_, _Stagetec Nexus Compact_, and _DHD XD3_.
 
-The current version is very losely based on the original library and Mr Gilles Dufour's rewrites. It is however rewritten almost completely from scratch and bears little to no resemblance to earlier libraries.
+The Sofie version was very losely based on the original library and Mr Gilles Dufour's rewrites.
 
-Relative to the official Sofie branch this fork has additional configuration options for the client, updated depencies, and many bug fixes. It it maintained for use by the module for the Companion project. Other users are welcome, but should not expect the formal, process driven approach of the sofie library. _No consideration_ is given regarding the suitability of changes in this fork for any projects other than the one mentioned.
+Relative to the Sofie branch this fork has additional configuration options, stronger typings, useful helper functions, updated dependencies, and many bug fixes. Several of these changes are breaking, it is not a drop in replacement for the Sofie Library. It it maintained for use by the module for the Companion project.
 
 ## Changes in this fork
 
