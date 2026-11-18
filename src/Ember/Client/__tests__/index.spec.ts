@@ -22,6 +22,7 @@ import {
 	ParameterType,
 	QualifiedElement,
 	QualifiedElementImpl,
+	signalsOf,
 	StreamFormat,
 	TemplateImpl,
 	TreeElement,
@@ -671,8 +672,8 @@ describe('client', () => {
 					1,
 					new MatrixImpl(
 						'matrix',
-						[1, 2, 3],
-						[1, 2, 3, 4],
+						signalsOf([1, 2, 3]),
+						signalsOf([1, 2, 3, 4]),
 						{
 							1: { target: 1, sources: [1] },
 							2: { target: 2, sources: [2] },
@@ -748,28 +749,39 @@ describe('client', () => {
 			})
 		})
 
-		// A signal's contents are merged as an element's are: a report gives what changed. (They were read past.)
-		it("merges a report of signals' contents into those it has, signal by signal", async () => {
+		// A report's targets (sources) are the matrix's whole collection, contents and all: the Glow DTD has a non-linear
+		// matrix's targetCount "define the number of targets contained in the targets property". They replace those kept;
+		// a report without them, such as one of connections, leaves them. (A signal's contents were merged signal by
+		// signal, the numbers replaced, so contents were kept for targets no longer listed.)
+		it("replaces the matrix's targets and sources with those a report gives", async () => {
 			await runWithConnection(async (client, socket) => {
 				const node = seedMatrix(client)
-				node.contents.targetContents = { 1: { identifier: 'out-1', labelsLocation: '1.9.1' } }
+				node.contents.targets = new Map([
+					[1, { identifier: 'out-1', labelsLocation: '1.9.1' }],
+					[2, {}],
+				])
 
 				const report = (contents: Matrix) =>
 					socket.mockData(createQualifiedNodeResponse('1.1', contents, undefined))
 				report({
 					type: ElementType.Matrix,
-					targetContents: { 1: { isOnline: false }, 2: { identifier: 'out-2' } },
-					sourceContents: { 4: { labelsLocation: '1.8.4' } },
+					targets: new Map([
+						[2, { identifier: 'out-2' }],
+						[3, {}],
+					]),
+					sources: new Map([[4, { labelsLocation: '1.8.4' }]]),
 				})
 				await new Promise(setImmediate)
-				report({ type: ElementType.Matrix, connections: { 3: { target: 3, sources: [1] } } }) // no signal contents
+				report({ type: ElementType.Matrix, connections: { 3: { target: 3, sources: [4] } } }) // no signals
 				await new Promise(setImmediate)
 
-				expect(node.contents.targetContents).toEqual({
-					1: { identifier: 'out-1', labelsLocation: '1.9.1', isOnline: false },
-					2: { identifier: 'out-2' },
-				})
-				expect(node.contents.sourceContents).toEqual({ 4: { labelsLocation: '1.8.4' } })
+				expect(node.contents.targets).toEqual(
+					new Map([
+						[2, { identifier: 'out-2' }],
+						[3, {}],
+					])
+				)
+				expect(node.contents.sources).toEqual(new Map([[4, { labelsLocation: '1.8.4' }]]))
 			})
 		})
 
@@ -820,7 +832,7 @@ describe('client', () => {
 				await expect(request.response).resolves.toBeDefined()
 				expect(node.contents.connections?.[2]).toEqual({ target: 2, sources: [3] })
 				expect(node.contents.identifier).toBe('matrix')
-				expect(node.contents.targets).toEqual([1, 2, 3])
+				expect(node.contents.targets).toEqual(signalsOf([1, 2, 3]))
 			})
 		})
 
@@ -1363,8 +1375,8 @@ describe('client', () => {
 									2,
 									new MatrixImpl(
 										'matrix',
-										[10, 11, 12, 13],
-										[170, 171, 172, 173],
+										signalsOf([10, 11, 12, 13]),
+										signalsOf([170, 171, 172, 173]),
 										undefined,
 										undefined,
 										undefined,
@@ -2537,7 +2549,7 @@ describe('client', () => {
 
 		it('takes the properties of a matrix update, and still merges its connections by target', async () => {
 			await runWithConnection(async (client, socket) => {
-				const matrix = new MatrixImpl('router', [0, 1], [0, 1], {
+				const matrix = new MatrixImpl('router', signalsOf([0, 1]), signalsOf([0, 1]), {
 					0: new ConnectionImpl(0, [0]),
 					1: new ConnectionImpl(1, [1]),
 				})

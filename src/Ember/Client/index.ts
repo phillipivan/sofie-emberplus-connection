@@ -21,7 +21,7 @@ import { EmberFunction } from '../../model/EmberFunction.js'
 import { EmberNodeImpl } from '../../model/EmberNode.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
 import { LabelSet } from '../../model/Label.js'
-import { Connections, hasSignal, Matrix, SignalContents } from '../../model/Matrix.js'
+import { Connections, hasSignal, Matrix } from '../../model/Matrix.js'
 import { fitsItsType, isValueOfType, Parameter, ParameterImpl } from '../../model/Parameter.js'
 import { NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
 import {
@@ -1121,20 +1121,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	}
 
 	private _updateMatrix(update: Matrix, matrix: Matrix) {
-		// Connections, and the signals' contents, are merged below, since a report may cover only what changed
-		const merged: Array<keyof Matrix> = ['connections', 'targetContents', 'sourceContents']
-		const properties = propertiesOf(update).filter((key) => !merged.includes(key))
+		// Connections are merged below, since a report may cover only the targets that changed. The targets and sources
+		// are replaced, contents and all, by a report that has them: they are the matrix's whole collection.
+		const properties = propertiesOf(update).filter((key) => key !== 'connections')
 		updateProps<Matrix>(matrix, update, properties)
-
-		// a signal's contents: the properties reported for it, as for an element's
-		for (const key of ['targetContents', 'sourceContents'] as const) {
-			const reported = update[key]
-			if (!reported) continue
-			const kept = (matrix[key] ??= {})
-			for (const [signal, contents] of Object.entries<SignalContents>(reported)) {
-				updateProps<SignalContents>((kept[Number(signal)] ??= {}), contents)
-			}
-		}
 
 		// update connections
 		if (update.connections) {

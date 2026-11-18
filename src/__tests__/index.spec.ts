@@ -55,9 +55,15 @@ describe('the package exports', () => {
 
 	test("a matrix signal's contents", () => {
 		const contents: Model.SignalContents = { identifier: 'out-1', isOnline: true, labelsLocation: '1.9.1' }
-		const matrix: Model.Matrix = { type: Model.ElementType.Matrix, targets: [1], targetContents: { 1: contents } }
+		const matrix: Model.Matrix = { type: Model.ElementType.Matrix, targets: new Map([[1, contents]]) }
 
-		expect(matrix.targetContents?.[1]?.labelsLocation).toBe('1.9.1')
+		expect(matrix.targets?.get(1)?.labelsLocation).toBe('1.9.1')
+		expect(Model.signalsOf([1, 2])).toEqual(
+			new Map([
+				[1, {}],
+				[2, {}],
+			])
+		)
 		expect([Model.hasSignal(matrix, 'target', 1), Model.hasSignal(matrix, 'target', 2)]).toEqual([true, false])
 	})
 

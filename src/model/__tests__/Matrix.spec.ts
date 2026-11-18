@@ -1,7 +1,7 @@
-import { hasSignal, Matrix, MatrixAddressingMode, MatrixImpl } from '../Matrix.js'
+import { hasSignal, Matrix, MatrixAddressingMode, MatrixImpl, signalsOf } from '../Matrix.js'
 
 describe('hasSignal', () => {
-	const nonLinear = new MatrixImpl('m', [1, 5], [2, 7])
+	const nonLinear = new MatrixImpl('m', signalsOf([1, 5]), signalsOf([2, 7]))
 	nonLinear.addressingMode = MatrixAddressingMode.NonLinear
 	const linear = (targetCount?: number, sourceCount?: number): Matrix => {
 		const m = new MatrixImpl('m')

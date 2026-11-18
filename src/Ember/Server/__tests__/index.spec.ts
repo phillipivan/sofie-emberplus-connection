@@ -37,6 +37,7 @@ import {
 	ParameterImpl,
 	ParameterType,
 	QualifiedElementImpl,
+	signalsOf,
 } from '../../../model/index.js'
 import { InvocationResultImpl } from '../../../model/InvocationResult.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
@@ -437,7 +438,7 @@ describe('EmberServer matrices', () => {
 
 	async function init(matrixType?: MatrixType) {
 		jest.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
-		const contents = new MatrixImpl('router', [0, 1, 2], [0, 1, 2, 3], {
+		const contents = new MatrixImpl('router', signalsOf([0, 1, 2]), signalsOf([0, 1, 2, 3]), {
 			0: new ConnectionImpl(0, [1]),
 			1: new ConnectionImpl(1, [2]),
 			2: new ConnectionImpl(2, []),

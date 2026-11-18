@@ -3,7 +3,18 @@ import { Connection, isConnection } from './Connection.js'
 import { ElementType, EmberBaseElement } from './EmberElement.js'
 import { Label } from './Label.js'
 
-export { Matrix, MatrixType, MatrixAddressingMode, Connections, MatrixImpl, SignalContents, isConnections, hasSignal }
+export {
+	Matrix,
+	MatrixType,
+	MatrixAddressingMode,
+	Connections,
+	MatrixImpl,
+	SignalContents,
+	Signals,
+	signalsOf,
+	isConnections,
+	hasSignal,
+}
 
 /**
  *  Type of a matrix.
@@ -50,19 +61,32 @@ interface SignalContents {
 }
 
 /**
+ * A matrix's targets or sources: each signal's contents, by its number, in the order the provider gave them (an empty
+ * object for a signal without contents). A Map, so that a number is there once, with its contents beside it.
+ */
+type Signals = Map<number, SignalContents>
+
+/** Signals of the numbers given, without contents */
+function signalsOf(numbers: Iterable<number>): Signals {
+	const signals: Signals = new Map()
+	for (const number of numbers) signals.set(number, {})
+	return signals
+}
+
+/**
  *  A two-dimensional array of Boolean values used for eg. signal routing, bus
  *  assignments on mixing consoles etc..
  */
 interface Matrix extends EmberBaseElement {
 	type: ElementType.Matrix
-	/** Target objects, the columns of the matrix. */
-	targets?: Array<number>
-	/** Source objects, the row of the matric. */
-	sources?: Array<number>
-	/** The contents the provider gave targets (identifier, isOnline, labelsLocation), by target number. */
-	targetContents?: { [target: number]: SignalContents }
-	/** The contents the provider gave sources, by source number. */
-	sourceContents?: { [source: number]: SignalContents }
+	/**
+	 * The targets, the columns of the matrix, with their contents (identifier, isOnline, labelsLocation). The matrix's
+	 * whole collection: a non-linear matrix's targetCount "defines the number of targets contained in the targets
+	 * property" (Glow DTD), so a report that has them replaces them.
+	 */
+	targets?: Signals
+	/** The sources, the rows of the matrix, with their contents, as `targets` has the targets */
+	sources?: Signals
 	/**
 	 * Describes the targets active connections. In a consumer's tree: each target's current sources, with the
 	 * disposition the provider last reported for the target (pending while a change to it is queued).
@@ -104,8 +128,8 @@ class MatrixImpl implements Matrix {
 	public readonly type: ElementType.Matrix = ElementType.Matrix
 	constructor(
 		public identifier?: string,
-		public targets?: Array<number>,
-		public sources?: Array<number>,
+		public targets?: Signals,
+		public sources?: Signals,
 		public connections?: Connections,
 		public description?: string,
 		public matrixType?: MatrixType,
@@ -118,9 +142,7 @@ class MatrixImpl implements Matrix {
 		public gainParameterNumber?: number,
 		public labels?: Array<Label>,
 		public schemaIdentifiers?: string,
-		public templateReference?: RelativeOID,
-		public targetContents?: { [target: number]: SignalContents },
-		public sourceContents?: { [source: number]: SignalContents }
+		public templateReference?: RelativeOID
 	) {}
 }
 
@@ -141,7 +163,7 @@ function isConnections(value: unknown): value is Connections {
  */
 function hasSignal(matrix: Matrix, kind: 'target' | 'source', signal: number): boolean | undefined {
 	const list = kind === 'target' ? matrix.targets : matrix.sources
-	if (list) return list.includes(signal)
+	if (list) return list.has(signal)
 	const count = kind === 'target' ? matrix.targetCount : matrix.sourceCount
 	const linear = (matrix.addressingMode ?? MatrixAddressingMode.Linear) === MatrixAddressingMode.Linear
 	if (linear && count !== undefined) return Number.isInteger(signal) && signal >= 0 && signal < count

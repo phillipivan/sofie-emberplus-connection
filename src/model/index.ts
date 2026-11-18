@@ -27,6 +27,8 @@ import {
 	MatrixImpl,
 	MatrixType,
 	SignalContents,
+	Signals,
+	signalsOf,
 } from './Matrix.js'
 import {
 	fitsItsType,
@@ -88,6 +90,8 @@ export {
 	isConnections,
 	hasSignal,
 	SignalContents,
+	Signals,
+	signalsOf,
 	Parameter,
 	ParameterType,
 	ParameterAccess,

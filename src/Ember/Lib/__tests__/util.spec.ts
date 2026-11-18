@@ -11,6 +11,7 @@ import {
 	ParameterType,
 	QualifiedElement,
 	QualifiedElementImpl,
+	signalsOf,
 	TemplateImpl,
 	TreeElement,
 } from '../../../model/index.js'
@@ -38,10 +39,13 @@ describe('element type guards', () => {
 	})
 
 	test('isElementOfType narrows the element with its contents', () => {
-		const element: TreeElement<EmberElement> = new NumberedTreeNodeImpl(2, new MatrixImpl('matrix', [1, 2]))
+		const element: TreeElement<EmberElement> = new NumberedTreeNodeImpl(
+			2,
+			new MatrixImpl('matrix', signalsOf([1, 2]))
+		)
 
 		// Compiles only if the guard narrows `element.contents` to Matrix
-		expect(isElementOfType(element, ElementType.Matrix) && element.contents.targets).toEqual([1, 2])
+		expect(isElementOfType(element, ElementType.Matrix) && element.contents.targets).toEqual(signalsOf([1, 2]))
 	})
 
 	test('isInvokeElement tells an Invoke from other commands', () => {

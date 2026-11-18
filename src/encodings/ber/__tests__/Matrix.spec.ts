@@ -2,7 +2,7 @@ import * as Ber from '../../../Ber/index.js'
 import { at } from '../../../lib/at.js'
 import { ConnectionDisposition, ConnectionOperation } from '../../../model/Connection.js'
 import { ElementType } from '../../../model/EmberElement.js'
-import { Matrix, MatrixAddressingMode, MatrixImpl, MatrixType } from '../../../model/Matrix.js'
+import { Matrix, MatrixAddressingMode, MatrixImpl, MatrixType, signalsOf } from '../../../model/Matrix.js'
 import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, RelativeOID, RootElement } from '../../../types/types.js'
 import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
@@ -35,23 +35,25 @@ describe('encodings/ber/Matrix', () => {
 		})
 		test('targets', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
-			matrix.targets = [0, 1, 2, 3, 4]
+			matrix.targets = signalsOf([0, 1, 2, 3, 4])
 			roundtripMatrix(matrix, qualified)
 		})
 		test('sources', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
-			matrix.sources = [0, 1, 2, 3, 4]
+			matrix.sources = signalsOf([0, 1, 2, 3, 4])
 			roundtripMatrix(matrix, qualified)
 		})
 		test('signal contents', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
-			matrix.targets = [0, 1, 2]
-			matrix.sources = [5, 6]
-			matrix.targetContents = {
-				0: { identifier: 'out-0', isOnline: false, labelsLocation: '1.9.0' },
-				2: { isOnline: true },
-			}
-			matrix.sourceContents = { 6: { labelsLocation: '1.8.6' } }
+			matrix.targets = new Map([
+				[0, { identifier: 'out-0', isOnline: false, labelsLocation: '1.9.0' }],
+				[1, {}],
+				[2, { isOnline: true }],
+			])
+			matrix.sources = new Map([
+				[5, {}],
+				[6, { labelsLocation: '1.8.6' }],
+			])
 			roundtripMatrix(matrix, qualified)
 		})
 		test('connections', () => {
@@ -209,12 +211,12 @@ describe('encodings/ber/Matrix', () => {
 		})
 		test('multiple targets', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
-			matrix.targets = [0, 1, 2, 3, 4]
+			matrix.targets = signalsOf([0, 1, 2, 3, 4])
 			roundtripMatrix(matrix, qualified, true)
 		})
 		test('multiple sources', () => {
 			const matrix: Matrix = new MatrixImpl('identifier')
-			matrix.sources = [0, 1, 2, 3, 4]
+			matrix.sources = signalsOf([0, 1, 2, 3, 4])
 			roundtripMatrix(matrix, qualified, true)
 		})
 		test('multiple connections', () => {
@@ -236,8 +238,8 @@ describe('encodings/ber/Matrix', () => {
 				{ basePath: '1.2.3', description: 'Primary' },
 				{ basePath: '1.2.4', description: 'Secondary' },
 			]
-			matrix.targets = [0, 1, 2]
-			matrix.sources = [0, 1, 2, 3]
+			matrix.targets = signalsOf([0, 1, 2])
+			matrix.sources = signalsOf([0, 1, 2, 3])
 			matrix.connections = {
 				0: { target: 0, sources: [1] },
 				1: { target: 1, sources: [2] },
@@ -288,10 +290,10 @@ describe('encodings/ber/Matrix', () => {
 			})
 		})
 		test('targets', () => {
-			expect(decodeMatrixAt(targets, '0.5.2').targets).toEqual([10, 11, 12, 13])
+			expect(decodeMatrixAt(targets, '0.5.2').targets).toEqual(signalsOf([10, 11, 12, 13]))
 		})
 		test('sources', () => {
-			expect(decodeMatrixAt(sources, '0.5.2').sources).toEqual([170, 171, 172, 173])
+			expect(decodeMatrixAt(sources, '0.5.2').sources).toEqual(signalsOf([170, 171, 172, 173]))
 		})
 		// The decoder gave a matrix without contents the identifier '', which a consumer then had to tell from a
 		// real one, so as not to replace the identifier it had
@@ -333,7 +335,7 @@ describe('encodings/ber/Matrix', () => {
 
 	// Glow 2.50: Signal ::= SEQUENCE { number [0] Integer32, contents [1] SignalContents OPTIONAL }, where
 	// SignalContents ::= SET { identifier [0] EmberString OPTIONAL, isOnline [1] BOOLEAN OPTIONAL,
-	// labelsLocation [2] RELATIVE-OID OPTIONAL }. The model holds the signals' numbers.
+	// labelsLocation [2] RELATIVE-OID OPTIONAL }. The model holds each signal's contents by its number.
 	describe('targets and sources with signal contents', () => {
 		// A QualifiedMatrix 1.1 with two targets and two sources, each first one with contents, and a connection
 		function matrixWithSignalContents(): Buffer {
@@ -404,10 +406,18 @@ describe('encodings/ber/Matrix', () => {
 			const decoded = decodeMatrix(new Ber.Reader(encode(matrixWithSignalContents())), true)
 
 			expect(decoded.errors).toEqual([])
-			// (the contents were read past: the model had no place for them)
-			const expected = new MatrixImpl(undefined, [10, 20], [1, 2], { 10: { target: 10, sources: [2] } })
-			expected.targetContents = { 10: { identifier: 'target-10', isOnline: true, labelsLocation: '1.9.10' } }
-			expected.sourceContents = { 1: { identifier: 'source-1', isOnline: true, labelsLocation: '1.8.1' } }
+			const expected = new MatrixImpl(
+				undefined,
+				new Map([
+					[10, { identifier: 'target-10', isOnline: true, labelsLocation: '1.9.10' }],
+					[20, {}],
+				]),
+				new Map([
+					[1, { identifier: 'source-1', isOnline: true, labelsLocation: '1.8.1' }],
+					[2, {}],
+				]),
+				{ 10: { target: 10, sources: [2] } }
+			)
 			expect(decoded.value.contents).toEqual(expected)
 		})
 
@@ -417,15 +427,14 @@ describe('encodings/ber/Matrix', () => {
 			const writer = new Ber.Writer()
 			const matrix = new QualifiedElementImpl<Matrix>('1.1', {
 				type: ElementType.Matrix,
-				targets: [3],
-				targetContents: { 3: { identifier: 'out-3' } },
+				targets: new Map([[3, { identifier: 'out-3' }]]),
 			})
 			encodeQualifedElement(matrix, writer)
 			const decoded = decodeMatrix(new Ber.Reader(writer.buffer), true)
 
 			expect(decoded.errors).toEqual([])
 			expect(decoded.value.contents.identifier).toBeUndefined()
-			expect(decoded.value.contents.targetContents).toEqual({ 3: { identifier: 'out-3' } })
+			expect(decoded.value.contents.targets).toEqual(new Map([[3, { identifier: 'out-3' }]]))
 		})
 
 		test('with a field the DTD does not define: an error, and the rest kept', () => {
@@ -458,10 +467,55 @@ describe('encodings/ber/Matrix', () => {
 			w.endSequence()
 			const decoded = decodeMatrix(new Ber.Reader(w.buffer), true)
 
-			expect(decoded.value.contents.targetContents).toEqual({ 4: { identifier: 'out-4' } })
+			expect(decoded.value.contents.targets).toEqual(new Map([[4, { identifier: 'out-4' }]]))
 			expect(decoded.errors.map((e) => e.message)).toEqual([
 				"decode targets contents: Unexpected BER context tag '167'",
 			])
+		})
+
+		// The collection is a SEQUENCE OF Target, so a number can come twice: it is kept once, the later contents
+		// taking the earlier's place, with an error
+		test('a number listed twice is kept once, with an error', () => {
+			const w = new Ber.Writer()
+			const target = (number: number, identifier?: string) => {
+				w.startSequence(Ber.CONTEXT(0))
+				w.startSequence(Ber.APPLICATION(14))
+				w.startSequence(Ber.CONTEXT(0))
+				w.writeInt(number)
+				w.endSequence()
+				if (identifier !== undefined) {
+					w.startSequence(Ber.CONTEXT(1))
+					w.startSequence(Ber.BERDataTypes.SET)
+					w.startSequence(Ber.CONTEXT(0))
+					w.writeString(identifier, Ber.BERDataTypes.STRING)
+					w.endSequence()
+					w.endSequence()
+					w.endSequence()
+				}
+				w.endSequence()
+				w.endSequence()
+			}
+			w.startSequence(Ber.APPLICATION(17)) // QualifiedMatrix
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeRelativeOID('1.1', Ber.BERDataTypes.RELATIVE_OID)
+			w.endSequence()
+			w.startSequence(Ber.CONTEXT(3)) // targets
+			w.startSequence(Ber.BERDataTypes.SEQUENCE)
+			target(1)
+			target(7, 'first')
+			target(7, 'second')
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			const decoded = decodeMatrix(new Ber.Reader(w.buffer), true)
+
+			expect(decoded.value.contents.targets).toEqual(
+				new Map([
+					[1, {}],
+					[7, { identifier: 'second' }],
+				])
+			)
+			expect(decoded.errors.map((e) => e.message)).toEqual(['decode targets: target 7 is listed more than once'])
 		})
 	})
 })

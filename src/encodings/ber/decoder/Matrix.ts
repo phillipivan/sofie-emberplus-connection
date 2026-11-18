@@ -8,6 +8,7 @@ import {
 	MatrixImpl,
 	MatrixType,
 	SignalContents,
+	Signals,
 } from '../../../model/Matrix.js'
 import { NumberedTreeNode, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
 import { Collection, EmberTreeNode, RelativeOID } from '../../../types/types.js'
@@ -39,8 +40,8 @@ function decodeMatrix(
 	reader.readSequence(isQualified ? QualifiedMatrixBERID : MatrixBERID)
 	let number: number | null = null
 	let path: RelativeOID | null = null
-	let targets: DecodedSignals | undefined = undefined
-	let sources: DecodedSignals | undefined = undefined
+	let targets: Signals | undefined = undefined
+	let sources: Signals | undefined = undefined
 	let connections: Connections | undefined = undefined
 	let contents: Matrix | null = null
 	let kids: Collection<EmberTreeNode<EmberElement>> | undefined = undefined
@@ -81,10 +82,8 @@ function decodeMatrix(
 	}
 	// contents are optional, but the model keeps targets, sources and connections in them
 	if (!contents) contents = new MatrixImpl()
-	contents.targets = targets?.numbers
-	contents.sources = sources?.numbers
-	contents.targetContents = targets?.contents
-	contents.sourceContents = sources?.contents
+	contents.targets = targets
+	contents.sources = sources
 	contents.connections = connections
 
 	let el: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>
@@ -219,31 +218,27 @@ function decodeMatrixContents(reader: Ber.Reader, options: DecodeOptions = defau
 	)
 }
 
-/** A collection of targets or sources: their numbers, and the contents of those that have any, by number */
-interface DecodedSignals {
-	numbers: Array<number>
-	contents?: { [signal: number]: SignalContents }
+function decodeTargets(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Signals> {
+	return decodeSignals(reader, TargetBERID, 'target', options)
 }
 
-function decodeTargets(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<DecodedSignals> {
-	return decodeSignals(reader, TargetBERID, 'targets', options)
-}
-
-function decodeSources(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<DecodedSignals> {
-	return decodeSignals(reader, SourceBERID, 'sources', options)
+function decodeSources(reader: Ber.Reader, options: DecodeOptions = defaultDecode): DecodeResult<Signals> {
+	return decodeSignals(reader, SourceBERID, 'source', options)
 }
 
 /**
  * Decodes a collection of targets or sources: Signal ::= SEQUENCE { number [0] Integer32, contents [1] SignalContents
- * OPTIONAL }. The contents (identifier, isOnline and labelsLocation, Glow 2.50) are kept by the signal's number.
+ * OPTIONAL }, each kept by its number with its contents (identifier, isOnline and labelsLocation, Glow 2.50).
+ * @param kind 'target' or 'source'
  */
 function decodeSignals(
 	reader: Ber.Reader,
 	signalBERID: number,
-	name: string,
+	kind: string,
 	options: DecodeOptions = defaultDecode
-): DecodeResult<DecodedSignals> {
-	const signals: DecodedSignals = { numbers: [] }
+): DecodeResult<Signals> {
+	const name = kind + 's'
+	const signals: Signals = new Map()
 	const errors: Array<Error> = []
 	reader.readSequence(Ber.BERDataTypes.SEQUENCE)
 	const endOffset = reader.offset + reader.length
@@ -277,8 +272,10 @@ function decodeSignals(
 		if (number === null) {
 			errors.push(new Error(`decode ${name}: missing signal number`))
 		} else {
-			signals.numbers.push(number)
-			if (contents) (signals.contents ??= {})[number] = contents
+			// A SEQUENCE OF Target may list a number twice: it is kept once, with the later contents
+			if (signals.has(number))
+				errors.push(new Error(`decode ${name}: ${kind} ${number} is listed more than once`))
+			signals.set(number, contents ?? {})
 		}
 	}
 	return makeResult(signals, errors)

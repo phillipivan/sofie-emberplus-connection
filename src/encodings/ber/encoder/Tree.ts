@@ -67,8 +67,6 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 				targets: undefined,
 				sources: undefined,
 				connections: undefined,
-				targetContents: undefined,
-				sourceContents: undefined,
 			}
 		: { ...el.contents }
 	if (Object.values<unknown>(contents).filter((v) => v !== undefined).length > 1) {
@@ -98,9 +96,9 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 			writer.startSequence(Ber.CONTEXT(3)) // start targets
 			writer.startSequence(Ber.BERDataTypes.SEQUENCE) // start sequence
 			// write target collection
-			for (const target of el.contents.targets) {
+			for (const [target, contents] of el.contents.targets) {
 				writer.startSequence(Ber.CONTEXT(0)) // start child
-				encodeTarget(target, writer, el.contents.targetContents?.[target])
+				encodeTarget(target, writer, contents)
 				writer.endSequence() // end child
 			}
 			writer.endSequence() // end sequence
@@ -110,9 +108,9 @@ export function encodeTree(el: TreeElement<EmberElement>, writer: Ber.Writer): v
 			writer.startSequence(Ber.CONTEXT(4))
 			writer.startSequence(Ber.BERDataTypes.SEQUENCE)
 			// write sources collection
-			for (const source of el.contents.sources) {
+			for (const [source, contents] of el.contents.sources) {
 				writer.startSequence(Ber.CONTEXT(0))
-				encodeSource(source, writer, el.contents.sourceContents?.[source])
+				encodeSource(source, writer, contents)
 				writer.endSequence()
 			}
 			writer.endSequence()
