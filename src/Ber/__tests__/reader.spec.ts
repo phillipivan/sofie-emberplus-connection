@@ -1,3 +1,5 @@
+import vm from 'vm'
+
 import { ParameterType } from '../../model/Parameter.js'
 import { BERDataTypes } from '../BERDataTypes.js'
 import { Reader } from '../Reader.js'
@@ -46,6 +48,37 @@ describe('BER Reader.readReal', () => {
 		const r = new Reader(buf)
 		expect(r.readValue().value).toEqual(0)
 	}, 2000)
+
+	// The significand was normalised by shifting it left until a bit landed below its top one, as libember does
+	// (Real.hpp). One of only its top bit set was shifted to 0 and looped forever; one longer than 53 bits wasn't
+	// shifted, and lost its leading bits. libember writes at most 53, so only a malformed message has them. The leading
+	// bit stands for 2^exponent, as with a shorter one, and the bits past 53 are dropped.
+	describe('a significand longer than 53 bits', () => {
+		// Under vm's timeout, which interrupts a synchronous loop that jest's timeout can't
+		const read = (hex: string): unknown => {
+			try {
+				return vm.runInNewContext(
+					'read()',
+					{ read: () => new Reader(Buffer.from(hex, 'hex')).readReal() },
+					{
+						timeout: 1000,
+					}
+				)
+			} catch (e) {
+				return (e as { code?: unknown } | null)?.code ?? e
+			}
+		}
+
+		test.each<[string, string, number]>([
+			['only its top bit set', '090a80008000000000000000', 1],
+			['only its top bit set, negative, with an exponent', '090ac0038000000000000000', -8],
+			['its two top bits set', '090a8000c000000000000000', 1.5],
+			['of 55 bits', '0909800060000000000000', 1.5],
+			['of 64 bits, its last ones dropped', '090a80018000000000000fff', 2 + 2 ** -51],
+		])('%s', (_, hex, value) => {
+			expect(read(hex)).toBe(value)
+		})
+	})
 
 	test('normal REAL values still decode', () => {
 		for (const value of [8.32, -8.32, 1, -1, 1234.5, 0.0001]) {

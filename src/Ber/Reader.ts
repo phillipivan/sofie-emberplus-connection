@@ -117,21 +117,20 @@ class ExtendedReader extends Reader {
 
 		significand = shl64(significand, BigInt(significandShift))
 
-		// A zero significand represents the value zero and cannot be normalised;
-		// the loops below would spin forever on it. Non-canonical / crafted REALs
-		// can reach this point, so guard explicitly.
+		// A zero significand represents the value zero and has no leading bit to normalise
 		if (significand === 0n) {
 			return sign < 0 ? -0 : 0
 		}
 
-		while ((significand & 0x7fff_f000_0000_0000n) === 0n) {
-			significand = shl64(significand, 8n)
-		}
-
-		while ((significand & 0x7ff0_0000_0000_0000n) === 0n) {
-			significand = shl64(significand, 1n)
-		}
-
+		// As libember (Real.hpp), the significand's leading bit stands for 2^exponent: it is moved to bit 52, the
+		// double's implicit bit, and the 52 bits after it are the fraction. libember moves it only to the left, so one
+		// longer than 53 bits lost its leading bits, and one of only bit 63 was shifted to 0 and looped forever. Bits
+		// past the 53rd are dropped.
+		const significandBits = significand.toString(2).length
+		significand =
+			significandBits > 53
+				? significand >> BigInt(significandBits - 53)
+				: significand << BigInt(53 - significandBits)
 		significand = significand & 0x000f_ffff_ffff_ffffn
 
 		let bits = shl64(BigInt(exponent) + 1023n, 52n) | significand
