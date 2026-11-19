@@ -2,7 +2,7 @@ import { generateEslintConfig } from '@sofie-automation/code-standard-preset/esl
 
 const baseConfig = await generateEslintConfig({
 	ignores: ['node_modules', '/dist', '/scratch', '/build', 'package-lock.json', '/lib', '/coverage'],
-	testRunner: 'jest',
+	testRunner: 'vitest',
 })
 
 const customConfig = [
@@ -10,7 +10,9 @@ const customConfig = [
 
 	{
 		rules: {
-			'jest/expect-expect': 'off',
+			'vitest/expect-expect': 'off',
+			// A test imports a mock from __mocks__ for its helpers (the preset turned jest/no-mocks-import off)
+			'vitest/no-mocks-import': 'off',
 		},
 	},
 

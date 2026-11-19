@@ -12,7 +12,7 @@ import { toIndefiniteLength } from './indefiniteLength.js'
 import { messages } from './messages.js'
 
 // A message from a peer can be anything. Decoding one must end, by returning or by throwing, however it is malformed.
-// A decoder that loops forever takes the process down with it (#46), and a synchronous loop ignores jest's timeout,
+// A decoder that loops forever takes the process down with it (#46), and a synchronous loop ignores the test runner's timeout,
 // so each decode runs under vm's timeout, which interrupts running code.
 function decodeEnds(message: Buffer): 'returned' | 'threw' | 'did not end' {
 	try {

@@ -97,7 +97,7 @@ describe('S101Socket lifecycle', () => {
 	it('sets disconnected status on socket close', () => {
 		const socket = new FakeSocket()
 		const s101Socket = new S101Socket(socket as any)
-		const onDisconnected = jest.fn()
+		const onDisconnected = vi.fn()
 
 		s101Socket.on('disconnected', onDisconnected)
 		expect(s101Socket.status).toBe(ConnectionStatus.Connected)
@@ -149,7 +149,7 @@ describe('S101Socket lifecycle', () => {
 	it('handleClose tears down socket and marks disconnected', () => {
 		const socket = new FakeSocket()
 		const s101Socket = new S101Socket(socket as any)
-		const onDisconnected = jest.fn()
+		const onDisconnected = vi.fn()
 
 		s101Socket.on('disconnected', onDisconnected)
 		;(s101Socket as any).keepaliveTimer = setTimeout(() => null, 1000)
@@ -171,7 +171,7 @@ describe('S101Socket maxSendBufferSize', () => {
 		fake.peerReading = false
 		const socket = new S101Socket(fake as unknown as Socket, options)
 		const errors: Error[] = []
-		const disconnected = jest.fn()
+		const disconnected = vi.fn()
 		socket.on('error', (e) => errors.push(e))
 		socket.on('disconnected', disconnected)
 		return { fake, socket, errors, disconnected }
@@ -303,10 +303,10 @@ describe('keep-alives on the connections a server accepts', () => {
 	const requests = (fake: FakeSocket) => fake.wrote.filter((b) => b.equals(REQUEST)).length
 
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	function accept(options?: S101ServerOptions) {
@@ -316,7 +316,7 @@ describe('keep-alives on the connections a server accepts', () => {
 		server.once('connection', (c) => (client = c))
 		server.addClient(fake as unknown as Socket)
 		if (!client) throw new Error('no connection')
-		const disconnected = jest.fn()
+		const disconnected = vi.fn()
 		client.on('disconnected', disconnected)
 		return { fake, client, disconnected }
 	}
@@ -324,11 +324,11 @@ describe('keep-alives on the connections a server accepts', () => {
 	it('asks a consumer after 5 s in which nothing came, and closes the connection when nothing comes after', async () => {
 		const { fake, disconnected } = accept()
 
-		await jest.advanceTimersByTimeAsync(5000)
+		await vi.advanceTimersByTimeAsync(5000)
 		expect(requests(fake)).toBe(1)
-		await jest.advanceTimersByTimeAsync(4900)
+		await vi.advanceTimersByTimeAsync(4900)
 		expect(disconnected).not.toHaveBeenCalled()
-		await jest.advanceTimersByTimeAsync(200)
+		await vi.advanceTimersByTimeAsync(200)
 		expect(disconnected).toHaveBeenCalledTimes(1)
 		expect(fake.destroyed).toBe(true)
 	})
@@ -337,7 +337,7 @@ describe('keep-alives on the connections a server accepts', () => {
 		const { fake, disconnected } = accept()
 
 		for (let i = 0; i < 6; i++) {
-			await jest.advanceTimersByTimeAsync(5000)
+			await vi.advanceTimersByTimeAsync(5000)
 			fake.emit('data', new S101Codec().keepAliveResponse())
 		}
 
@@ -349,7 +349,7 @@ describe('keep-alives on the connections a server accepts', () => {
 	it('sends none with keepalive off', async () => {
 		const { fake, disconnected } = accept({ keepalive: false })
 
-		await jest.advanceTimersByTimeAsync(30000)
+		await vi.advanceTimersByTimeAsync(30000)
 
 		expect(requests(fake)).toBe(0)
 		expect(disconnected).not.toHaveBeenCalled()

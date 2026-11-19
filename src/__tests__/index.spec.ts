@@ -108,7 +108,7 @@ describe('the package exports', () => {
 	})
 
 	test("switching the library's debug logging on and off, to a log of the caller's", () => {
-		const log: DebugLog = jest.fn()
+		const log: DebugLog = vi.fn()
 
 		setDebugLogging(true, log)
 		setDebugLogging(false)

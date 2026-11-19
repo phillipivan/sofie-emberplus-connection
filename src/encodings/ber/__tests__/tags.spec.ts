@@ -27,7 +27,7 @@ describe('tags in the multi-byte form', () => {
 			const decoded = berDecode(rewritten)
 			expect(decoded.errors ?? []).toEqual([])
 			// (Node's comparison, which follows the children's links to their parents through the Maps they are in, where
-			// jest's runs out of stack)
+			// jest's ran out of stack)
 			expect(isDeepStrictEqual(decoded.value, berDecode(message).value)).toBe(true)
 		})
 	})

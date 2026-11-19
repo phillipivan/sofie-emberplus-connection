@@ -472,7 +472,7 @@ describe('S101Codec a long frame that comes in many reads', () => {
 		const codec = new S101Codec()
 		const packets: Buffer[] = []
 		codec.on('emberPacket', (p) => packets.push(p))
-		const concat = jest.spyOn(Buffer, 'concat')
+		const concat = vi.spyOn(Buffer, 'concat')
 		try {
 			for (let i = 0; i < frame.length; i += 1460) codec.dataIn(frame.subarray(i, i + 1460))
 

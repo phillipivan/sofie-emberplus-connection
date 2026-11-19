@@ -95,7 +95,7 @@ describe('EmberServer subscriptions', () => {
 	let parameter: NumberedTreeNode<ParameterImpl<ParameterType.Integer>>
 
 	beforeEach(async () => {
-		jest.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
 		parameter = new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0))
 		node = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'), childrenOf([parameter]))
 		const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([node]))
@@ -103,7 +103,7 @@ describe('EmberServer subscriptions', () => {
 		await server.init(childrenOf([device]))
 	})
 	afterEach(() => {
-		jest.restoreAllMocks()
+		vi.restoreAllMocks()
 	})
 
 	async function connect(): Promise<FakeConnection> {
@@ -396,7 +396,7 @@ describe('EmberServer invocations', () => {
 	let invoked: string[]
 
 	beforeEach(async () => {
-		jest.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
 		const node = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'))
 		const fn = new NumberedTreeNodeImpl(2, new EmberFunctionImpl('reset'))
 		server = new EmberServer(9000)
@@ -410,7 +410,7 @@ describe('EmberServer invocations', () => {
 		}
 	})
 	afterEach(() => {
-		jest.restoreAllMocks()
+		vi.restoreAllMocks()
 	})
 
 	/** Sends an Invoke with the given id to the element at `path` ('' for the root); gives the result the server sent */
@@ -453,7 +453,7 @@ describe('EmberServer matrices', () => {
 	let matrix: NumberedTreeNode<Matrix>
 
 	async function init(matrixType?: MatrixType) {
-		jest.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
 		const contents = new MatrixImpl(
 			'router',
 			signalsOf([0, 1, 2]),
@@ -467,7 +467,7 @@ describe('EmberServer matrices', () => {
 		await server.init(childrenOf([device]))
 	}
 	afterEach(() => {
-		jest.restoreAllMocks()
+		vi.restoreAllMocks()
 	})
 
 	/** Each target's sources, as the server holds them */
@@ -682,7 +682,7 @@ describe('EmberServer matrices', () => {
 			new ConnectionImpl(target, sources, ConnectionOperation.Connect)
 
 		it('drops a request for a target it does not have, answering nothing', async () => {
-			const handler = jest.fn(async () => Promise.resolve())
+			const handler = vi.fn(async () => Promise.resolve())
 			server.onMatrixOperation = handler
 			const consumer = await connectConsumer()
 
@@ -694,7 +694,7 @@ describe('EmberServer matrices', () => {
 		})
 
 		it("drops a request naming a source it does not have, answering with the target's current state", async () => {
-			const handler = jest.fn(async () => Promise.resolve())
+			const handler = vi.fn(async () => Promise.resolve())
 			server.onMatrixOperation = handler
 			const consumer = await connectConsumer()
 

@@ -43,8 +43,7 @@ import { EmberClient, EmberClientOptions } from '../index.js'
 // import { ElementType, EmberElement } from '../../../model/EmberElement.js'
 // import { Parameter, ParameterType } from '../../../model/Parameter.js'
 
-// eslint-disable-next-line
-jest.mock('../../Socket/S101Client', () => require('../../../__mocks__/S101Client'))
+vi.mock('../../Socket/S101Client.js', async () => import('../../../__mocks__/S101Client.js'))
 
 /** An element's child, which the test has made: throws if there isn't one */
 function childOf(node: TreeElement<EmberElement>, number: number): NumberedTreeNode<EmberElement> {
@@ -68,11 +67,11 @@ function firstElement(data: Buffer): RootElement {
 }
 
 describe('client', () => {
-	const onSocketCreate = jest.fn()
-	const onConnection = jest.fn()
-	const onSocketClose = jest.fn()
-	const onSocketWrite = jest.fn()
-	const onConnectionChanged = jest.fn()
+	const onSocketCreate = vi.fn()
+	const onConnection = vi.fn()
+	const onSocketClose = vi.fn()
+	const onSocketWrite = vi.fn<(data: Buffer) => boolean | undefined>()
+	const onConnectionChanged = vi.fn()
 
 	function setupSocketMock() {
 		S101ClientMock.mockOnNextSocket((socket: any) => {
@@ -101,7 +100,7 @@ describe('client', () => {
 
 		// Just a check to ensure that the unit tests cleaned up the socket after themselves:
 
-		// jest/no-standalone-expect
+		// vitest/no-standalone-expect
 		// eslint-disable-next-line
 		expect(sockets).toHaveLength(0)
 	})
@@ -573,7 +572,7 @@ describe('client', () => {
 				await client.setValue(node, value, false)
 
 				expect(onSocketWrite).toHaveBeenCalledTimes(1)
-				const request = readSetRequest(onSocketWrite.mock.calls[0][0])
+				const request = readSetRequest(at(onSocketWrite.mock.calls, 0)[0])
 				expect(request.path).toBe('1.1')
 				expect(request.fields).toEqual([Ber.CONTEXT(2)])
 				expect(request.valueTag).toBe(valueTag)
@@ -818,7 +817,7 @@ describe('client', () => {
 				request.response?.catch(() => null) // no reply here, so the request is cancelled on disconnect
 
 				expect(onSocketWrite).toHaveBeenCalledTimes(1)
-				const sent = readConnectRequest(onSocketWrite.mock.calls[0][0])
+				const sent = readConnectRequest(at(onSocketWrite.mock.calls, 0)[0])
 				expect(sent.path).toBe('1.1')
 				expect(sent.fields).toEqual([Ber.CONTEXT(5)])
 				expect(sent.connections).toEqual(connectionsOf([{ target: 2, sources: [3], operation }]))
@@ -1009,7 +1008,7 @@ describe('client', () => {
 		it('applies the reply and calls the callback when the provider answers', async () => {
 			await runWithConnection(async (client, socket) => {
 				const node = seedParameter(client)
-				const cb = jest.fn()
+				const cb = vi.fn()
 
 				await client.getElementByPath('1.1', cb)
 				socket.mockData(
@@ -1214,7 +1213,7 @@ describe('client', () => {
 				request.response?.catch(() => null) // no reply here, so the request is cancelled on disconnect
 
 				expect(onSocketWrite).toHaveBeenCalledTimes(1)
-				const sent = readCommandRequest(onSocketWrite.mock.calls[0][0])
+				const sent = readCommandRequest(at(onSocketWrite.mock.calls, 0)[0])
 				expect(sent.elementTag).toBe(elementTag)
 				expect(sent.path).toBe(`1.${number}`)
 				expect(sent.fields).toEqual([Ber.CONTEXT(2)])
@@ -1251,8 +1250,8 @@ describe('client', () => {
 	describe('Subscription behavior regressions', () => {
 		it('invokes all callbacks subscribed to the same path', async () => {
 			await runWithConnection(async (client, socket) => {
-				const cb1 = jest.fn()
-				const cb2 = jest.fn()
+				const cb1 = vi.fn()
+				const cb2 = vi.fn()
 
 				const parameter = new ParameterImpl(ParameterType.Integer, 'Level', undefined, 1)
 				const node = new NumberedTreeNodeImpl(1, parameter)
@@ -1288,8 +1287,8 @@ describe('client', () => {
 				const parameter = new ParameterImpl(ParameterType.Integer, 'Level', undefined, 1)
 				const node = new NumberedTreeNodeImpl(1, parameter)
 
-				await client.subscribe(node, jest.fn())
-				await client.subscribe(node, jest.fn())
+				await client.subscribe(node, vi.fn())
+				await client.subscribe(node, vi.fn())
 
 				//@ts-expect-error - private member
 				expect(client._subscriptions.get('1')).toHaveLength(2)
@@ -1858,7 +1857,7 @@ describe('client', () => {
 				await runWithConnection(async (client, socket) => {
 					const node = seedMeter(client)
 					const values: unknown[] = []
-					const cb = jest.fn((update: TreeElement<EmberElement>) =>
+					const cb = vi.fn((update: TreeElement<EmberElement>) =>
 						values.push((update.contents as Parameter).value)
 					)
 					const events: unknown[] = []
@@ -1881,7 +1880,7 @@ describe('client', () => {
 			it('calls a callback registered for the path by getElementByPath too', async () => {
 				await runWithConnection(async (client, socket) => {
 					const node = seedMeter(client)
-					const cb = jest.fn()
+					const cb = vi.fn()
 
 					await client.getElementByPath('1.1', cb)
 					await client.subscribe(node)
@@ -1895,7 +1894,7 @@ describe('client', () => {
 			it('stops calling it once unsubscribed', async () => {
 				await runWithConnection(async (client, socket) => {
 					const node = seedMeter(client)
-					const cb = jest.fn()
+					const cb = vi.fn()
 
 					await client.subscribe(node, cb)
 					await client.unsubscribe(node)
@@ -1909,8 +1908,8 @@ describe('client', () => {
 			it('stops the stream values of a parameter once its node is unsubscribed', async () => {
 				await runWithConnection(async (client, socket) => {
 					const node = seedMeter(client)
-					const cb = jest.fn()
-					const events = jest.fn()
+					const cb = vi.fn()
+					const events = vi.fn()
 					client.on('streamUpdate', events)
 
 					await client.subscribe(node, cb)
@@ -1985,7 +1984,7 @@ describe('client', () => {
 			await runWithConnection(async (client, socket) => {
 				const template = new NumberedTreeNodeImpl(1, new TemplateImpl(undefined, 'Channel template'))
 				client.tree.set(1, template) // so that a report on it is a change at its path
-				const cb = jest.fn()
+				const cb = vi.fn()
 
 				await expect(client.getDirectory(template, undefined, cb)).rejects.toThrow(
 					'Cannot send a command to a template'
@@ -2047,7 +2046,7 @@ describe('client', () => {
 			await runWithConnection(async (client, socket) => {
 				const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), new Map())
 				client.tree.set(1, device)
-				const cb = jest.fn()
+				const cb = vi.fn()
 
 				const request = await client.getDirectory(
 					new QualifiedElementImpl('1.7', new EmberNodeImpl()),
@@ -2736,7 +2735,7 @@ describe('client', () => {
 
 		// What each write asked the provider for: the path ('' for the root) and the command
 		function sentCommands(): Array<[string, CommandType]> {
-			return onSocketWrite.mock.calls.map(([data]: [Buffer]) => {
+			return onSocketWrite.mock.calls.map(([data]) => {
 				const element = firstElement(data)
 				if (element.contents.type === ElementType.Command) return ['', element.contents.number]
 				const command = at([...(element.children?.values() ?? [])], 0).contents
@@ -2786,7 +2785,7 @@ describe('client', () => {
 
 		it('passes what the provider reports again to the callbacks, in the loaded tree', async () => {
 			await runWithConnection(async (client, socket) => {
-				const cb = jest.fn()
+				const cb = vi.fn()
 				const parameter = await lookUpParameter(client, socket, cb)
 				cb.mockClear()
 
@@ -2928,7 +2927,7 @@ describe('client', () => {
 		// An id was four random base-24 digits: two requests waiting could have the same, and the later replaced the
 		// earlier, which then never settled, not even by timing out
 		it('gives each request its own id, whatever Math.random gives', async () => {
-			const random = jest.spyOn(Math, 'random').mockReturnValue(0.5)
+			const random = vi.spyOn(Math, 'random').mockReturnValue(0.5)
 			try {
 				await runWithConnection(async (client) => {
 					const a = await client.getDirectory(new NumberedTreeNodeImpl(1, new EmberNodeImpl('a')))
@@ -2945,7 +2944,7 @@ describe('client', () => {
 		// The check ran every gcd(timeout, resendTimeout) ms: every millisecond for a timeout of 2999 ms. And the interval
 		// kept the process running until the client was discarded.
 		it('checks no more often than every 50 ms, without keeping the process running', async () => {
-			const setInterval = jest.spyOn(global, 'setInterval')
+			const setInterval = vi.spyOn(global, 'setInterval')
 			try {
 				await runWithConnection(
 					async (client) => {

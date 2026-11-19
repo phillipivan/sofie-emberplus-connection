@@ -25,8 +25,8 @@
 		"lint:raw": "eslint",
 		"lint": "run lint:raw .",
 		"lint-fix": "run lint --fix",
-		"unit": "jest --coverage",
-		"test": "run lint && jest test",
+		"unit": "vitest run --coverage",
+		"test": "run lint && vitest run",
 		"test:coverage": "run test -- --coverage",
 		"changelog": "sofie-version",
 		"release": "run test && sofie-version",
@@ -58,18 +58,17 @@
 		"@ianvs/prettier-plugin-sort-imports": "~4.7.1",
 		"@sofie-automation/code-standard-preset": "~4.0.3",
 		"@types/debug": "^4.1.13",
-		"@types/jest": "^30.0.0",
 		"@types/node": "^26.6.6",
+		"@vitest/coverage-v8": "^5.1.0",
 		"eslint": "^10.15.0",
-		"eslint-plugin-jest": "^29.17.0",
 		"husky": "^9.1.7",
-		"jest": "^30.5.2",
 		"lint-staged": "^17.6.0",
 		"prettier": "^3.10.1",
 		"rimraf": "^6.1.4",
-		"ts-jest": "^29.4.15",
 		"typescript": "~6.0.3",
-		"typescript-eslint": "^8.72.2"
+		"typescript-eslint": "^8.72.2",
+		"vite": "^8.2.6",
+		"vitest": "^5.1.0"
 	},
 	"bugs": {
 		"url": "https://github.com/phillipivan/sofie-emberplus-connection/issues"

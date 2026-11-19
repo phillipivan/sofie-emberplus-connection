@@ -54,7 +54,7 @@ describe('BER Reader.readReal', () => {
 	// shifted, and lost its leading bits. libember writes at most 53, so only a malformed message has them. The leading
 	// bit stands for 2^exponent, as with a shorter one, and the bits past 53 are dropped.
 	describe('a significand longer than 53 bits', () => {
-		// Under vm's timeout, which interrupts a synchronous loop that jest's timeout can't
+		// Under vm's timeout, which interrupts a synchronous loop that the test runner's timeout can't
 		const read = (hex: string): unknown => {
 			try {
 				return vm.runInNewContext(

@@ -13,7 +13,7 @@ describe('setDebugLogging', () => {
 	})
 
 	it('turns the library logging on and off, after the library is loaded', () => {
-		const log = jest.fn()
+		const log = vi.fn()
 		const debug = makeDebug('S101Codec')
 
 		debug('before')
@@ -27,7 +27,7 @@ describe('setDebugLogging', () => {
 	})
 
 	it('writes to console.log when given no log', () => {
-		const spy = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+		const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 		try {
 			setDebugLogging(true)
 			makeDebug('S101Client')('to the console')

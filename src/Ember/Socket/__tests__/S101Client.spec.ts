@@ -72,15 +72,17 @@ class FakeNetSocket extends EventEmitter {
 }
 
 // The real BER codec, with berDecode wrapped so a test can count its calls or make one fail
-jest.mock('../../../encodings/ber/index.js', () => {
-	const actual = jest.requireActual('../../../encodings/ber/index.js')
-	return { ...actual, berDecode: jest.fn(actual.berDecode) }
+vi.mock('../../../encodings/ber/index.js', async (importActual) => {
+	const actual = await importActual<typeof import('../../../encodings/ber/index.js')>()
+	return { ...actual, berDecode: vi.fn(actual.berDecode) }
 })
 
-jest.mock('net', () => ({
-	__esModule: true,
+// A function, not an arrow function: the client constructs a Socket with new
+vi.mock('net', () => ({
 	default: {
-		Socket: jest.fn(() => new FakeNetSocket()),
+		Socket: vi.fn(function () {
+			return new FakeNetSocket()
+		}),
 	},
 }))
 
@@ -96,7 +98,7 @@ function currentSocket(client: S101Client): FakeNetSocket {
  * the chance to answer each keepalive in time, so the client would drop it.)
  */
 async function advanceInSteps(duration: number): Promise<void> {
-	for (let elapsed = 0; elapsed < duration; elapsed += 1000) await jest.advanceTimersByTimeAsync(1000)
+	for (let elapsed = 0; elapsed < duration; elapsed += 1000) await vi.advanceTimersByTimeAsync(1000)
 }
 
 /** Refuses every connection attempt for `duration` ms, checking each second. */
@@ -104,7 +106,7 @@ async function refuseFor(client: S101Client, duration: number): Promise<void> {
 	for (let elapsed = 0; elapsed < duration; elapsed += 1000) {
 		const socket = currentSocket(client)
 		if (socket.connecting) socket.refuse()
-		await jest.advanceTimersByTimeAsync(1000)
+		await vi.advanceTimersByTimeAsync(1000)
 	}
 }
 
@@ -122,10 +124,10 @@ function gaps(times: number[]): number[] {
 
 describe('S101Client connection attempts', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	it('does not let a replaced attempt time out the connection that replaced it', async () => {
@@ -136,14 +138,14 @@ describe('S101Client connection attempts', () => {
 		void client.connect(12)
 
 		// Nothing answers; the retry at 5 s replaces the pending socket and connects.
-		await jest.advanceTimersByTimeAsync(5000)
+		await vi.advanceTimersByTimeAsync(5000)
 		const connection = currentSocket(client)
 		connection.succeed()
 		expect(client.status).toBe(ConnectionStatus.Connected)
 
 		// The replaced attempt's timeout fires at 12 s. That attempt is gone; its
 		// timeout must leave the live connection alone.
-		await jest.advanceTimersByTimeAsync(8000)
+		await vi.advanceTimersByTimeAsync(8000)
 		expect(connection.destroyed).toBe(false)
 		expect(currentSocket(client)).toBe(connection)
 		expect(client.status).toBe(ConnectionStatus.Connected)
@@ -162,13 +164,13 @@ describe('S101Client connection attempts', () => {
 		socket.refuse()
 
 		// The retry at 5 s reuses the refused socket...
-		await jest.advanceTimersByTimeAsync(5000)
+		await vi.advanceTimersByTimeAsync(5000)
 		expect(currentSocket(client)).toBe(socket)
 		expect(socket.connecting).toBe(true)
 
 		// ...and the refused attempt's timeout at 8 s belongs to an attempt that
 		// has already ended: it must leave the retry alone.
-		await jest.advanceTimersByTimeAsync(3000)
+		await vi.advanceTimersByTimeAsync(3000)
 		expect(socket.destroyed).toBe(false)
 
 		socket.succeed()
@@ -185,7 +187,7 @@ describe('S101Client connection attempts', () => {
 		void client.connect().then((result) => (settled = result))
 
 		currentSocket(client).refuse()
-		await jest.advanceTimersByTimeAsync(0) // settle promises; the 5 s timeout stays far off
+		await vi.advanceTimersByTimeAsync(0) // settle promises; the 5 s timeout stays far off
 
 		expect(settled).toBeInstanceOf(Error)
 
@@ -196,12 +198,12 @@ describe('S101Client connection attempts', () => {
 
 describe('S101Client connect() when it does not start an attempt', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 		FakeNetSocket.attempts = 0
 		FakeNetSocket.attemptTimes = []
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	it('settles with the attempt under way', async () => {
@@ -212,7 +214,7 @@ describe('S101Client connect() when it does not start an attempt', () => {
 		expect(FakeNetSocket.attempts).toBe(1)
 
 		currentSocket(client).succeed()
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(first.result).toBeUndefined()
 		expect(second.result).toBeUndefined()
 
@@ -225,20 +227,20 @@ describe('S101Client connect() when it does not start an attempt', () => {
 		client.on('error', () => null)
 		const first = track(client.connect())
 		currentSocket(client).refuse()
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(first.result).toBeInstanceOf(Error)
 
 		// Calling again at once doesn't dial, so a retry loop can't hammer the provider...
 		const second = track(client.connect())
-		await jest.advanceTimersByTimeAsync(4000)
+		await vi.advanceTimersByTimeAsync(4000)
 		expect(FakeNetSocket.attempts).toBe(1)
 		expect(second.result).toBe('pending')
 
 		// ...it settles with the retry at 5 s.
-		await jest.advanceTimersByTimeAsync(1000)
+		await vi.advanceTimersByTimeAsync(1000)
 		expect(FakeNetSocket.attempts).toBe(2)
 		currentSocket(client).succeed()
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(second.result).toBeUndefined()
 
 		client.removeAllListeners()
@@ -252,9 +254,9 @@ describe('S101Client connect() when it does not start an attempt', () => {
 
 		// The retry at 5 s replaces the attempt and connects: the first caller is
 		// connected now, not told at 12 s that its attempt timed out.
-		await jest.advanceTimersByTimeAsync(5000)
+		await vi.advanceTimersByTimeAsync(5000)
 		currentSocket(client).succeed()
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(first.result).toBeUndefined()
 
 		client.removeAllListeners()
@@ -266,22 +268,22 @@ describe('S101Client connect() when it does not start an attempt', () => {
 		client.on('error', () => null)
 		// Attempt A, timing out at 12 s, is replaced by the retry at 5 s, which is refused.
 		void client.connect(12)
-		await jest.advanceTimersByTimeAsync(5000)
+		await vi.advanceTimersByTimeAsync(5000)
 		currentSocket(client).refuse()
 
 		// Attempt C at 11 s...
-		await jest.advanceTimersByTimeAsync(6000)
+		await vi.advanceTimersByTimeAsync(6000)
 		const third = track(client.connect(20))
 		expect(FakeNetSocket.attempts).toBe(3)
 
 		// ...is still under way when A's timeout falls due at 12 s, and must stay so...
-		await jest.advanceTimersByTimeAsync(1000)
+		await vi.advanceTimersByTimeAsync(1000)
 		expect(third.result).toBe('pending')
 
 		// ...until it connects at 13 s.
-		await jest.advanceTimersByTimeAsync(1000)
+		await vi.advanceTimersByTimeAsync(1000)
 		currentSocket(client).succeed()
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(third.result).toBeUndefined()
 
 		client.removeAllListeners()
@@ -296,14 +298,14 @@ describe('S101Client connect() when it does not start an attempt', () => {
 		// disconnect() abandons the attempt; its socket closes a moment later...
 		void client.disconnect()
 		const second = track(client.connect()) // within 5 s: waits for the next attempt
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(first.result).toBeInstanceOf(Error)
 		// ...which isn't the attempt the second call waits for.
 		expect(second.result).toBe('pending')
 
-		await jest.advanceTimersByTimeAsync(5000)
+		await vi.advanceTimersByTimeAsync(5000)
 		currentSocket(client).succeed()
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(second.result).toBeUndefined()
 
 		client.removeAllListeners()
@@ -318,19 +320,19 @@ describe('S101Client connect() when it does not start an attempt', () => {
 		const waiting = track(client.connect()) // for the retry at 5 s
 
 		await client.disconnect()
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(waiting.result).toBeInstanceOf(Error)
 	})
 })
 
 describe('S101Client reconnecting', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 		FakeNetSocket.attempts = 0
 		FakeNetSocket.attemptTimes = []
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	it('keeps retrying however long the provider refuses connections', async () => {
@@ -343,7 +345,7 @@ describe('S101Client reconnecting', () => {
 		// ...then comes back: the client must still be trying, at least once a minute.
 		const before = FakeNetSocket.attempts
 		for (let waited = 0; FakeNetSocket.attempts === before && waited < 60000; waited += 1000) {
-			await jest.advanceTimersByTimeAsync(1000)
+			await vi.advanceTimersByTimeAsync(1000)
 		}
 		expect(FakeNetSocket.attempts).toBeGreaterThan(before)
 
@@ -413,12 +415,12 @@ describe('S101Client reconnecting', () => {
 
 describe('S101Client disconnect', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 		FakeNetSocket.attempts = 0
 		FakeNetSocket.attemptTimes = []
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	it('abandons a pending attempt and stops retrying', async () => {
@@ -430,7 +432,7 @@ describe('S101Client disconnect', () => {
 		await client.disconnect()
 		expect(pending.destroyed).toBe(true)
 
-		await jest.advanceTimersByTimeAsync(60000)
+		await vi.advanceTimersByTimeAsync(60000)
 		expect(FakeNetSocket.attempts).toBe(1)
 		expect(client.status).toBe(ConnectionStatus.Disconnected)
 	})
@@ -443,7 +445,7 @@ describe('S101Client disconnect', () => {
 
 		await client.disconnect()
 
-		await jest.advanceTimersByTimeAsync(60000)
+		await vi.advanceTimersByTimeAsync(60000)
 		expect(FakeNetSocket.attempts).toBe(1)
 		expect(client.status).toBe(ConnectionStatus.Disconnected)
 	})
@@ -453,11 +455,11 @@ describe('S101Client disconnect', () => {
 		client.on('error', () => null)
 		// The retry at 5 s replaces this attempt; its own timeout is still due at 12 s.
 		void client.connect(12)
-		await jest.advanceTimersByTimeAsync(5000)
+		await vi.advanceTimersByTimeAsync(5000)
 
 		await client.disconnect()
 
-		await jest.advanceTimersByTimeAsync(60000)
+		await vi.advanceTimersByTimeAsync(60000)
 		expect(FakeNetSocket.attempts).toBe(2)
 		expect(client.status).toBe(ConnectionStatus.Disconnected)
 	})
@@ -467,7 +469,7 @@ describe('S101Client disconnect', () => {
 		client.on('error', () => null)
 		void client.connect()
 		await client.disconnect()
-		await jest.advanceTimersByTimeAsync(5000)
+		await vi.advanceTimersByTimeAsync(5000)
 
 		void client.connect()
 		currentSocket(client).succeed()
@@ -480,12 +482,12 @@ describe('S101Client disconnect', () => {
 
 describe('EmberClient discard', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 		FakeNetSocket.attempts = 0
 		FakeNetSocket.attemptTimes = []
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	it('stops a client that is reconnecting', async () => {
@@ -497,7 +499,7 @@ describe('EmberClient discard', () => {
 
 		client.discard()
 
-		await jest.advanceTimersByTimeAsync(60000)
+		await vi.advanceTimersByTimeAsync(60000)
 		expect(FakeNetSocket.attempts).toBe(1)
 	})
 })
@@ -506,24 +508,24 @@ describe('EmberClient discard', () => {
 // requests waiting; and timeouts are checked only while connected, so they waited for good
 describe('EmberClient disconnect', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	it('rejects the requests waiting', async () => {
 		const client = new EmberClient('127.0.0.1', 9000)
 		client.on('error', () => null)
 		currentSocket((client as unknown as { _client: S101Client })._client).succeed()
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(client.connected).toBe(true)
 		const request = await client.getDirectory(new NumberedTreeNodeImpl(1, new EmberNodeImpl('a')))
 		let rejection: unknown
 		request.response?.catch((e: unknown) => (rejection = e))
 
 		await client.disconnect()
-		await jest.advanceTimersByTimeAsync(10000)
+		await vi.advanceTimersByTimeAsync(10000)
 
 		expect(rejection).toBeInstanceOf(Error)
 		expect((rejection as Error).message).toBe('Socket was disconnected')
@@ -533,10 +535,10 @@ describe('EmberClient disconnect', () => {
 
 describe('EmberClient connect', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	// The constructor already starts an attempt, so connect() right after it
@@ -547,7 +549,7 @@ describe('EmberClient connect', () => {
 		const connecting = track(client.connect())
 
 		currentSocket((client as unknown as { _client: S101Client })._client).succeed()
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(connecting.result).toBeUndefined()
 
 		client.discard()
@@ -559,7 +561,7 @@ describe('EmberClient connect', () => {
 		const connecting = track(client.connect())
 
 		currentSocket((client as unknown as { _client: S101Client })._client).refuse()
-		await jest.advanceTimersByTimeAsync(0)
+		await vi.advanceTimersByTimeAsync(0)
 		expect(connecting.result).toBeInstanceOf(Error)
 
 		client.discard()
@@ -600,21 +602,21 @@ const PROVIDER_MESSAGE = at(
 // tree on a slow link, or a slow device, lost a working connection.
 describe('S101Client keepalives', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	it('asks only after 5 s in which nothing came', async () => {
 		const { client, socket } = connectedClient()
 		for (let i = 0; i < 20; i++) {
 			socket.emit('data', PROVIDER_MESSAGE)
-			await jest.advanceTimersByTimeAsync(1000)
+			await vi.advanceTimersByTimeAsync(1000)
 		}
 		expect(socket.keepaliveRequests).toBe(0)
 
-		await jest.advanceTimersByTimeAsync(5000) // nothing since 19 s: the request at 24 s
+		await vi.advanceTimersByTimeAsync(5000) // nothing since 19 s: the request at 24 s
 		expect(socket.keepaliveRequests).toBe(1)
 		client.removeAllListeners()
 		await client.disconnect()
@@ -626,12 +628,12 @@ describe('S101Client keepalives', () => {
 	])('waits 5 s for %s', async (_, reply) => {
 		const { client, socket } = connectedClient()
 		socket.answerKeepalives = false
-		await jest.advanceTimersByTimeAsync(5000)
+		await vi.advanceTimersByTimeAsync(5000)
 		expect(socket.keepaliveRequests).toBe(1)
 
-		await jest.advanceTimersByTimeAsync(4000)
+		await vi.advanceTimersByTimeAsync(4000)
 		socket.emit('data', reply)
-		await jest.advanceTimersByTimeAsync(2000)
+		await vi.advanceTimersByTimeAsync(2000)
 
 		expect(client.status).toBe(ConnectionStatus.Connected)
 		expect(socket.destroyed).toBe(false)
@@ -641,15 +643,15 @@ describe('S101Client keepalives', () => {
 
 	it('closes the connection when nothing comes for 5 s after asking', async () => {
 		const { client, socket } = connectedClient()
-		const disconnected = jest.fn()
+		const disconnected = vi.fn()
 		client.on('disconnected', disconnected)
 		socket.answerKeepalives = false
-		await jest.advanceTimersByTimeAsync(5000)
+		await vi.advanceTimersByTimeAsync(5000)
 		expect(socket.keepaliveRequests).toBe(1)
 
-		await jest.advanceTimersByTimeAsync(4900)
+		await vi.advanceTimersByTimeAsync(4900)
 		expect(disconnected).not.toHaveBeenCalled()
-		await jest.advanceTimersByTimeAsync(200)
+		await vi.advanceTimersByTimeAsync(200)
 		expect(disconnected).toHaveBeenCalledTimes(1) // (and the client connects again)
 		client.removeAllListeners()
 		await client.disconnect()
@@ -660,10 +662,10 @@ describe('S101Client keepalives', () => {
 // (net.Socket connects again as the same socket)
 describe('S101Client keepalives across a reconnect', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	it('keeps asking only as often as before after a reconnect, and stops after disconnect()', async () => {
@@ -690,7 +692,7 @@ describe('S101Client keepalives across a reconnect', () => {
 	it("doesn't let an unanswered keepalive of the dropped connection close the next one", async () => {
 		const { client, socket } = connectedClient()
 		socket.answerKeepalives = false
-		await jest.advanceTimersByTimeAsync(5100) // the request at 5 s, unanswered
+		await vi.advanceTimersByTimeAsync(5100) // the request at 5 s, unanswered
 		expect(socket.keepaliveRequests).toBe(1)
 
 		socket.emit('close', false) // dropped while waiting for the answer
@@ -708,10 +710,10 @@ describe('S101Client keepalives across a reconnect', () => {
 
 describe('S101Client a new connection', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	// The codec is the client's, for every connection it makes: what the dropped one left half read was kept. A frame
@@ -747,10 +749,10 @@ describe('S101Client a new connection', () => {
 
 describe('S101Client a rejected frame', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 	})
 	afterEach(() => {
-		jest.useRealTimers()
+		vi.useRealTimers()
 	})
 
 	it('emits one error and still delivers the message after it in the same read', async () => {
@@ -783,11 +785,11 @@ describe('S101Client a rejected frame', () => {
 
 describe('S101Client decoding', () => {
 	beforeEach(() => {
-		jest.useFakeTimers()
+		vi.useFakeTimers()
 	})
 	afterEach(() => {
-		jest.useRealTimers()
-		jest.mocked(berDecode).mockClear()
+		vi.useRealTimers()
+		vi.mocked(berDecode).mockClear()
 	})
 
 	/** A connected client, what it emits, and a way to send it one message (a GetDirectory on the root) */
@@ -807,7 +809,7 @@ describe('S101Client decoding', () => {
 
 	it('decodes each message once', async () => {
 		const { client, trees, receive } = connected()
-		jest.mocked(berDecode).mockClear()
+		vi.mocked(berDecode).mockClear()
 
 		receive()
 
@@ -819,8 +821,8 @@ describe('S101Client decoding', () => {
 
 	it('reports a message that fails to decode as an error', async () => {
 		const { client, errors, trees, receive } = connected()
-		const consoleError = jest.spyOn(console, 'error').mockImplementation(() => null)
-		jest.mocked(berDecode).mockImplementationOnce(() => {
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => null)
+		vi.mocked(berDecode).mockImplementationOnce(() => {
 			throw new Error('cannot decode')
 		})
 
