@@ -1476,6 +1476,64 @@ describe('EmberServer range warnings', () => {
 	})
 })
 
+// "If a factor is specified, a formula must not be provided", and the other way round: a parameter given both has its
+// factor dropped, with a warning, keeping the formula, at init() and when an update() leaves both. Both were sent.
+describe('EmberServer formula and factor', () => {
+	let server: EmberServer
+	let warnings: string[]
+
+	async function init(...elements: Array<NumberedTreeNode<EmberElement>>) {
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		server = new EmberServer(9000)
+		warnings = []
+		server.on('warn', (e) => warnings.push(e.message))
+		await server.init(childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf(elements))]))
+	}
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+	const gain = (number: number, properties: Partial<ParameterImpl<ParameterType.Integer>>) => {
+		const contents = new ParameterImpl(ParameterType.Integer, `gain${number}`, undefined, 0)
+		Object.assign(contents, properties)
+		return new NumberedTreeNodeImpl(number, contents)
+	}
+	const dropped = (path: string, factor: number) =>
+		`Parameter ${path}: a formula and a factor must not both be given: factor ${factor} dropped`
+
+	it("drops at init() the factor of a parameter with a formula too, a template's included, keeping the formula", async () => {
+		const both = gain(1, { formula: '$ / 2\n$ * 2', factor: 10 })
+		const factorOnly = gain(2, { factor: 10 })
+		const templated = gain(1, { formula: '$ * 3', factor: 100 })
+		await init(both, factorOnly, new NumberedTreeNodeImpl(7, new TemplateImpl(templated)))
+
+		expect(both.contents).toMatchObject({ formula: '$ / 2\n$ * 2', factor: undefined })
+		expect(factorOnly.contents.factor).toBe(10)
+		expect(templated.contents.factor).toBeUndefined()
+		expect(warnings).toEqual([dropped('1.1', 10), dropped('1.7', 100)])
+	})
+
+	it.each<[string, Partial<ParameterImpl<ParameterType.Integer>>, Partial<ParameterImpl<ParameterType.Integer>>]>([
+		['a factor to a parameter with a formula', { formula: '$ * 2' }, { factor: 10 }],
+		['a formula to a parameter with a factor', { factor: 10 }, { formula: '$ * 2' }],
+	])('drops the factor when an update() gives %s, and notifies without it', async (_, properties, update) => {
+		const parameter = gain(1, properties)
+		await init(parameter)
+		const consumer = new FakeConnection()
+		const s101Server = (server as unknown as { _server: S101Server })._server
+		s101Server.emit('connection', consumer as unknown as S101Socket)
+		consumer.request('1', new GetDirectoryImpl())
+		await new Promise(setImmediate)
+		consumer.received.length = 0
+
+		server.update(parameter, update)
+		await new Promise(setImmediate)
+
+		expect(parameter.contents).toMatchObject({ formula: '$ * 2', factor: undefined })
+		expect(warnings).toEqual([dropped('1.1', 10)])
+		expect(onlyElement(at(consumer.received, 0)).contents).toMatchObject({ formula: '$ * 2', factor: undefined })
+	})
+})
+
 describe('EmberServer invocations', () => {
 	// A device, 1, with a node, 1.1, and a function, 1.2
 	let server: EmberServer

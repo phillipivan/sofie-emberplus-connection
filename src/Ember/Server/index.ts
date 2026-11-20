@@ -171,6 +171,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		this._templated = new WeakMap()
 		for (const { path, element, inTemplate, siblings } of elementsOf(tree)) {
 			this._correctIdentifier(path, element, siblings)
+			if (isElementOfType(element, ElementType.Parameter)) this._dropFactorWithFormula(path, element.contents)
 			if (inTemplate) this._templated.set(element, path)
 		}
 		this._changedStreams.clear()
@@ -340,6 +341,23 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	/**
+	 * Drops a parameter's factor when it has a formula too, with a `warn` event: "If a factor is specified, a formula
+	 * must not be provided", and "If a formula is specified, a factor must not be provided". The formula, the more
+	 * specific of the two, is kept, as Model.displayValue uses it before a factor. Both were sent, for consumers to guess
+	 * which to apply.
+	 */
+	private _dropFactorWithFormula(path: RelativeOID, parameter: Parameter): void {
+		if (!parameter.formula || parameter.factor === undefined) return
+		this.emit(
+			'warn',
+			new Error(
+				`Parameter ${path}: a formula and a factor must not both be given: factor ${parameter.factor} dropped`
+			)
+		)
+		parameter.factor = undefined
+	}
+
+	/**
 	 * Warns, with `warn` events, about what of a parameter's range, value and default it doesn't allow: an inverted
 	 * range (the minimum above the maximum), which isn't checked, and a value or default below the minimum, above the
 	 * maximum, or, for an enumeration, none of its entries (valueProblem). A value or default is warned about once,
@@ -438,6 +456,9 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			element.contents.identifier = corrected.legal
 			element.contents.description ??= corrected.original
 		}
+
+		if (isElementOfType(element, ElementType.Parameter))
+			this._dropFactorWithFormula(getPath(element), element.contents)
 
 		// A value, default or range the parameter doesn't allow, warned about, but applied: the device reports what it is
 		if (isElementOfType(element, ElementType.Parameter) && !this._templated.has(element)) {
