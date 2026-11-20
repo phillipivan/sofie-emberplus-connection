@@ -37,7 +37,6 @@ import {
 	RelativeOID,
 	RootElement,
 	RootType,
-	TreeElement,
 } from '../../types/types.js'
 import { childPath, getPath, isElementOfType, isInvokeElement, parentPath, toQualifiedEmberNode } from '../Lib/util.js'
 import { S101Server, S101ServerOptions } from '../Socket/S101Server.js'
@@ -664,7 +663,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		el: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>,
 		client: S101Socket
 	) {
-		const matrix = this.getElementByPath(path)
+		const matrix = this._elementAt(path)
 		if (!matrix || !isElementOfType(matrix, ElementType.Matrix) || !el.contents.connections) return
 
 		const requested = [...el.contents.connections.values()]
@@ -724,7 +723,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		el: QualifiedElement<Parameter> | NumberedTreeNode<Parameter>,
 		client: S101Socket
 	) {
-		const tree = this.getElementByPath(path)
+		const tree = this._elementAt(path)
 		if (!tree || !isElementOfType(tree, ElementType.Parameter) || el.contents.value === undefined) return
 
 		// Only a parameter the provider makes writeable takes a consumer's value: Write or ReadWrite, as libember's
@@ -780,7 +779,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		// A command this library doesn't know is ignored, as a provider built on libember ignores it
 		if (el.contents.number === CommandType.Unknown) return
 
-		const tree = path ? this.getElementByPath(path) : this.tree
+		const tree = path ? this._elementAt(path) : this.tree
 		if (!tree) return
 
 		if (el.contents.number === CommandType.Subscribe) {
@@ -810,37 +809,54 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		}
 	}
 
+	/**
+	 * The element at a path in the tree, for the provider's own use: by numbers (`1.2.3`), or by identifiers,
+	 * descriptions or numbers (`device.channel.gain`), as the client's getElementByPath matches them. A path of numbers
+	 * only is matched by numbers alone; in any other, each part by an identifier, or else a description, or else a
+	 * number, among all the siblings. Undefined when there is no such element, or a part is empty. (Each part took the
+	 * first child that matched any of the three, so a number could match an earlier sibling described with it, and an
+	 * empty part ended the path at the element before it.) Consumers' requests, whose paths are numbers, are looked up
+	 * by number alone.
+	 */
 	getElementByPath(path: string, delimiter = '.'): NumberedTreeNode<EmberElement> | undefined {
-		const getNext = (elements: Children, i?: string) =>
-			[...elements.values()].find(
-				(r) =>
-					r.number === Number(i) ||
-					('identifier' in r.contents && r.contents.identifier === i) ||
-					('description' in r.contents && r.contents.description === i)
-			)
-		const getNextChild = (node: TreeElement<EmberElement>, i: string) => node.children && getNext(node.children, i)
-
-		const numberedPath: Array<number> = []
-		const pathArr = path.split(delimiter)
-		const i = pathArr.shift()
-		let tree: NumberedTreeNode<EmberElement> | undefined = getNext(this.tree, i)
-		if (tree?.number) numberedPath.push(tree?.number)
-
-		while (pathArr.length) {
-			const i = pathArr.shift()
-			if (!i) break
-			if (!tree) break
-			const next = getNextChild(tree, i)
-			if (!next) {
-				// not found
-				return
-			}
-			tree = next
-			if (!tree) return
-			if (tree?.number) numberedPath.push(tree?.number)
+		const parts = path.split(delimiter)
+		const isNumber = (part: string) => /^\d+$/.test(part)
+		const numbered = parts.every(isNumber)
+		let elements: Children | undefined = this.tree
+		let element: NumberedTreeNode<EmberElement> | undefined
+		for (const part of parts) {
+			if (!elements || part === '') return undefined
+			const siblings: Array<NumberedTreeNode<EmberElement>> = [...elements.values()]
+			const byNumber = (): NumberedTreeNode<EmberElement> | undefined =>
+				isNumber(part) ? siblings.find((e) => e.number === Number(part)) : undefined
+			element = numbered
+				? byNumber()
+				: (siblings.find((e) => 'identifier' in e.contents && e.contents.identifier === part) ??
+					siblings.find((e) => 'description' in e.contents && e.contents.description === part) ??
+					byNumber())
+			if (!element) return undefined
+			elements = element.children
 		}
+		return element
+	}
 
-		return tree
+	/**
+	 * The element at a consumer's path, by numbers alone: a request's path is a RELATIVE-OID, numbers only, a consumer
+	 * turning an identifier path into one itself. It was looked up as getElementByPath does, each part matching a
+	 * number, identifier or description, so a request went to an earlier sibling described with the number asked for.
+	 */
+	private _elementAt(path: string): NumberedTreeNode<EmberElement> | undefined {
+		let elements: Children | undefined = this.tree
+		let element: NumberedTreeNode<EmberElement> | undefined
+		for (const part of path.split('.')) {
+			if (!elements || !/^\d+$/.test(part)) return undefined
+			const number = Number(part)
+			const siblings: Array<NumberedTreeNode<EmberElement>> = [...elements.values()]
+			element = siblings.find((e) => e.number === number)
+			if (!element) return undefined
+			elements = element.children
+		}
+		return element
 	}
 
 	private _subscribe(path: string, client: S101Socket, subscriptions = this._subscriptions) {

@@ -1169,6 +1169,81 @@ describe('EmberServer streams', () => {
 	})
 })
 
+// A consumer's request gives a path of numbers (a RELATIVE-OID), a consumer turning an identifier path into one
+// itself: it is looked up by number alone. Each part matched a number, an identifier or a description, whichever child
+// came first, so a request went to an earlier sibling described with the number asked for. getElementByPath, for the
+// provider's own use, matches as the client's does: a path of numbers by numbers alone, any other part by identifier,
+// else description, else number, among all the siblings.
+describe('EmberServer paths', () => {
+	// A device, 1, with a node, 1.1, of channels described with numbers one off theirs (1.1.1 is "2", 1.1.2 is "1"),
+	// and two gains: 1.1.3 described "gain", and 1.1.4 identified so
+	let server: EmberServer
+	let channels: Array<NumberedTreeNode<ParameterImpl<ParameterType.Integer>>>
+
+	beforeEach(async () => {
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		const parameter = (number: number, identifier: string, description?: string) =>
+			new NumberedTreeNodeImpl(
+				number,
+				new ParameterImpl(
+					ParameterType.Integer,
+					identifier,
+					description,
+					0,
+					undefined,
+					undefined,
+					ParameterAccess.ReadWrite
+				)
+			)
+		channels = [
+			parameter(1, 'ch1', '2'),
+			parameter(2, 'ch2', '1'),
+			parameter(3, 'level', 'gain'),
+			parameter(4, 'gain'),
+		]
+		const node = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channels'), childrenOf(channels))
+		server = new EmberServer(9000)
+		await server.init(childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([node]))]))
+	})
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	it("sends a consumer's setValue to the element numbered as asked, not one described so", async () => {
+		const handler = vi.fn(async () => Promise.resolve(true))
+		server.onSetValue = handler
+		const consumer = new FakeConnection()
+		const s101Server = (server as unknown as { _server: S101Server })._server
+		s101Server.emit('connection', consumer as unknown as S101Socket)
+		consumer.emit('emberTree', {
+			rootType: RootType.Elements,
+			value: [
+				new QualifiedElementImpl('1.1.2', new ParameterImpl(ParameterType.Integer, undefined, undefined, 5)),
+			],
+		})
+		await new Promise(setImmediate)
+
+		expect(handler).toHaveBeenCalledWith(channels[1], 5, consumer)
+	})
+
+	it.each<[string, string, number | undefined]>([
+		['numbers, by numbers alone', '1.1.2', 2],
+		['identifiers', 'device.channels.ch1', 1],
+		['an identifier before an earlier sibling described with it', 'device.channels.gain', 4],
+		['a description, when no identifier matches', 'device.channels.1', 2],
+		['numbers and identifiers mixed', '1.channels.ch2', 2],
+		['an empty part, as nothing', '1..1', undefined],
+		['a trailing delimiter, as nothing', '1.1.', undefined],
+		['nothing, as nothing', '', undefined],
+	])('getElementByPath finds by %s', (_, path, number) => {
+		expect(server.getElementByPath(path)?.number).toBe(number)
+	})
+
+	it('getElementByPath takes another delimiter', () => {
+		expect(server.getElementByPath('device/channels/ch2', '/')?.number).toBe(2)
+	})
+})
+
 describe('EmberServer invocations', () => {
 	// A device, 1, with a node, 1.1, and a function, 1.2
 	let server: EmberServer
