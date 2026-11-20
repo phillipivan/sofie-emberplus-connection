@@ -3,7 +3,7 @@ import { EventEmitter } from 'eventemitter3'
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult.js'
 import { berEncode } from '../../encodings/ber/index.js'
 import { Command, CommandType, FieldFlags, Invoke, isGetDirectory } from '../../model/Command.js'
-import { Connection, ConnectionImpl, ConnectionOperation } from '../../model/Connection.js'
+import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation } from '../../model/Connection.js'
 import {
 	Connections,
 	connectionsOf,
@@ -78,7 +78,10 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	 * is given only a setValue on a writeable parameter, one whose access is Write or ReadWrite.
 	 */
 	onSetValue?: (parameter: NumberedTreeNode<Parameter>, value: EmberValue) => Promise<boolean>
-	/** Applies a consumer's connection request, normally with updateMatrixConnection; what it resolves to is ignored */
+	/**
+	 * Applies a consumer's connection request, normally with updateMatrixConnection (or queueMatrixConnection, for a
+	 * change made later); what it resolves to is ignored. It isn't given a request on a locked target.
+	 */
 	onMatrixOperation?: (Matrix: NumberedTreeNode<Matrix>, connection: Connections) => Promise<unknown>
 
 	private _server: S101Server
@@ -87,6 +90,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	private _subscriptions = new Map<string, Set<S101Socket>>()
 	private _pendingMatrixReplies = new Set<PendingMatrixReply>()
 	private _pendingValueReplies = new Set<PendingValueReply>()
+	/** The locked targets of each matrix, by its path */
+	private _lockedTargets = new Map<string, Set<number>>()
 
 	constructor(port: number, address?: string, options?: EmberServerOptions) {
 		super()
@@ -116,6 +121,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	async init(tree: Children): Promise<void> {
+		this._lockedTargets.clear() // the matrices they were of are gone
 		const setParent = (parent: NumberedTreeNode<EmberElement>, child: NumberedTreeNode<EmberElement>) => {
 			child.parent = parent
 			if (child.children) {
@@ -185,7 +191,9 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 
 	/**
 	 * Applies a connection change to a matrix, keeping to its type, and reports every target that changed to the
-	 * consumers subscribed to the matrix. In a one-to-N matrix (the default) or a one-to-one matrix a target has at most
+	 * consumers subscribed to the matrix, with the disposition modified, as Lawo's EmberPlusRouter and
+	 * TinyEmberPlusRouter do. A change that leaves the target as it was is reported as it is (the disposition tally,
+	 * left out, as in a directory reply). In a one-to-N matrix (the default) or a one-to-one matrix a target has at most
 	 * one source, so connecting a source replaces the one it had; of several sources requested, the last is kept. In a
 	 * one-to-one matrix a source also has at most one target, so connecting it disconnects it from any other target.
 	 *
@@ -195,57 +203,28 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	 * A change naming a target or source the matrix doesn't have is refused too, with a `warn` event: a real target's
 	 * current state is reported, a target that doesn't exist reported not at all.
 	 *
+	 * A locked target is changed too: the lock is against consumers' requests, not the provider's own changes.
+	 *
 	 * @returns false when the change was refused
 	 */
 	updateMatrixConnection(element: NumberedTreeNode<Matrix>, update: Connection): boolean {
-		const missing = missingSignals(element.contents, update)
-		if (missing) {
-			this.emit('warn', new Error(`Matrix ${getPath(element)}: connection change not applied: ${missing}`))
-			if (hasSignal(element.contents, 'target', update.target) !== false) {
-				const current =
-					element.contents.connections?.get(update.target) ?? new ConnectionImpl(update.target, [])
-				this._reportMatrixConnections(element, connectionsOf([current]))
-			}
-			return false
-		}
+		const sources = this._sourcesAfter(element, update, 'connection change not applied')
+		if (!sources) return false
+
 		const connections = (element.contents.connections ??= new Map<number, Connection>())
-		const matrixType = element.contents.matrixType ?? MatrixType.OneToN
-		const oneSourcePerTarget = matrixType !== MatrixType.NToN
 		let connection = connections.get(update.target)
 		if (!connection) {
 			connection = new ConnectionImpl(update.target, [])
 			connections.set(update.target, connection)
 		}
-		const current = connection.sources ?? []
-		const requested = update.sources ?? []
-
-		let sources: number[]
-		switch (update.operation) {
-			case ConnectionOperation.Connect:
-				if (oneSourcePerTarget) {
-					sources = requested.length ? requested.slice(-1) : current
-				} else {
-					sources = [...new Set([...current, ...requested])]
-				}
-				break
-			case ConnectionOperation.Disconnect:
-				sources = current.filter((source) => !requested.includes(source))
-				break
-			case ConnectionOperation.Absolute:
-			default:
-				sources = oneSourcePerTarget ? requested.slice(-1) : [...new Set(requested)]
-				break
-		}
-
-		const changed = connectionsOf([connection])
-		if (matrixType === MatrixType.NToN && exceedsConnectLimits(element.contents, current, sources)) {
-			this._reportMatrixConnections(element, changed)
-			return false
+		if (sameSources(connection.sources ?? [], sources)) {
+			this._reportMatrixConnections(element, connectionsOf([connection]))
+			return true
 		}
 		connection.sources = sources
 
-		if (matrixType === MatrixType.OneToOne) {
-			const sources = connection.sources ?? []
+		const changed = connectionsOf([connection])
+		if (element.contents.matrixType === MatrixType.OneToOne) {
 			for (const other of connections.values()) {
 				if (other.target === connection.target) continue
 				if (!other.sources?.some((source) => sources.includes(source))) continue
@@ -254,15 +233,109 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			}
 		}
 
-		this._reportMatrixConnections(element, changed)
+		this._reportMatrixConnections(element, changed, ConnectionDisposition.Modified)
 		return true
 	}
 
 	/**
-	 * Sends the given connections of a matrix to the consumers subscribed to it, and to each consumer waiting for the
-	 * answer to a connection request that named one of their targets
+	 * Reports a connection change as pending: queued, to be made later. The consumers subscribed to the matrix (and a
+	 * consumer waiting for the answer to its request on the target) are told the sources the target will have, as
+	 * updateMatrixConnection would make them, with the disposition pending; the matrix isn't changed. When the change
+	 * is made, make it with updateMatrixConnection, which reports it as modified; if it isn't, report the target as it
+	 * is (updateMatrixConnection with its current sources, which reports it as tally). A change is refused as
+	 * updateMatrixConnection refuses it, with the target's current state reported.
+	 *
+	 * @returns false when the change was refused
 	 */
-	private _reportMatrixConnections(element: NumberedTreeNode<Matrix>, changed: Connections): void {
+	queueMatrixConnection(element: NumberedTreeNode<Matrix>, update: Connection): boolean {
+		const sources = this._sourcesAfter(element, update, 'connection change not queued')
+		if (!sources) return false
+		const queued = connectionsOf([new ConnectionImpl(update.target, sources)])
+		this._reportMatrixConnections(element, queued, ConnectionDisposition.Pending)
+		return true
+	}
+
+	/**
+	 * Locks a matrix's target against consumers' connection requests, or unlocks it. A request on a locked target isn't
+	 * handed to onMatrixOperation, and is answered with the target's current sources and the disposition locked. A
+	 * handler that finds a target locked (the device refuses the change, say) can lock it before it returns, and the
+	 * consumer is answered so too. The provider's own changes, with updateMatrixConnection, are applied all the same.
+	 * Locking reports nothing: the Glow DTD has no lock state, only the disposition of an answer.
+	 *
+	 * @throws for a target the matrix doesn't have
+	 */
+	setMatrixTargetLocked(element: NumberedTreeNode<Matrix>, target: number, locked = true): void {
+		const path = getPath(element)
+		if (hasSignal(element.contents, 'target', target) === false) {
+			throw new Error(`Matrix ${path}: target ${target} is not one of its targets`)
+		}
+		const lockedTargets = this._lockedTargets.get(path) ?? new Set<number>()
+		if (locked) lockedTargets.add(target)
+		else lockedTargets.delete(target)
+		if (lockedTargets.size) this._lockedTargets.set(path, lockedTargets)
+		else this._lockedTargets.delete(path)
+	}
+
+	/** Whether a matrix's target is locked against consumers' connection requests (setMatrixTargetLocked) */
+	isMatrixTargetLocked(element: NumberedTreeNode<Matrix>, target: number): boolean {
+		return this._lockedTargets.get(getPath(element))?.has(target) ?? false
+	}
+
+	/**
+	 * The sources a target is to have after a change, keeping to the matrix's type, or undefined when the change is
+	 * refused, with the target's current state reported: a change naming a target or source the matrix doesn't have
+	 * (with a `warn` event saying it was not done, and why; a target that doesn't exist isn't reported), or, in an n-to-n
+	 * matrix, one adding sources beyond its limits
+	 */
+	private _sourcesAfter(element: NumberedTreeNode<Matrix>, update: Connection, done: string): number[] | undefined {
+		const current = element.contents.connections?.get(update.target) ?? new ConnectionImpl(update.target, [])
+		const missing = missingSignals(element.contents, update)
+		if (missing) {
+			this.emit('warn', new Error(`Matrix ${getPath(element)}: ${done}: ${missing}`))
+			if (hasSignal(element.contents, 'target', update.target) !== false) {
+				this._reportMatrixConnections(element, connectionsOf([current]))
+			}
+			return undefined
+		}
+
+		const matrixType = element.contents.matrixType ?? MatrixType.OneToN
+		const oneSourcePerTarget = matrixType !== MatrixType.NToN
+		const currentSources = current.sources ?? []
+		const requested = update.sources ?? []
+		let sources: number[]
+		switch (update.operation) {
+			case ConnectionOperation.Connect:
+				if (oneSourcePerTarget) {
+					sources = requested.length ? requested.slice(-1) : currentSources
+				} else {
+					sources = [...new Set([...currentSources, ...requested])]
+				}
+				break
+			case ConnectionOperation.Disconnect:
+				sources = currentSources.filter((source) => !requested.includes(source))
+				break
+			case ConnectionOperation.Absolute:
+			default:
+				sources = oneSourcePerTarget ? requested.slice(-1) : [...new Set(requested)]
+				break
+		}
+
+		if (matrixType === MatrixType.NToN && exceedsConnectLimits(element.contents, currentSources, sources)) {
+			this._reportMatrixConnections(element, connectionsOf([current]))
+			return undefined
+		}
+		return sources
+	}
+
+	/**
+	 * Sends the given connections of a matrix, with the disposition given (none: tally), to the consumers subscribed to
+	 * it, and to each consumer waiting for the answer to a connection request that named one of their targets
+	 */
+	private _reportMatrixConnections(
+		element: NumberedTreeNode<Matrix>,
+		changed: Connections,
+		disposition?: ConnectionDisposition
+	): void {
 		const path = toQualifiedEmberNode(element).path
 		const recipients = new Set(this._subscriptions.get(path) ?? [])
 		// A consumer waiting for the answer to its connection request gets the report of a target it asked about
@@ -273,7 +346,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			if (covered) recipients.add(pending.client)
 		}
 
-		const data = this._encodeMatrixConnections(element, changed)
+		const reported = connectionsOf([...changed.values()].map((connection) => reportOf(connection, disposition)))
+		const data = this._encodeMatrixConnections(element, reported)
 		recipients.forEach((client) => client.sendBER(data))
 	}
 
@@ -330,6 +404,10 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	 * A connection naming a target or source the matrix doesn't have is dropped, with a `warn` event: the handler isn't
 	 * given it. A real target still gets its current state; a target that doesn't exist gets no answer, having no
 	 * state to give (as the XACI answers none).
+	 *
+	 * A connection on a locked target isn't given to the handler either, also with a `warn` event, and is answered with
+	 * the target's current state and the disposition locked; so is one on a target the handler locks without reporting
+	 * it.
 	 */
 	private async _handleMatrix(
 		path: string,
@@ -356,6 +434,15 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			if (hasSignal(matrix.contents, 'target', connection.target) === false)
 				pending.targets.delete(connection.target)
 		}
+		for (const target of valid.keys()) {
+			if (!this.isMatrixTargetLocked(matrix, target)) continue
+			// Answered below, as locked
+			valid.delete(target)
+			this.emit(
+				'warn',
+				new Error(`Matrix ${pending.path}: refused a consumer's connection request: target ${target} is locked`)
+			)
+		}
 		this._pendingMatrixReplies.add(pending)
 
 		try {
@@ -363,9 +450,12 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		} finally {
 			this._pendingMatrixReplies.delete(pending)
 			if (pending.targets.size) {
+				// Each target no report has answered: its current state, as locked if it is
 				const current: Connections = new Map()
 				for (const target of pending.targets) {
-					current.set(target, matrix.contents.connections?.get(target) ?? new ConnectionImpl(target, []))
+					const connection = matrix.contents.connections?.get(target) ?? new ConnectionImpl(target, [])
+					const locked = this.isMatrixTargetLocked(matrix, target)
+					current.set(target, reportOf(connection, locked ? ConnectionDisposition.Locked : undefined))
 				}
 				client.sendBER(this._encodeMatrixConnections(matrix, current))
 			}
@@ -547,9 +637,18 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 }
 
 /**
- * Whether changing a target's sources from `current` to `next` adds sources beyond an n-to-n matrix's limits. A change
- * that adds none is never refused, so a matrix already over its limits can still be brought under them.
+ * A target's connection as a report gives it: its sources, with the disposition given (none: tally), and no operation,
+ * whatever the connection in the tree holds
  */
+function reportOf(connection: Connection, disposition?: ConnectionDisposition): Connection {
+	return new ConnectionImpl(connection.target, connection.sources, undefined, disposition)
+}
+
+/** Whether two lists of sources hold the same sources, in whatever order */
+function sameSources(a: number[], b: number[]): boolean {
+	return a.length === b.length && a.every((source) => b.includes(source))
+}
+
 /** What a connection names that the matrix doesn't have, a target or sources, if anything */
 function missingSignals(matrix: Matrix, connection: Connection): string | undefined {
 	if (hasSignal(matrix, 'target', connection.target) === false) {
@@ -561,6 +660,10 @@ function missingSignals(matrix: Matrix, connection: Connection): string | undefi
 	return undefined
 }
 
+/**
+ * Whether changing a target's sources from `current` to `next` adds sources beyond an n-to-n matrix's limits. A change
+ * that adds none is never refused, so a matrix already over its limits can still be brought under them.
+ */
 function exceedsConnectLimits(matrix: Matrix, current: number[], next: number[]): boolean {
 	if (next.length <= current.length) return false
 	const { maximumConnectsPerTarget, maximumTotalConnects } = matrix

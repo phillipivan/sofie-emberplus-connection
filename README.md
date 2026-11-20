@@ -361,4 +361,29 @@ const tree = childrenOf([
 s.init(tree) // initiate the provider with the tree
 ```
 
+A matrix connection report tells consumers what happened to each target by its disposition. `updateMatrixConnection`
+reports a change as _modified_, and a change that leaves the target as it was, or that it refuses, as _tally_ (the
+current state). Two more are the provider's to give:
+
+```javascript
+const matrix = tree.get(1).children.get(3).children.get(1)
+
+// Locked: consumers' requests on target 2 are answered with its current sources as "locked", and onMatrixOperation
+// isn't called for them. A handler that finds a target locked can lock it before returning, with the same answer.
+// The provider's own updateMatrixConnection still changes a locked target.
+s.setMatrixTargetLocked(matrix, 2)
+s.setMatrixTargetLocked(matrix, 2, false) // unlock
+
+// Pending: a change the device makes later. queueMatrixConnection reports the sources the target will have as
+// "pending", changing nothing; updateMatrixConnection reports the change as modified once it is made. (If it never
+// is, report the target as it is: updateMatrixConnection with its current sources reports it as tally.)
+// device.route stands for the device's own API.
+s.onMatrixOperation = async (matrix, connections) => {
+	for (const connection of connections.values()) {
+		s.queueMatrixConnection(matrix, connection)
+		device.route(connection).then(() => s.updateMatrixConnection(matrix, connection))
+	}
+}
+```
+
 ---

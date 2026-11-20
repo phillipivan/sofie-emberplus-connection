@@ -18,7 +18,7 @@ import {
 	SubscribeImpl,
 	UnsubscribeImpl,
 } from '../../../model/Command.js'
-import { ConnectionOperation } from '../../../model/Connection.js'
+import { ConnectionDisposition, ConnectionOperation } from '../../../model/Connection.js'
 import {
 	childrenOf,
 	Connection,
@@ -883,12 +883,259 @@ describe('EmberServer matrices', () => {
 			server.updateMatrixConnection(matrix, new ConnectionImpl(target, sources, ConnectionOperation.Connect))
 	})
 
+	// The Glow DTD's dispositions: tally (the default, left out) the current state, modified the new current state,
+	// pending the future state of a queued change, locked an error, the target locked, with its current state. The
+	// server sent none: every report read as tally, so a consumer couldn't tell a change from a refusal.
+	describe('dispositions', () => {
+		let warnings: string[]
+		beforeEach(async () => {
+			await init(MatrixType.NToN)
+			warnings = []
+			server.on('warn', (e) => warnings.push(e.message))
+		})
+
+		/** The consumer sends a connection request, and waits for the server to handle it */
+		async function request(consumer: FakeConnection, ...connections: Connection[]) {
+			consumer.received.length = 0
+			consumer.emit('emberTree', {
+				rootType: RootType.Elements,
+				value: [
+					new QualifiedElementImpl(
+						'1.1',
+						new MatrixImpl(undefined, undefined, undefined, connectionsOf(connections))
+					),
+				],
+			})
+			await new Promise(setImmediate)
+			return consumer.received.map(reportedDispositions)
+		}
+		/** A consumer subscribed to the matrix, with nothing received yet */
+		async function subscriber() {
+			const consumer = await connectConsumer()
+			consumer.request('1.1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+			consumer.received.length = 0
+			return consumer
+		}
+		const connect = (target: number, ...sources: number[]) =>
+			new ConnectionImpl(target, sources, ConnectionOperation.Connect)
+		const applyRequest = async (m: NumberedTreeNode<Matrix>, connections: Connections) => {
+			for (const connection of connections.values()) server.updateMatrixConnection(m, connection)
+		}
+
+		describe('modified and tally', () => {
+			// As Lawo's EmberPlusRouter and TinyEmberPlusRouter report every change
+			it('reports a change to the requester and the subscribers as modified', async () => {
+				server.onMatrixOperation = applyRequest
+				const other = await subscriber()
+				const requester = await connectConsumer()
+
+				expect(await request(requester, connect(2, 3))).toEqual([{ 2: [[3], ConnectionDisposition.Modified] }])
+				expect(other.received.map(reportedDispositions)).toEqual([{ 2: [[3], ConnectionDisposition.Modified] }])
+			})
+
+			it("reports a provider's own change as modified, the operation left out", async () => {
+				const consumer = await subscriber()
+
+				server.updateMatrixConnection(matrix, connect(2, 0))
+
+				expect(consumer.received.map(reportedDispositions)).toEqual([
+					{ 2: [[0], ConnectionDisposition.Modified] },
+				])
+				const report = onlyElement(at(consumer.received, 0))
+				if (report.contents.type !== ElementType.Matrix) throw new Error('Expected a matrix')
+				expect(report.contents.connections?.get(2)?.operation).toBeUndefined()
+			})
+
+			it('reports a change that leaves the target as it was as tally', async () => {
+				const consumer = await subscriber()
+
+				server.updateMatrixConnection(matrix, connect(0, 1)) // already connected
+				server.updateMatrixConnection(matrix, new ConnectionImpl(1, [2], ConnectionOperation.Absolute))
+
+				expect(consumer.received.map(reportedDispositions)).toEqual([
+					{ 0: [[1], undefined] },
+					{ 1: [[2], undefined] },
+				])
+			})
+
+			it('reports a change refused for the limits as tally', async () => {
+				matrix.contents.maximumConnectsPerTarget = 1
+				const consumer = await subscriber()
+
+				expect(server.updateMatrixConnection(matrix, connect(0, 2))).toBe(false)
+
+				expect(consumer.received.map(reportedDispositions)).toEqual([{ 0: [[1], undefined] }])
+			})
+
+			it('answers a request the handler leaves alone as tally', async () => {
+				server.onMatrixOperation = async () => Promise.resolve()
+				const consumer = await connectConsumer()
+
+				expect(await request(consumer, connect(2, 3))).toEqual([{ 2: [[], undefined] }])
+			})
+
+			it('reports the target a one-to-one source moved off as modified too', async () => {
+				await init(MatrixType.OneToOne)
+				const consumer = await subscriber()
+
+				server.updateMatrixConnection(matrix, new ConnectionImpl(2, [1], ConnectionOperation.Absolute))
+
+				expect(consumer.received.map(reportedDispositions)).toEqual([
+					{ 0: [[], ConnectionDisposition.Modified], 2: [[1], ConnectionDisposition.Modified] },
+				])
+			})
+		})
+
+		describe('locked', () => {
+			it('answers a request on a locked target as locked, without the handler', async () => {
+				const handler = vi.fn(applyRequest)
+				server.onMatrixOperation = handler
+				server.setMatrixTargetLocked(matrix, 2)
+				const consumer = await connectConsumer()
+
+				expect(await request(consumer, connect(2, 3))).toEqual([{ 2: [[], ConnectionDisposition.Locked] }])
+				expect(handler).not.toHaveBeenCalled()
+				expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [] })
+				expect(warnings).toEqual(["Matrix 1.1: refused a consumer's connection request: target 2 is locked"])
+			})
+
+			it('tells only the requester, and hands the handler the rest of the request', async () => {
+				let given: number[] = []
+				server.onMatrixOperation = async (m, connections) => {
+					given = [...connections.keys()]
+					return applyRequest(m, connections)
+				}
+				server.setMatrixTargetLocked(matrix, 2)
+				const other = await subscriber()
+				const requester = await connectConsumer()
+
+				expect(await request(requester, connect(2, 3), connect(1, 0))).toEqual([
+					{ 1: [[2, 0], ConnectionDisposition.Modified] },
+					{ 2: [[], ConnectionDisposition.Locked] },
+				])
+				expect(given).toEqual([1])
+				expect(other.received.map(reportedDispositions)).toEqual([
+					{ 1: [[2, 0], ConnectionDisposition.Modified] },
+				])
+			})
+
+			it('answers as locked a target the handler locks', async () => {
+				server.onMatrixOperation = async (m) => {
+					server.setMatrixTargetLocked(m, 2) // the device refuses: the target is locked there
+					return Promise.resolve()
+				}
+				const consumer = await connectConsumer()
+
+				expect(await request(consumer, connect(2, 3))).toEqual([{ 2: [[], ConnectionDisposition.Locked] }])
+				expect(server.isMatrixTargetLocked(matrix, 2)).toBe(true)
+			})
+
+			it('hands the handler a request on a target unlocked again', async () => {
+				server.onMatrixOperation = applyRequest
+				server.setMatrixTargetLocked(matrix, 2)
+				server.setMatrixTargetLocked(matrix, 2, false)
+				const consumer = await connectConsumer()
+
+				expect(server.isMatrixTargetLocked(matrix, 2)).toBe(false)
+				expect(await request(consumer, connect(2, 3))).toEqual([{ 2: [[3], ConnectionDisposition.Modified] }])
+			})
+
+			it("applies the provider's own change to a locked target", async () => {
+				server.setMatrixTargetLocked(matrix, 2)
+				const consumer = await subscriber()
+
+				expect(server.updateMatrixConnection(matrix, connect(2, 3))).toBe(true)
+
+				expect(consumer.received.map(reportedDispositions)).toEqual([
+					{ 2: [[3], ConnectionDisposition.Modified] },
+				])
+			})
+
+			it('refuses to lock a target the matrix does not have', () => {
+				expect(() => server.setMatrixTargetLocked(matrix, 9)).toThrow(
+					'Matrix 1.1: target 9 is not one of its targets'
+				)
+			})
+
+			it('forgets the locks when it is given a new tree', async () => {
+				server.setMatrixTargetLocked(matrix, 2)
+				await init(MatrixType.NToN)
+
+				expect(server.isMatrixTargetLocked(matrix, 2)).toBe(false)
+			})
+		})
+
+		describe('pending', () => {
+			it('reports a queued change as pending, with the sources the target will have, changing nothing', async () => {
+				server.onMatrixOperation = async (m, connections) => {
+					for (const connection of connections.values()) server.queueMatrixConnection(m, connection)
+					return Promise.resolve()
+				}
+				const other = await subscriber()
+				const requester = await connectConsumer()
+
+				expect(await request(requester, connect(0, 3))).toEqual([
+					{ 0: [[1, 3], ConnectionDisposition.Pending] },
+				])
+				expect(other.received.map(reportedDispositions)).toEqual([
+					{ 0: [[1, 3], ConnectionDisposition.Pending] },
+				])
+				expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [] })
+			})
+
+			it('reports the change as modified once it is made, or the target as tally if it is not', async () => {
+				const consumer = await subscriber()
+
+				server.queueMatrixConnection(matrix, connect(0, 3))
+				server.updateMatrixConnection(matrix, connect(0, 3))
+				server.queueMatrixConnection(matrix, connect(1, 0))
+				server.updateMatrixConnection(matrix, new ConnectionImpl(1, [2], ConnectionOperation.Absolute))
+
+				expect(consumer.received.map(reportedDispositions)).toEqual([
+					{ 0: [[1, 3], ConnectionDisposition.Pending] },
+					{ 0: [[1, 3], ConnectionDisposition.Modified] },
+					{ 1: [[2, 0], ConnectionDisposition.Pending] },
+					{ 1: [[2], undefined] },
+				])
+			})
+
+			it('gives the future sources by the type of the matrix', async () => {
+				await init(MatrixType.OneToN)
+				const consumer = await subscriber()
+
+				expect(server.queueMatrixConnection(matrix, connect(0, 3))).toBe(true)
+
+				expect(consumer.received.map(reportedDispositions)).toEqual([
+					{ 0: [[3], ConnectionDisposition.Pending] },
+				])
+			})
+
+			it("refuses a change updateMatrixConnection would, reporting the target's current state", async () => {
+				const consumer = await subscriber()
+
+				expect(server.queueMatrixConnection(matrix, connect(0, 7))).toBe(false)
+
+				expect(consumer.received.map(reportedDispositions)).toEqual([{ 0: [[1], undefined] }])
+				expect(warnings).toEqual(['Matrix 1.1: connection change not queued: source 7 not among its sources'])
+			})
+		})
+	})
+
 	async function connectConsumer(): Promise<FakeConnection> {
 		const connection = new FakeConnection()
 		const s101Server = (server as unknown as { _server: S101Server })._server
 		s101Server.emit('connection', connection as unknown as S101Socket)
 		await new Promise(setImmediate)
 		return connection
+	}
+
+	/** The sources and disposition of each target a matrix report lists */
+	function reportedDispositions(data: Buffer) {
+		const report = onlyElement(data)
+		if (report.contents.type !== ElementType.Matrix) throw new Error('Expected a matrix')
+		const connections = report.contents.connections?.values() ?? []
+		return Object.fromEntries([...connections].map((c) => [c.target, [c.sources, c.disposition]]))
 	}
 
 	/** The sources of each target a matrix report lists */
