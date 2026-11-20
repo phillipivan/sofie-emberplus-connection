@@ -33,7 +33,7 @@
 		"reset": "git clean -dfx && git reset --hard && yarn",
 		"validate:dependencies": "yarn npm audit --environment production && run license-validate",
 		"validate:dev-dependencies": "yarn npm audit --environment development",
-		"license-validate": "sofie-licensecheck"
+		"license-validate": "sofie-licensecheck --allowLicenses MPL-2.0"
 	},
 	"contributors": [
 		"Gilles Dufour <dufour.gilles@gmail.com> (www.gdnet.be)",
