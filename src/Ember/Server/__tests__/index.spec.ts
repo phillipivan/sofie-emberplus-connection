@@ -1305,6 +1305,89 @@ describe('EmberServer streams', () => {
 		})
 	})
 
+	// A stream descriptor's format "must match the Type or the Value property", an offset must be one a value can be
+	// written at, and a stream several parameters share needs a descriptor for each, their values apart: warned about at
+	// init(), and for what an update() changes. Only a negative identifier and a string or Boolean type were, at init().
+	describe('stream properties and layouts warned about', () => {
+		/** A parameter streamed as the stream given, by the descriptor given */
+		const streamedAs = <P extends Parameter>(
+			contents: P,
+			streamIdentifier: number,
+			format?: StreamFormat,
+			offset = 0
+		) => {
+			contents.streamIdentifier = streamIdentifier
+			if (format) contents.streamDescriptor = new StreamDescriptionImpl(format, offset)
+			return contents
+		}
+
+		it.each<[string, Parameter, string]>([
+			[
+				'an integer format for a real',
+				streamedAs(new ParameterImpl(ParameterType.Real, 'x'), 9, StreamFormat.Int16LE),
+				"Parameter 1.1.5: its stream format Int16LE doesn't suit its type, REAL",
+			],
+			[
+				'a float format for an integer',
+				streamedAs(integer('x'), 9, StreamFormat.Float32LE),
+				"Parameter 1.1.5: its stream format Float32LE doesn't suit its type, INTEGER",
+			],
+			[
+				'a negative offset',
+				streamedAs(integer('x'), 9, StreamFormat.Int16LE, -2),
+				"Parameter 1.1.5: its stream offset -2 isn't a whole number of bytes from 0: left out of the stream",
+			],
+		])('warns at init() about %s', async (_, contents, warning) => {
+			await init(new NumberedTreeNodeImpl(5, contents))
+
+			expect(warnings).toEqual([warning])
+		})
+
+		it.each<[string, Parameter, string[]]>([
+			[
+				'a parameter without a descriptor in a stream others share by theirs',
+				streamedAs(integer('x'), 7),
+				['Stream 7: 1.1.5, without a stream descriptor, left out of it, which 1.1.3, 1.1.4 share by theirs'],
+			],
+			[
+				'parameters sharing a stream without descriptors',
+				streamedAs(new ParameterImpl(ParameterType.Real, 'x'), 5),
+				[
+					'Stream 5: 1.1.1, 1.1.5 share it without stream descriptors: each value sent is taken as all of theirs',
+				],
+			],
+			[
+				'values overlapping in a stream',
+				streamedAs(integer('x'), 7, StreamFormat.Int16LE, 1),
+				[
+					'Stream 7: the values of 1.1.3 (bytes 0 to 1) and 1.1.5 (bytes 1 to 2) overlap',
+					'Stream 7: the values of 1.1.5 (bytes 1 to 2) and 1.1.4 (bytes 2 to 3) overlap',
+				],
+			],
+		])('warns at init() about %s', async (_, contents, expected) => {
+			await init(new NumberedTreeNodeImpl(5, contents))
+
+			expect(warnings).toEqual(expected)
+		})
+
+		it('warns about what an update() of a parameter makes so, as at init()', async () => {
+			const name = new NumberedTreeNodeImpl(5, new ParameterImpl(ParameterType.String, 'name', undefined, ''))
+			await init(name)
+
+			server.update(gain, { streamIdentifier: -1 })
+			server.update(name, { streamIdentifier: 9 })
+			server.update(right, { streamDescriptor: new StreamDescriptionImpl(StreamFormat.Float32LE, 2) })
+			server.update(gain, { streamIdentifier: 7 })
+
+			expect(warnings).toEqual([
+				'Parameter 1.1.2: stream identifier -1 is negative: not a stream',
+				"Parameter 1.1.5: a stream parameter's type must not be STRING",
+				"Parameter 1.1.4: its stream format Float32LE doesn't suit its type, INTEGER",
+				'Stream 7: 1.1.2, without a stream descriptor, left out of it, which 1.1.3, 1.1.4 share by theirs',
+			])
+		})
+	})
+
 	describe('parameters that are not streams', () => {
 		it('warns about a negative stream identifier, and notifies that parameter as any', async () => {
 			await init(new NumberedTreeNodeImpl(5, streamed(integer('odd'), -1)))

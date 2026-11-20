@@ -176,12 +176,14 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			if (inTemplate) this._templated.set(element, path)
 		}
 		this._changedStreams.clear()
-		this._indexStreams(true)
+		this._indexStreams()
 		this._disallowed.clear()
 		for (const { path, element, inTemplate } of elementsOf(tree)) {
 			if (inTemplate || !isElementOfType(element, ElementType.Parameter)) continue
+			this._checkStreamParameter(path, element.contents)
 			this._checkRange(path, element.contents, { limits: true, value: true, defaultValue: true })
 		}
+		for (const streamIdentifier of this._streams.keys()) this._checkStreamLayout(streamIdentifier)
 		return this._server.listen()
 	}
 
@@ -241,34 +243,86 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 
 	/**
 	 * Notes the tree's stream parameters, by stream identifier: those with a stream identifier that isn't negative ("a
-	 * globally unique identifier which must not be negative"), outside template definitions. With `warn`, a `warn`
-	 * event for a negative one (not a stream) and for a stream parameter of the type string or Boolean ("its type must
-	 * not be a string or Boolean"), which is streamed all the same.
+	 * globally unique identifier which must not be negative"), outside template definitions
 	 */
-	private _indexStreams(warn = false): void {
+	private _indexStreams(): void {
 		this._streams.clear()
 		for (const { path, element, inTemplate } of elementsOf(this.tree)) {
 			if (inTemplate || !isElementOfType(element, ElementType.Parameter)) continue
-			const { streamIdentifier, parameterType } = element.contents
-			if (streamIdentifier === undefined) continue
-			if (!isStreamIdentifier(streamIdentifier)) {
-				if (warn) {
-					this.emit(
-						'warn',
-						new Error(`Parameter ${path}: stream identifier ${streamIdentifier} is negative: not a stream`)
-					)
-				}
-				continue
-			}
-			if (warn && (parameterType === ParameterType.String || parameterType === ParameterType.Boolean)) {
-				this.emit(
-					'warn',
-					new Error(`Parameter ${path}: a stream parameter's type must not be ${parameterType}`)
-				)
-			}
+			const { streamIdentifier } = element.contents
+			if (streamIdentifier === undefined || !isStreamIdentifier(streamIdentifier)) continue
 			const parameters = this._streams.get(streamIdentifier) ?? []
 			parameters.push({ path, parameter: element })
 			this._streams.set(streamIdentifier, parameters)
+		}
+	}
+
+	/**
+	 * Warns, with `warn` events, about a parameter's stream properties the specification doesn't allow: a negative
+	 * stream identifier (not a stream); a stream parameter of the type string or Boolean ("its type must not be a string
+	 * or Boolean"), streamed all the same; a stream descriptor whose format doesn't suit the parameter's type ("The value
+	 * type of the descriptor must match the Type or the Value property": integer formats an integer or an enumeration,
+	 * float formats a real); and a negative offset, which no value can be written at.
+	 */
+	private _checkStreamParameter(path: RelativeOID, parameter: Parameter): void {
+		const { streamIdentifier, parameterType, streamDescriptor } = parameter
+		if (streamIdentifier === undefined) return
+		const warn = (problem: string) => this.emit('warn', new Error(`Parameter ${path}: ${problem}`))
+		if (!isStreamIdentifier(streamIdentifier)) {
+			warn(`stream identifier ${streamIdentifier} is negative: not a stream`)
+			return
+		}
+		if (parameterType === ParameterType.String || parameterType === ParameterType.Boolean) {
+			warn(`a stream parameter's type must not be ${parameterType}`)
+		}
+		if (!streamDescriptor) return
+		if (!formatSuits(streamDescriptor.format, parameterType)) {
+			warn(`its stream format ${streamDescriptor.format} doesn't suit its type, ${parameterType}`)
+		}
+		if (!Number.isInteger(streamDescriptor.offset) || streamDescriptor.offset < 0) {
+			warn(
+				`its stream offset ${streamDescriptor.offset} isn't a whole number of bytes from 0: left out of the stream`
+			)
+		}
+	}
+
+	/**
+	 * Warns, with `warn` events, about the layout of a stream several parameters share: some with stream descriptors and
+	 * some without, those without being left out of it; none with one ("A StreamDescriptor is required when a single
+	 * stream entry contains more than one value"), each value sent then being taken as all of theirs; and values
+	 * overlapping in its octets.
+	 */
+	private _checkStreamLayout(streamIdentifier: number): void {
+		const parameters = this._streams.get(streamIdentifier) ?? []
+		if (parameters.length < 2) return
+		const warn = (problem: string) => this.emit('warn', new Error(`Stream ${streamIdentifier}: ${problem}`))
+		const paths = (list: typeof parameters) => list.map(({ path }) => path).join(', ')
+		const described = parameters.filter(({ parameter }) => parameter.contents.streamDescriptor)
+		const undescribed = parameters.filter(({ parameter }) => !parameter.contents.streamDescriptor)
+		if (!described.length) {
+			warn(`${paths(undescribed)} share it without stream descriptors: each value sent is taken as all of theirs`)
+			return
+		}
+		if (undescribed.length) {
+			warn(
+				`${paths(undescribed)}, without a stream descriptor, left out of it, which ${paths(described)} share by theirs`
+			)
+		}
+		const spans = described
+			.map(({ path, parameter }) => {
+				const descriptor = parameter.contents.streamDescriptor
+				const start = descriptor?.offset ?? 0
+				return { path, start, end: start + (descriptor ? STREAM_FORMATS[descriptor.format].size : 0) }
+			})
+			.sort((a, b) => a.start - b.start)
+		let previous = spans[0]
+		for (const span of spans.slice(1)) {
+			if (previous && span.start < previous.end) {
+				warn(
+					`the values of ${previous.path} (bytes ${previous.start} to ${previous.end - 1}) and ${span.path} (bytes ${span.start} to ${span.end - 1}) overlap`
+				)
+			}
+			if (!previous || span.end > previous.end) previous = span
 		}
 	}
 
@@ -511,7 +565,14 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		// A stream parameter's value goes, in a stream collection, only to the consumers that subscribed to it: "These
 		// notifications must not be sent when the parameter has a stream identifier". Its other properties are notified
 		// as any element's are, without the value. It was notified as any parameter.
-		if ('streamIdentifier' in update || 'streamDescriptor' in update) this._indexStreams()
+		const streamChange = 'streamIdentifier' in update || 'streamDescriptor' in update || 'parameterType' in update
+		if (streamChange && isElementOfType(element, ElementType.Parameter) && !this._templated.has(element)) {
+			// The parameter's stream properties, and the layout of the stream it is in, checked as at init()
+			this._indexStreams()
+			this._checkStreamParameter(getPath(element), element.contents)
+			const changed = element.contents.streamIdentifier
+			if (changed !== undefined && isStreamIdentifier(changed)) this._checkStreamLayout(changed)
+		}
 		const streamIdentifier = isElementOfType(element, ElementType.Parameter)
 			? element.contents.streamIdentifier
 			: undefined
@@ -1209,6 +1270,12 @@ function argumentsProblem(fn: EmberFunction, args: Array<EmberTypedValue>): stri
 		}
 	}
 	return undefined
+}
+
+/** Whether a stream format suits a parameter's type: an integer format an integer or an enumeration, a float a real */
+function formatSuits(format: StreamFormat, type: ParameterType): boolean {
+	if (format.startsWith('Float')) return type === ParameterType.Real
+	return type === ParameterType.Integer || type === ParameterType.Enum
 }
 
 /** Whether a stream identifier makes a parameter a stream parameter: it "must not be negative" */
