@@ -528,6 +528,57 @@ describe('EmberServer subscriptions', () => {
 			expect(warned).toEqual([consumer])
 		})
 
+		// "If the value is invalid, the provider shall respond with the current value": one that doesn't fit the
+		// parameter's type, or isn't a whole number for an integer, isn't handed to the handler. It was, and a handler
+		// that applied it left a value in the tree the encoder refuses, so every later reply giving it failed.
+		describe('with a value that does not fit the parameter', () => {
+			/** The consumer asks for 1.1.1, an integer parameter, to be set to the value given */
+			async function request(consumer: FakeConnection, value: Parameter) {
+				consumer.received.length = 0
+				consumer.emit('emberTree', {
+					rootType: RootType.Elements,
+					value: [new QualifiedElementImpl('1.1.1', value)],
+				})
+				await new Promise(setImmediate)
+				return consumer.received.map(reportedValue)
+			}
+
+			it.each([
+				['a string', new ParameterImpl(ParameterType.String, undefined, undefined, 'abc'), 'abc'],
+				['a fraction', new ParameterImpl(ParameterType.Real, undefined, undefined, 1.5), '1.5'],
+				['NaN', new ParameterImpl(ParameterType.Real, undefined, undefined, NaN), 'NaN'],
+				['Infinity', new ParameterImpl(ParameterType.Real, undefined, undefined, Infinity), 'Infinity'],
+			])('answers %s with the current value, without the handler, and a warning', async (_, value, shown) => {
+				const handler = vi.fn(applyValue)
+				server.onSetValue = handler
+				const warnings: string[] = []
+				server.on('warn', (e) => warnings.push(e.message))
+				const consumer = await connect()
+
+				expect(await request(consumer, value)).toEqual([['1.1.1', 0]])
+				expect(handler).not.toHaveBeenCalled()
+				expect(warnings).toEqual([
+					`Parameter 1.1.1: a consumer's setValue refused: ${shown} doesn't fit its type, INTEGER`,
+				])
+
+				// the tree is as it was, so a reply giving the parameter still goes out
+				consumer.received.length = 0
+				consumer.request('1.1', new GetDirectoryImpl())
+				await new Promise(setImmediate)
+				expect(consumer.received).toHaveLength(1)
+			})
+
+			it.each([
+				['a whole number', new ParameterImpl(ParameterType.Integer, undefined, undefined, 7), 7],
+				['null', new ParameterImpl(ParameterType.Integer, undefined, undefined, null), null],
+			])('hands the handler %s', async (_, value, applied) => {
+				server.onSetValue = applyValue
+				const consumer = await connect()
+
+				expect(await request(consumer, value)).toEqual([['1.1.1', applied]])
+			})
+		})
+
 		// Only a writeable parameter takes a consumer's value: any was handed to the handler, so a read-only one took it
 		// unless the handler checked its access itself
 		describe('on a parameter that is not writeable', () => {

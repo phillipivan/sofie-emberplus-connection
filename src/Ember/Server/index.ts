@@ -15,6 +15,7 @@ import {
 	hasSignal,
 	InvocationResult,
 	isConnections,
+	isValueOfType,
 	Matrix,
 	MatrixAddressingMode,
 	MatrixImpl,
@@ -734,6 +735,28 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			this.emit(
 				'warn',
 				new Error(`Parameter ${getPath(tree)}: a consumer's setValue refused: its access is ${access}`),
+				client
+			)
+			client.sendBER(berEncode([toQualifiedEmberNode(tree)], RootType.Elements))
+			return
+		}
+
+		// Only a value of the parameter's type, and for an integer or an enumeration a whole number: "If the value is
+		// invalid, the provider shall respond with the current value". Any was handed to the handler, so one that
+		// applied it (as update() would) left a value in the tree that the encoder refuses, and every reply giving the
+		// parameter failed. Its range (minimum, maximum, entries) is the handler's to check.
+		const value = el.contents.value
+		const { parameterType } = tree.contents
+		const wholeOnly = parameterType === ParameterType.Integer || parameterType === ParameterType.Enum
+		if (
+			!isValueOfType(parameterType, value) ||
+			(wholeOnly && typeof value === 'number' && !Number.isInteger(value))
+		) {
+			this.emit(
+				'warn',
+				new Error(
+					`Parameter ${getPath(tree)}: a consumer's setValue refused: ${String(value)} doesn't fit its type, ${parameterType}`
+				),
 				client
 			)
 			client.sendBER(berEncode([toQualifiedEmberNode(tree)], RootType.Elements))
