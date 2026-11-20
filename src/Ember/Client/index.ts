@@ -342,7 +342,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		if (sent.sentOk) this._sentSubscribes.set(request.path, { elementType: request.elementType })
 		return sent
 	}
-	async unsubscribe(node: NumberedTreeNode<EmberElement> | Children): RequestPromise<RootElement> {
+	async unsubscribe(node: RootElement | Children): RequestPromise<RootElement> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -463,7 +463,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	}
 
 	/** Getting the tree: */
-	async expand(node: NumberedTreeNode<EmberElement> | Children): Promise<void> {
+	async expand(node: RootElement | Children): Promise<void> {
 		if (!node) {
 			throw new Error('No node specified')
 		}
@@ -476,8 +476,8 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			return
 		}
 
-		const emberNodes = [node]
-		const canBeExpanded = (node: NumberedTreeNode<EmberElement>) => {
+		const emberNodes: Array<RootElement> = [node]
+		const canBeExpanded = (node: RootElement) => {
 			if (node.contents.type === ElementType.Node) {
 				return node.contents.isOnline !== false
 			} else {

@@ -2031,6 +2031,42 @@ describe('client', () => {
 		})
 	})
 
+	// A qualified element, as a report about part of the tree that isn't loaded reaches a callback: unsubscribe and
+	// expand take one, as getDirectory and subscribe do. They took only a numbered element.
+	describe('unsubscribe and expand on a qualified element', () => {
+		/** The path and command of what was last sent */
+		const lastSent = () => {
+			const calls = onSocketWrite.mock.calls
+			const element = firstElement(at(calls, calls.length - 1)[0])
+			const command = at([...(element.children?.values() ?? [])], 0).contents
+			if (!isQualified(element) || command.type !== ElementType.Command) throw new Error('Expected a command')
+			return [element.path, command.number]
+		}
+
+		it('unsubscribe sends an Unsubscribe for its path', async () => {
+			await runWithConnection(async (client) => {
+				const gain = new QualifiedElementImpl('1.2', new ParameterImpl(ParameterType.Integer, 'gain'))
+				await client.unsubscribe(gain)
+
+				expect(lastSent()).toEqual(['1.2', CommandType.Unsubscribe])
+			})
+		})
+
+		it('expand asks for the directories below it, by their paths below its own', async () => {
+			await runWithConnection(async (client, socket) => {
+				const channel = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'))
+				const device = new QualifiedElementImpl('5', new EmberNodeImpl('device'), childrenOf([channel]))
+				channel.parent = device
+				const expanding = client.expand(device)
+				await new Promise(setImmediate)
+
+				expect(lastSent()).toEqual(['5.1', CommandType.GetDirectory])
+				socket.mockData(createQualifiedNodeResponse('5.1', new EmberNodeImpl(), undefined)) // no children
+				await expanding
+			})
+		})
+	})
+
 	// #68: a request about an element the tree doesn't have yet, such as the parameters node of an inline
 	// parametersLocation (which a GetDirectory on the matrix doesn't list) or a path the caller builds. The reply put
 	// the element into the tree, but made a change only at its parent's path, so the request timed out.
