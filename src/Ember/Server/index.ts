@@ -118,6 +118,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	private _streamSubscriptions = new Map<string, Set<S101Socket>>()
 	/** The streams whose values changed since the last stream collections were sent, with the parameter changed last */
 	private _changedStreams = new Map<number, NumberedTreeNode<Parameter>>()
+	/** The stream parameters whose values were warned about as not fitting their format: not again until one fits */
+	private _unfitStreamValues = new Set<string>()
 	/** The parameters' values and defaults warned about as not allowed, by path and which: not again until allowed */
 	private _disallowed = new Set<string>()
 	/** The templates of the tree and the elements their definitions hold, with their paths: they don't change */
@@ -176,6 +178,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			if (inTemplate) this._templated.set(element, path)
 		}
 		this._changedStreams.clear()
+		this._unfitStreamValues.clear()
 		this._indexStreams()
 		this._disallowed.clear()
 		for (const { path, element, inTemplate } of elementsOf(tree)) {
@@ -383,7 +386,12 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			if (!descriptor || typeof value !== 'number') continue
 			try {
 				STREAM_FORMATS[descriptor.format].write(octets, value, descriptor.offset)
+				this._unfitStreamValues.delete(path)
 			} catch {
+				// Warned about once, and again only once a value has fitted in between: a meter held out of its format's
+				// range is sent at every stream collection, some twenty a second
+				if (this._unfitStreamValues.has(path)) continue
+				this._unfitStreamValues.add(path)
 				this.emit(
 					'warn',
 					new Error(

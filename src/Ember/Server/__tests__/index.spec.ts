@@ -1257,6 +1257,26 @@ describe('EmberServer streams', () => {
 			expect(warnings).toEqual(["Parameter 1.1.3: stream value 40000 doesn't fit Int16LE at offset 0: left out"])
 		})
 
+		// A meter held out of its format's range is sent at every stream collection, some twenty a second: it is warned
+		// about once, and again only once a value has fitted in between. It was warned about at each.
+		it('warns once about values that do not fit their format, and again once one has fitted', async () => {
+			await connect(['1.1.3', new SubscribeImpl()])
+			const send = async (value: number) => {
+				server.update(left, { value })
+				await sent()
+			}
+
+			await send(40000)
+			await send(50000)
+			await send(1)
+			await send(-40000)
+
+			expect(warnings).toEqual([
+				"Parameter 1.1.3: stream value 40000 doesn't fit Int16LE at offset 0: left out",
+				"Parameter 1.1.3: stream value -40000 doesn't fit Int16LE at offset 0: left out",
+			])
+		})
+
 		it('notifies a change to the other properties of a stream parameter as any, without the value', async () => {
 			const lister = await connect(['1.1', new GetDirectoryImpl()])
 
