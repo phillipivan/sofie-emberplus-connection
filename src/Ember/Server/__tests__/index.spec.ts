@@ -196,6 +196,55 @@ describe('EmberServer subscriptions', () => {
 		expect(await staying.countSent(changeParameter)).toBe(1)
 	})
 
+	// "It is only required to inform the clients that have already sent a GetDirectory request to the parent node of
+	// the affected parameter. This includes the online/offline state of a node". A node's change went only to the
+	// consumers subscribed to the node itself, with its whole subtree.
+	describe("a node's change", () => {
+		it('goes to a consumer that listed the node, with a GetDirectory on its parent', async () => {
+			const consumer = await connect()
+			consumer.request('1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+
+			expect(await consumer.countSent(() => server.update(node, { isOnline: false }))).toBe(1)
+		})
+
+		it('goes to a consumer that listed the top-level elements', async () => {
+			const consumer = await connect()
+			consumer.emit('emberTree', {
+				rootType: RootType.Elements,
+				value: [new NumberedTreeNodeImpl(0, new GetDirectoryImpl())],
+			})
+			await new Promise(setImmediate)
+			const device = server.getElementByPath('1')
+			if (!device) throw new Error('Expected the device')
+
+			expect(await consumer.countSent(() => server.update(device, { isOnline: false }))).toBe(1)
+		})
+
+		it('goes once to a consumer that listed the node and opened it too', async () => {
+			const consumer = await connect()
+			consumer.request('1', new GetDirectoryImpl())
+			consumer.request('1.1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+
+			expect(await consumer.countSent(() => server.update(node, { isOnline: false }))).toBe(1)
+		})
+
+		it('is sent without the elements below the node', async () => {
+			const consumer = await connect()
+			consumer.request('1.1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+			consumer.received.length = 0
+
+			server.update(node, { isOnline: false })
+			await new Promise(setImmediate)
+
+			const report = onlyElement(at(consumer.received, 0))
+			expect(report.children).toBeUndefined()
+			expect(report.contents).toMatchObject({ type: ElementType.Node, isOnline: false })
+		})
+	})
+
 	// A GetDirectory or Subscribe on a parameter subscribes the consumer to the parameter itself
 	it.each([
 		['a GetDirectory', () => new GetDirectoryImpl()],

@@ -180,16 +180,18 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		if (element.contents.type === ElementType.Matrix) Reflect.deleteProperty(changes, 'connections')
 		Object.assign(element.contents, changes)
 		const el = toQualifiedEmberNode(element)
+		// The change, without the element's children, which change on their own: a node's whole subtree went with it
+		el.children = undefined
 		const data = berEncode([el], RootType.Elements)
-		// A node's own path; for another element, its parent's (matrix targets and sources: the matrix's own)
-		const elPath =
-			el.contents.type !== ElementType.Node && !('targets' in update || 'sources' in update)
-				? parentPath(el.path)
-				: el.path
 
-		// The subscribers of the parent (or of a node itself), and those that subscribed to the element itself
+		// The consumers that listed the element, with a GetDirectory on its parent, as the specification says ("the
+		// clients that have already sent a GetDirectory request to the parent node … This includes the online/offline
+		// state of a node"), and those subscribed to the element itself. A node's change went only to the consumers
+		// subscribed to the node, so one that had listed it missed it going offline. A matrix's targets and sources go
+		// to the consumers of the matrix itself, a node's listing having none.
+		const listsChanged = 'targets' in update || 'sources' in update
 		const recipients = new Set([
-			...(this._subscriptions.get(elPath) ?? []),
+			...((listsChanged ? undefined : this._subscriptions.get(parentPath(el.path))) ?? []),
 			...(this._subscriptions.get(el.path) ?? []),
 		])
 		// A consumer waiting for the answer to its setValue on this element gets the update
