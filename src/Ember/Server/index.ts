@@ -105,6 +105,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	private _pendingValueReplies = new Set<PendingValueReply>()
 	/** The locked targets of each matrix, by its path */
 	private _lockedTargets = new Map<string, Set<number>>()
+	/** The templates of the tree and the elements their definitions hold, with their paths: they don't change */
+	private _templated = new WeakMap<NumberedTreeNode<EmberElement>, RelativeOID>()
 
 	constructor(port: number, address?: string, options?: EmberServerOptions) {
 		super()
@@ -151,7 +153,11 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			}
 		}
 		this.tree = tree
-		for (const [path, element] of elementsOf(tree)) this._checkIdentifier(path, element.contents)
+		this._templated = new WeakMap()
+		for (const [path, element, inTemplate] of elementsOf(tree)) {
+			this._checkIdentifier(path, element.contents)
+			if (inTemplate) this._templated.set(element, path)
+		}
 		return this._server.listen()
 	}
 
@@ -160,6 +166,19 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	 * a letter or "_" ("The identifier string must not contain the character "/" … and must begin with a letter or the
 	 * lower line character"). Only warns: the tree is the provider's.
 	 */
+	/**
+	 * Refuses a change to a template, or to an element its definition holds, with a `warn` event: "A template definition
+	 * has to remain constant over the course of a session", and "No value change notifications must be emitted for
+	 * template elements". It was applied and reported (an element in a definition by its number alone, having no
+	 * parent). Gives whether it refused.
+	 */
+	private _refuseTemplated(element: NumberedTreeNode<EmberElement>): boolean {
+		const path = this._templated.get(element)
+		if (path === undefined) return false
+		this.emit('warn', new Error(`Element ${path}: a template definition, which doesn't change: change not applied`))
+		return true
+	}
+
 	private _checkIdentifier(path: string, contents: EmberElement): void {
 		const identifier = 'identifier' in contents ? contents.identifier : undefined
 		const problem = identifier === undefined ? undefined : identifierProblem(identifier)
@@ -175,6 +194,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	update<T extends EmberElement>(element: NumberedTreeNode<T>, update: Partial<T>): void {
+		if (this._refuseTemplated(element)) return
 		// A matrix's connections, checked, since TypeScript can't tie the update to the element through T: before any
 		// of the update is applied, so that one that isn't any is refused whole
 		const connections: unknown = 'connections' in update ? update.connections : undefined
@@ -328,6 +348,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	 * matrix, one adding sources beyond its limits
 	 */
 	private _sourcesAfter(element: NumberedTreeNode<Matrix>, update: Connection, done: string): number[] | undefined {
+		if (this._refuseTemplated(element)) return undefined
 		const current = element.contents.connections?.get(update.target) ?? new ConnectionImpl(update.target, [])
 		const missing = missingSignals(element.contents, update)
 		if (missing) {
@@ -726,21 +747,24 @@ function isMatrixContents(contents: EmberElement): contents is Matrix {
 }
 
 /**
- * Every element of a tree, by its path: the elements below each one, and the element a template defines (which has the
- * template's path: "The number of a template is the number of its contained element definition"), and those below it
+ * Every element of a tree, by its path, with whether it is a template or in a template's definition: the elements below
+ * each one, and the element a template defines (which has the template's path: "The number of a template is the
+ * number of its contained element definition"), and those below it
  */
 function* elementsOf(
 	elements: Children,
-	parent: RelativeOID = ''
-): Generator<[RelativeOID, NumberedTreeNode<EmberElement>]> {
+	parent: RelativeOID = '',
+	inTemplate = false
+): Generator<[RelativeOID, NumberedTreeNode<EmberElement>, boolean]> {
 	for (const element of elements.values()) {
 		const path = childPath(parent, element.number)
-		yield [path, element]
-		if (element.children) yield* elementsOf(element.children, path)
+		const isTemplate = element.contents.type === ElementType.Template
+		yield [path, element, inTemplate || isTemplate]
+		if (element.children) yield* elementsOf(element.children, path, inTemplate)
 		if (element.contents.type === ElementType.Template && element.contents.element) {
 			const templated = element.contents.element
-			yield [path, templated]
-			if (templated.children) yield* elementsOf(templated.children, path)
+			yield [path, templated, true]
+			if (templated.children) yield* elementsOf(templated.children, path, true)
 		}
 	}
 }

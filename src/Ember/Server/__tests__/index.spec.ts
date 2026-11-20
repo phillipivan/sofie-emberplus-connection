@@ -797,6 +797,73 @@ describe('EmberServer identifiers', () => {
 	})
 })
 
+// "A template definition has to remain constant over the course of a session", and "No value change notifications
+// must be emitted for template elements". A change was applied and reported, an element in a definition by its
+// number alone, having no parent.
+describe('EmberServer templates', () => {
+	// A device, 1, with a parameter, 1.1, a template, 1.7, of a node with a parameter, and a template, 1.8, of a matrix
+	let server: EmberServer
+	let warnings: string[]
+	let gain: NumberedTreeNode<ParameterImpl<ParameterType.Integer>>
+	let template: NumberedTreeNode<TemplateImpl>
+	let level: NumberedTreeNode<ParameterImpl<ParameterType.Integer>>
+	let matrix: NumberedTreeNode<Matrix>
+	let consumer: FakeConnection
+
+	beforeEach(async () => {
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		gain = new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0))
+		level = new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'level', undefined, 0))
+		const channel = new NumberedTreeNodeImpl(7, new EmberNodeImpl('channel'), childrenOf([level]))
+		template = new NumberedTreeNodeImpl(7, new TemplateImpl(channel, 'A channel'))
+		matrix = new NumberedTreeNodeImpl(
+			8,
+			new MatrixImpl('router', signalsOf([0]), signalsOf([0]), connectionsOf([new ConnectionImpl(0, [])]))
+		)
+		const matrixTemplate = new NumberedTreeNodeImpl(8, new TemplateImpl(matrix))
+		server = new EmberServer(9000)
+		warnings = []
+		server.on('warn', (e) => warnings.push(e.message))
+		await server.init(
+			childrenOf([
+				new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([gain, template, matrixTemplate])),
+			])
+		)
+		consumer = new FakeConnection()
+		const s101Server = (server as unknown as { _server: S101Server })._server
+		s101Server.emit('connection', consumer as unknown as S101Socket)
+		consumer.request('1', new GetDirectoryImpl())
+		await new Promise(setImmediate)
+	})
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	it('does not change a template, or report it', async () => {
+		expect(await consumer.countSent(() => server.update(template, { description: 'Another' }))).toBe(0)
+		expect(template.contents.description).toBe('A channel')
+		expect(warnings).toEqual(["Element 1.7: a template definition, which doesn't change: change not applied"])
+	})
+
+	it('does not change an element in a template definition, or report it', async () => {
+		expect(await consumer.countSent(() => server.update(level, { value: 5 }))).toBe(0)
+		expect(level.contents.value).toBe(0)
+		expect(warnings).toEqual(["Element 1.7.1: a template definition, which doesn't change: change not applied"])
+	})
+
+	it("does not change the connections of a template's matrix", () => {
+		expect(server.updateMatrixConnection(matrix, new ConnectionImpl(0, [0]))).toBe(false)
+		expect(server.queueMatrixConnection(matrix, new ConnectionImpl(0, [0]))).toBe(false)
+		expect(matrix.contents.connections?.get(0)?.sources).toEqual([])
+		expect(warnings).toHaveLength(2)
+	})
+
+	it('changes and reports an element outside a template', async () => {
+		expect(await consumer.countSent(() => server.update(gain, { value: 5 }))).toBe(1)
+		expect(warnings).toEqual([])
+	})
+})
+
 describe('EmberServer invocations', () => {
 	// A device, 1, with a node, 1.1, and a function, 1.2
 	let server: EmberServer
