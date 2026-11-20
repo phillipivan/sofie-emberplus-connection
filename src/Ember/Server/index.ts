@@ -15,6 +15,7 @@ import {
 	InvocationResult,
 	isConnections,
 	Matrix,
+	MatrixAddressingMode,
 	MatrixImpl,
 	MatrixType,
 	NumberedTreeNodeImpl,
@@ -611,6 +612,10 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		} else {
 			const qualified = toQualifiedEmberNode(tree)
 			qualified.children = new Map() // destroy ref to this.tree
+			if (isElementOfType(tree, ElementType.Matrix)) {
+				// A copy, not the tree's own contents, with its connections as a directory reply gives them
+				qualified.contents = { ...tree.contents, connections: directoryConnections(tree.contents) }
+			}
 			if (tree.children) {
 				// the children, without their children, keyed by number
 				for (const child of tree.children.values()) {
@@ -661,6 +666,30 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
  */
 function reportOf(connection: Connection, disposition?: ConnectionDisposition): Connection {
 	return new ConnectionImpl(connection.target, connection.sources, undefined, disposition)
+}
+
+/**
+ * A matrix's connections as a directory reply on the matrix gives them, as Lawo's EmberPlusRouter and
+ * TinyEmberPlusRouter do: one for every target, with its current sources (none given when it has none), and no
+ * disposition or operation. The tree's connections were sent as they were, with whatever disposition or operation an
+ * app had put on them, and without the targets they didn't cover. The targets are the matrix's list, or, linear, its
+ * count; with neither, those the tree has connections for. Undefined when there are none.
+ */
+function directoryConnections(matrix: Matrix): Connections | undefined {
+	const linear = (matrix.addressingMode ?? MatrixAddressingMode.Linear) === MatrixAddressingMode.Linear
+	const count = matrix.targetCount
+	const targets = matrix.targets
+		? [...matrix.targets.keys()]
+		: linear && count !== undefined && Number.isInteger(count) && count > 0
+			? Array.from({ length: count }, (_, target) => target)
+			: [...(matrix.connections?.keys() ?? [])]
+	if (!targets.length) return undefined
+	return connectionsOf(
+		targets.map((target) => {
+			const sources = matrix.connections?.get(target)?.sources
+			return new ConnectionImpl(target, sources?.length ? sources : undefined)
+		})
+	)
 }
 
 /** Whether two lists of sources hold the same sources, in whatever order */

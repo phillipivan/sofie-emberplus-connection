@@ -32,6 +32,7 @@ import {
 	InvocationResult,
 	isQualified,
 	Matrix,
+	MatrixAddressingMode,
 	MatrixImpl,
 	MatrixType,
 	NumberedTreeNodeImpl,
@@ -945,6 +946,69 @@ describe('EmberServer matrices', () => {
 
 		const connectSources = (target: number, ...sources: number[]) =>
 			server.updateMatrixConnection(matrix, new ConnectionImpl(target, sources, ConnectionOperation.Connect))
+	})
+
+	// A GetDirectory on the matrix itself gives its connections as Lawo's EmberPlusRouter and TinyEmberPlusRouter do:
+	// one for every target, with its current sources (none given when it has none), and no disposition or operation.
+	// The tree's connections were sent as they were, whatever an app had put on them, and only those it had.
+	describe('connections in a directory reply on the matrix', () => {
+		beforeEach(async () => init())
+
+		/** Each target's connection in the reply to a GetDirectory on the matrix */
+		async function directoryReply() {
+			const consumer = await connectConsumer()
+			consumer.request('1.1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+			const reply = onlyElement(at(consumer.received, 0))
+			if (reply.contents.type !== ElementType.Matrix) throw new Error('Expected a matrix')
+			return [...(reply.contents.connections?.values() ?? [])].map(
+				({ target, sources, operation, disposition }) => ({
+					target,
+					sources,
+					operation,
+					disposition,
+				})
+			)
+		}
+		const connection = (target: number, sources?: number[]) => ({
+			target,
+			sources,
+			operation: undefined,
+			disposition: undefined,
+		})
+
+		it('gives every target its current sources, none for a target without', async () => {
+			expect(await directoryReply()).toEqual([connection(0, [1]), connection(1, [2]), connection(2)])
+		})
+
+		it('leaves out a disposition or operation the tree has, without changing the tree', async () => {
+			const stored = matrix.contents.connections?.get(0)
+			if (!stored) throw new Error('Expected a connection')
+			stored.operation = ConnectionOperation.Connect
+			stored.disposition = ConnectionDisposition.Pending
+
+			expect(await directoryReply()).toEqual([connection(0, [1]), connection(1, [2]), connection(2)])
+			expect(stored).toEqual(
+				new ConnectionImpl(0, [1], ConnectionOperation.Connect, ConnectionDisposition.Pending)
+			)
+		})
+
+		it('gives every target of a linear matrix without a list, by its count', async () => {
+			matrix.contents.targets = undefined
+			matrix.contents.targetCount = 4
+			matrix.contents.connections = connectionsOf([new ConnectionImpl(1, [2])])
+
+			expect(await directoryReply()).toEqual([connection(0), connection(1, [2]), connection(2), connection(3)])
+		})
+
+		it('gives the connections the tree has for a matrix without a list or a linear count', async () => {
+			matrix.contents.targets = undefined
+			matrix.contents.addressingMode = MatrixAddressingMode.NonLinear
+			matrix.contents.targetCount = 4
+			matrix.contents.connections = connectionsOf([new ConnectionImpl(5, [2])])
+
+			expect(await directoryReply()).toEqual([connection(5, [2])])
+		})
 	})
 
 	// The Glow DTD's dispositions: tally (the default, left out) the current state, modified the new current state,
