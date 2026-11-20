@@ -59,7 +59,7 @@ const server = new EmberServer(9000, undefined, options)
 Get Full tree:
 
 ```javascript
-const { EmberClient, StreamManager } = require('@phillipivan/emberplus-connection')
+const { EmberClient } = require('@phillipivan/emberplus-connection')
 const client = new EmberClient('10.9.8.7', 9000)
 client.on('error', (e) => {
 	console.log(e)
@@ -99,16 +99,17 @@ A path of numbers only, like `0.0.2`, is matched by the elements' numbers alone.
 Subsribe to changes
 
 ```javascript
-const { EmberClient, EmberLib } = require('@phillipivan/emberplus-connection')
+const { EmberClient } = require('@phillipivan/emberplus-connection')
 
 const client = new EmberClient(HOST, PORT)
 client
 	.connect()
 	.then(async () => (await client.getDirectory(client.tree)).response)
 	.then(() => {
-		console.log(client.tree, null, 4)
+		console.log(client.tree)
 	})
-	.then(() => client.getElementByPath('scoreMaster/router/labels/group 1'))
+	// A path given by "/" needs it as the delimiter (the third argument; the second is a callback)
+	.then(() => client.getElementByPath('scoreMaster/router/labels/group 1', undefined, '/'))
 	.then((node) => {
 		// For streams, use subscribe: the callback is called with the parameter each time a stream value arrives
 		return client.subscribe(node, (update) => {
@@ -121,10 +122,11 @@ client
 		// depending on wheter you request a numbered node or via the description
 		console.log('This is the internal node path :', client.getInternalNodePath(node))
 
-		// For non-streams a getDirectory will automatically subscribe for update
+		// For non-streams a getDirectory will automatically subscribe for update. The callback is the third argument:
+		// the second is the field mask (none: all of the properties)
 		return (
-			await client.getDirectory(node, (update) => {
-				console.log(udpate)
+			await client.getDirectory(node, undefined, (update) => {
+				console.log(update)
 			})
 		).response
 	})
@@ -172,31 +174,31 @@ await client.getElementByPath('1.2.3', (node) => {
 ### Setting New Value
 
 ```javascript
-client = new EmberClient(LOCALHOST, PORT)
+const client = new EmberClient(LOCALHOST, PORT)
 await client.connect()
 await (
-	await client.getDirectory()
+	await client.getDirectory(client.tree)
 ).response
 const req = await client.setValue(await client.getElementByPath('0.0.1'), 'gdnet')
-await req.response
-console.log('result', req.response)
-return client.disconnect().then(() => {
-	console.log('disconnected')
-})
+console.log('result', await req.response)
+await client.disconnect()
+console.log('disconnected')
 ```
 
 ### Invoking Function
 
 ```javascript
-const { EmberClient, EmberLib } = require('node-emberplus')
+const { EmberClient, Model } = require('@phillipivan/emberplus-connection')
 
 const client = new EmberClient(HOST, PORT)
 await client.connect()
 await (
-	await client.getDirectory()
+	await client.getDirectory(client.tree)
 ).response
 const fn = await client.getElementByPath('path.to.function')
-const req = await client.invoke(fn, 1, 2, 3)
+// The arguments are typed values, as the function's arguments describe them
+const integer = (value) => ({ type: Model.ParameterType.Integer, value })
+const req = await client.invoke(fn, integer(1), integer(2), integer(3))
 console.log('result', await req.response)
 ```
 
@@ -240,8 +242,8 @@ if (matrix.contents.connections.get(2)?.disposition === Model.ConnectionDisposit
 ### Basic Server
 
 ```javascript
+const { EmberServer, Model } = require('@phillipivan/emberplus-connection')
 const {
-	EmberServer,
 	NumberedTreeNodeImpl,
 	EmberNodeImpl,
 	ParameterImpl,
@@ -253,11 +255,11 @@ const {
 	MatrixAddressingMode,
 	signalsOf,
 	childrenOf,
-} = require('@phillipivan/emberplus-connection')
+} = Model
 
 const s = new EmberServer(9000) // start server on port 9000
 
-s.onInvocation = (emberFunction, invocation) => {
+s.onInvocation = async (emberFunction, invocation) => {
 	// handle function invocations
 	return { id: invocation.contents.invocation.id, success: true }
 }
@@ -359,7 +361,7 @@ const tree = childrenOf([
 	),
 ])
 
-s.init(tree) // initiate the provider with the tree
+await s.init(tree) // initiate the provider with the tree
 ```
 
 A matrix connection report tells consumers what happened to each target by its disposition. `updateMatrixConnection`
