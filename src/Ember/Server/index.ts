@@ -172,6 +172,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		for (const { path, element, inTemplate, siblings } of elementsOf(tree)) {
 			this._correctIdentifier(path, element, siblings)
 			if (isElementOfType(element, ElementType.Parameter)) this._dropFactorWithFormula(path, element.contents)
+			if (isElementOfType(element, ElementType.Matrix)) this._dropUnknownSignals(path, element.contents)
 			if (inTemplate) this._templated.set(element, path)
 		}
 		this._changedStreams.clear()
@@ -358,6 +359,37 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	/**
+	 * Drops from a matrix's connections, with a `warn` event for each, a connection under a target the matrix doesn't
+	 * have, and from the others the sources it doesn't have, as far as its signals are known (Model.hasSignal: its
+	 * lists, or a linear matrix's counts), as a consumer's connection request or a provider's change naming them is
+	 * refused. A connection under a target it doesn't have was kept in the tree, and left out of directory replies
+	 * without a word, and a source it doesn't have was sent to consumers in them.
+	 */
+	private _dropUnknownSignals(path: RelativeOID, matrix: Matrix): void {
+		const connections = matrix.connections
+		if (!connections) return
+		for (const [key, connection] of [...connections]) {
+			const target = connection.target
+			if (hasSignal(matrix, 'target', target) === false) {
+				connections.delete(key)
+				this.emit(
+					'warn',
+					new Error(
+						`Matrix ${path}: the connection of target ${target}, which isn't one of its targets, dropped`
+					)
+				)
+				continue
+			}
+			const sources = connection.sources ?? []
+			const unknown = sources.filter((source) => hasSignal(matrix, 'source', source) === false)
+			if (!unknown.length) continue
+			connection.sources = sources.filter((source) => !unknown.includes(source))
+			const which = `${unknown.length > 1 ? 'sources' : 'source'} ${unknown.join(', ')}`
+			this.emit('warn', new Error(`Matrix ${path}: ${which} of target ${target}, not among its sources, dropped`))
+		}
+	}
+
+	/**
 	 * Warns, with `warn` events, about what of a parameter's range, value and default it doesn't allow: an inverted
 	 * range (the minimum above the maximum), which isn't checked, and a value or default below the minimum, above the
 	 * maximum, or, for an enumeration, none of its entries (valueProblem). A value or default is warned about once,
@@ -459,6 +491,11 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 
 		if (isElementOfType(element, ElementType.Parameter))
 			this._dropFactorWithFormula(getPath(element), element.contents)
+		// A matrix's signals changed: its connections to signals it no longer has go
+		const signalProperties = ['targets', 'sources', 'targetCount', 'sourceCount', 'addressingMode']
+		if (isElementOfType(element, ElementType.Matrix) && signalProperties.some((key) => key in update)) {
+			this._dropUnknownSignals(getPath(element), element.contents)
+		}
 
 		// A value, default or range the parameter doesn't allow, warned about, but applied: the device reports what it is
 		if (isElementOfType(element, ElementType.Parameter) && !this._templated.has(element)) {

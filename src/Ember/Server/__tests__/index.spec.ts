@@ -1534,6 +1534,93 @@ describe('EmberServer formula and factor', () => {
 	})
 })
 
+// A connection in the provider's tree to a target or source the matrix doesn't have is dropped, with a warning, at
+// init() and when an update() changes the matrix's signals, as a request or change naming one is refused. A target's
+// was kept and left out of directory replies without a word, and a source was sent in them.
+describe("EmberServer matrix connections to signals the matrix doesn't have", () => {
+	let server: EmberServer
+	let warnings: string[]
+
+	async function init(matrix: NumberedTreeNode<Matrix>) {
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		server = new EmberServer(9000)
+		warnings = []
+		server.on('warn', (e) => warnings.push(e.message))
+		await server.init(childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([matrix]))]))
+	}
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+	/** Each target's sources, as the server holds them */
+	const sourcesByTarget = (matrix: NumberedTreeNode<Matrix>) =>
+		Object.fromEntries([...(matrix.contents.connections?.values() ?? [])].map((c) => [c.target, c.sources]))
+	const router = (contents: Partial<MatrixImpl>) => {
+		const matrix = new MatrixImpl('router')
+		Object.assign(matrix, contents)
+		return new NumberedTreeNodeImpl(1, matrix)
+	}
+
+	it('drops them at init(), by its lists, and no longer gives them in a directory reply', async () => {
+		const matrix = router({
+			targets: signalsOf([0, 1]),
+			sources: signalsOf([0, 1]),
+			connections: connectionsOf([new ConnectionImpl(0, [1, 7, 8]), new ConnectionImpl(5, [0])]),
+		})
+		await init(matrix)
+
+		expect(sourcesByTarget(matrix)).toEqual({ 0: [1] })
+		expect(warnings).toEqual([
+			'Matrix 1.1: sources 7, 8 of target 0, not among its sources, dropped',
+			"Matrix 1.1: the connection of target 5, which isn't one of its targets, dropped",
+		])
+		const consumer = new FakeConnection()
+		const s101Server = (server as unknown as { _server: S101Server })._server
+		s101Server.emit('connection', consumer as unknown as S101Socket)
+		consumer.request('1.1', new GetDirectoryImpl())
+		await new Promise(setImmediate)
+		const reply = onlyElement(at(consumer.received, 0))
+		if (reply.contents.type !== ElementType.Matrix) throw new Error('Expected a matrix')
+		expect(reply.contents.connections?.get(0)?.sources).toEqual([1])
+	})
+
+	it("drops them by a linear matrix's counts", async () => {
+		const matrix = router({
+			targetCount: 2,
+			sourceCount: 2,
+			connections: connectionsOf([new ConnectionImpl(1, [5]), new ConnectionImpl(3, [0])]),
+		})
+		await init(matrix)
+
+		expect(sourcesByTarget(matrix)).toEqual({ 1: [] })
+		expect(warnings).toHaveLength(2)
+	})
+
+	it("keeps them for a matrix whose signals aren't known", async () => {
+		const matrix = router({
+			addressingMode: MatrixAddressingMode.NonLinear,
+			connections: connectionsOf([new ConnectionImpl(9, [9])]),
+		})
+		await init(matrix)
+
+		expect(sourcesByTarget(matrix)).toEqual({ 9: [9] })
+		expect(warnings).toEqual([])
+	})
+
+	it("drops those an update() of the matrix's targets leaves without one", async () => {
+		const matrix = router({
+			targets: signalsOf([0, 1]),
+			sources: signalsOf([0]),
+			connections: connectionsOf([new ConnectionImpl(0, [0]), new ConnectionImpl(1, [0])]),
+		})
+		await init(matrix)
+
+		server.update(matrix, { targets: signalsOf([0]) })
+
+		expect(sourcesByTarget(matrix)).toEqual({ 0: [0] })
+		expect(warnings).toEqual(["Matrix 1.1: the connection of target 1, which isn't one of its targets, dropped"])
+	})
+})
+
 describe('EmberServer invocations', () => {
 	// A device, 1, with a node, 1.1, and a function, 1.2
 	let server: EmberServer
