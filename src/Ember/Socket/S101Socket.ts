@@ -50,10 +50,13 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 	private receivedSinceRequest = false
 	status: ConnectionStatus
 	protected readonly codec = new S101Codec()
+	/** Where the peer of a socket made from a connection (as a server's are) was, kept after the connection closes */
+	private readonly peer: { address?: string; port?: number } | undefined
 
 	constructor(socket?: Socket, options?: S101SocketOptions) {
 		super()
 		this.socket = socket
+		this.peer = socket && { address: socket.remoteAddress, port: socket.remotePort }
 		this.maxSendBufferSize = options?.maxSendBufferSize ?? Infinity
 		this.status = this.isConnected() ? ConnectionStatus.Connected : ConnectionStatus.Disconnected
 
@@ -85,6 +88,16 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 
 		this._initSocket()
 		if (options?.keepalive && this.socket) this.startKeepAlive()
+	}
+
+	/** The peer's IP address: for a server's socket, the consumer's, also after it disconnects */
+	get remoteAddress(): string | undefined {
+		return this.socket?.remoteAddress ?? this.peer?.address
+	}
+
+	/** The peer's port: for a server's socket, the consumer's, also after it disconnects */
+	get remotePort(): number | undefined {
+		return this.socket?.remotePort ?? this.peer?.port
 	}
 
 	private _initSocket(): void {

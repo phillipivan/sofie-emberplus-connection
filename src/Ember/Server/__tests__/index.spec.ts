@@ -389,6 +389,36 @@ describe('EmberServer subscriptions', () => {
 			expect(await consumer.countSent(changeParameter)).toBe(0)
 		})
 
+		// The handler, and the events a consumer's request causes, say which consumer it was
+		it('gives the handler the consumer that asked', async () => {
+			const handler = vi.fn(applyValue)
+			server.onSetValue = handler
+			const consumer = await connect()
+			await requestValue(consumer)
+
+			expect(handler).toHaveBeenCalledWith(parameter, 6, consumer)
+		})
+
+		it('gives the error a failing handler causes the consumer that asked', async () => {
+			server.onSetValue = async () => Promise.reject(new Error('device offline'))
+			const errors: Array<[Error, unknown]> = []
+			server.on('error', (e, client) => errors.push([e, client]))
+			const consumer = await connect()
+			await requestValue(consumer)
+
+			expect(errors).toEqual([[new Error('device offline'), consumer]])
+		})
+
+		it('gives the warning for a parameter that is not writeable the consumer that asked', async () => {
+			parameter.contents.access = ParameterAccess.Read
+			const warned: unknown[] = []
+			server.on('warn', (_, client) => warned.push(client))
+			const consumer = await connect()
+			await requestValue(consumer)
+
+			expect(warned).toEqual([consumer])
+		})
+
 		// Only a writeable parameter takes a consumer's value: any was handed to the handler, so a read-only one took it
 		// unless the handler checked its access itself
 		describe('on a parameter that is not writeable', () => {
@@ -475,6 +505,21 @@ describe('EmberServer invocations', () => {
 		if (decoded.rootType !== RootType.InvocationResult) throw new Error('Expected an invocation result')
 		return decoded.value
 	}
+
+	it('gives the handler the consumer that asked', async () => {
+		const clients: unknown[] = []
+		server.onInvocation = async (_fn, invocation, client) => {
+			clients.push(client)
+			return Promise.resolve({ id: invocation.contents.invocation?.id ?? -1, success: true })
+		}
+		const consumer = new FakeConnection()
+		const s101Server = (server as unknown as { _server: S101Server })._server
+		s101Server.emit('connection', consumer as unknown as S101Socket)
+		consumer.request('1.2', new InvokeImpl({ id: 3, args: [] }))
+		await new Promise(setImmediate)
+
+		expect(clients).toEqual([consumer])
+	})
 
 	it('hands an Invoke on a function to the handler, and sends its result', async () => {
 		expect(await invoke('1.2', 7)).toMatchObject({ id: 7, success: true })
@@ -761,6 +806,16 @@ describe('EmberServer matrices', () => {
 			expect([...(given?.keys() ?? [])]).toEqual([2])
 		})
 
+		it("gives the warning for a consumer's request the consumer, and none for the provider's own change", async () => {
+			const warned: unknown[] = []
+			server.on('warn', (_, client) => warned.push(client))
+			const consumer = await connectConsumer()
+			await request(consumer, connect(9, 1))
+			server.updateMatrixConnection(matrix, connect(9, 1))
+
+			expect(warned).toEqual([consumer, undefined])
+		})
+
 		it('updateMatrixConnection refuses a change for a target it does not have, reporting nothing', async () => {
 			const consumer = await connectConsumer()
 			consumer.request('1.1', new GetDirectoryImpl())
@@ -818,6 +873,15 @@ describe('EmberServer matrices', () => {
 				server.updateMatrixConnection(m, connection)
 			}
 		}
+
+		it('gives the handler the consumer that asked', async () => {
+			const handler = vi.fn(applyRequest)
+			server.onMatrixOperation = handler
+			const consumer = await connectConsumer()
+			await requestConnect(consumer)
+
+			expect(handler).toHaveBeenCalledWith(matrix, expect.any(Map), consumer)
+		})
 
 		it('answers a consumer that is not subscribed to the matrix', async () => {
 			server.onMatrixOperation = applyRequest
@@ -998,6 +1062,16 @@ describe('EmberServer matrices', () => {
 				expect(handler).not.toHaveBeenCalled()
 				expect(sourcesByTarget()).toEqual({ 0: [1], 1: [2], 2: [] })
 				expect(warnings).toEqual(["Matrix 1.1: refused a consumer's connection request: target 2 is locked"])
+			})
+
+			it('gives the warning the consumer that asked', async () => {
+				server.setMatrixTargetLocked(matrix, 2)
+				const warned: unknown[] = []
+				server.on('warn', (_, client) => warned.push(client))
+				const consumer = await connectConsumer()
+				await request(consumer, connect(2, 3))
+
+				expect(warned).toEqual([consumer])
 			})
 
 			it('tells only the requester, and hands the handler the rest of the request', async () => {

@@ -34,6 +34,13 @@ export default class S101Client
 
 	status: ConnectionStatus = ConnectionStatus.Disconnected
 
+	get remoteAddress(): string {
+		return this.address
+	}
+	get remotePort(): number {
+		return this.port
+	}
+
 	constructor(address: string, port = 9000, autoConnect?: boolean) {
 		super()
 

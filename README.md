@@ -261,8 +261,9 @@ s.onInvocation = (emberFunction, invocation) => {
 	// handle function invocations
 	return { id: invocation.contents.invocation.id, success: true }
 }
-s.onSetValue = async (node, value) => {
-	// handle setting values
+s.onSetValue = async (node, value, client) => {
+	// handle setting values. Each handler is also given the consumer that asked: client.remoteAddress and
+	// client.remotePort say where from, for logging or permissions by consumer
 	s.update(node, { value })
 
 	return true

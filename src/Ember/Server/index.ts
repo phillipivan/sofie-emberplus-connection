@@ -39,14 +39,16 @@ import S101Socket from '../Socket/S101Socket.js'
 export type EmberServerOptions = S101ServerOptions
 
 export type EmberServerEvents = {
-	error: [Error]
+	/** A handler failed: with the consumer whose request it was handling */
+	error: [error: Error, client?: S101Socket]
 	clientError: [client: S101Socket, error: Error]
 	/**
 	 * Something not done, and why: a connection request or change naming a target or source the matrix doesn't have, a
-	 * consumer's setValue on a parameter that isn't writeable, or a consumer's connection refused, as many being
-	 * connected as maxClients allows
+	 * consumer's connection request on a locked target, a consumer's setValue on a parameter that isn't writeable, or a
+	 * consumer's connection refused, as many being connected as maxClients allows. With the consumer, when it was
+	 * that consumer's request.
 	 */
-	warn: [Error]
+	warn: [error: Error, client?: S101Socket]
 }
 
 /** A consumer's connection request being handled: the targets it named that no report to it has covered yet */
@@ -68,21 +70,30 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	port: number
 	tree: Children = new Map()
 
+	/**
+	 * Answers a consumer's Invoke of a function. Every handler is also given the consumer that asked (its
+	 * `remoteAddress` and `remotePort` say where from), for logging, permissions by consumer, or deciding by source.
+	 */
 	onInvocation?: (
 		emberFunction: NumberedTreeNode<EmberFunction>,
-		invocation: NumberedTreeNode<Invoke>
+		invocation: NumberedTreeNode<Invoke>,
+		client: S101Socket
 	) => Promise<InvocationResult>
 	/**
 	 * Applies a consumer's setValue, normally with update(). The consumer is always answered: with that update when the
 	 * handler makes one, or otherwise with the parameter's current value. What the handler resolves to is not used. It
 	 * is given only a setValue on a writeable parameter, one whose access is Write or ReadWrite.
 	 */
-	onSetValue?: (parameter: NumberedTreeNode<Parameter>, value: EmberValue) => Promise<boolean>
+	onSetValue?: (parameter: NumberedTreeNode<Parameter>, value: EmberValue, client: S101Socket) => Promise<boolean>
 	/**
 	 * Applies a consumer's connection request, normally with updateMatrixConnection (or queueMatrixConnection, for a
 	 * change made later); what it resolves to is ignored. It isn't given a request on a locked target.
 	 */
-	onMatrixOperation?: (Matrix: NumberedTreeNode<Matrix>, connection: Connections) => Promise<unknown>
+	onMatrixOperation?: (
+		matrix: NumberedTreeNode<Matrix>,
+		connections: Connections,
+		client: S101Socket
+	) => Promise<unknown>
 
 	private _server: S101Server
 	private _clients: Set<S101Socket> = new Set()
@@ -362,7 +373,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		for (const rootEl of incoming.value) {
 			if (isElementOfType(rootEl, ElementType.Command) && 'number' in rootEl) {
 				// command on root
-				this._handleCommand('', rootEl, client).catch((e) => this.emit('error', e))
+				this._handleCommand('', rootEl, client).catch((e) => this.emit('error', e, client))
 			} else if ('path' in rootEl) {
 				this._handleNode(rootEl.path || '', rootEl, client)
 			} else if ('number' in rootEl) {
@@ -379,15 +390,15 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		const children = [...(el.children?.values() ?? [])]
 
 		if (children[0] && isElementOfType(children[0], ElementType.Command)) {
-			this._handleCommand(path, children[0], client).catch((e) => this.emit('error', e))
+			this._handleCommand(path, children[0], client).catch((e) => this.emit('error', e, client))
 			return
 		} else if (isElementOfType(el, ElementType.Matrix) && 'connections' in el.contents) {
-			this._handleMatrix(path, el, client).catch((e) => this.emit('error', e))
+			this._handleMatrix(path, el, client).catch((e) => this.emit('error', e, client))
 		}
 
 		if (!el.children) {
 			if (isElementOfType(el, ElementType.Parameter)) {
-				this._handleSetValue(path, el, client).catch((e) => this.emit('error', e))
+				this._handleSetValue(path, el, client).catch((e) => this.emit('error', e, client))
 			}
 		} else {
 			for (const c of children) {
@@ -430,7 +441,11 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 				valid.set(connection.target, connection)
 				continue
 			}
-			this.emit('warn', new Error(`Matrix ${pending.path}: dropped a consumer's connection request: ${missing}`))
+			this.emit(
+				'warn',
+				new Error(`Matrix ${pending.path}: dropped a consumer's connection request: ${missing}`),
+				client
+			)
 			if (hasSignal(matrix.contents, 'target', connection.target) === false)
 				pending.targets.delete(connection.target)
 		}
@@ -440,13 +455,16 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			valid.delete(target)
 			this.emit(
 				'warn',
-				new Error(`Matrix ${pending.path}: refused a consumer's connection request: target ${target} is locked`)
+				new Error(
+					`Matrix ${pending.path}: refused a consumer's connection request: target ${target} is locked`
+				),
+				client
 			)
 		}
 		this._pendingMatrixReplies.add(pending)
 
 		try {
-			if (this.onMatrixOperation && valid.size) await this.onMatrixOperation(matrix, valid)
+			if (this.onMatrixOperation && valid.size) await this.onMatrixOperation(matrix, valid, client)
 		} finally {
 			this._pendingMatrixReplies.delete(pending)
 			if (pending.targets.size) {
@@ -477,7 +495,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		if (access !== ParameterAccess.Write && access !== ParameterAccess.ReadWrite) {
 			this.emit(
 				'warn',
-				new Error(`Parameter ${getPath(tree)}: a consumer's setValue refused: its access is ${access}`)
+				new Error(`Parameter ${getPath(tree)}: a consumer's setValue refused: its access is ${access}`),
+				client
 			)
 			client.sendBER(berEncode([toQualifiedEmberNode(tree)], RootType.Elements))
 			return
@@ -488,7 +507,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		this._pendingValueReplies.add(pending)
 
 		try {
-			if (this.onSetValue) await this.onSetValue(tree, el.contents.value)
+			if (this.onSetValue) await this.onSetValue(tree, el.contents.value, client)
 		} finally {
 			this._pendingValueReplies.delete(pending)
 			// Not answered by an update() from the handler: refused, not applied (yet), failed, or no handler
@@ -516,7 +535,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			const fn = 'contents' in tree && isElementOfType(tree, ElementType.Function) ? tree : undefined
 			let result: InvocationResult
 			if (this.onInvocation && fn) {
-				result = await this.onInvocation(fn, el)
+				result = await this.onInvocation(fn, el, client)
 			} else {
 				result = new InvocationResultImpl(el.contents.invocation?.id || -1, false)
 			}

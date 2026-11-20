@@ -365,3 +365,34 @@ describe('keep-alives on the connections a server accepts', () => {
 		fake.destroy()
 	})
 })
+
+// Where the peer is: EmberServer gives its handlers the consumer that asked, and this says where it is
+describe('S101Socket peer address', () => {
+	function connection(address: string, port: number) {
+		const fake = new FakeSocket()
+		Object.assign(fake, { remoteAddress: address, remotePort: port })
+		return fake
+	}
+
+	it("gives the address and port of a connection's peer", () => {
+		const socket = new S101Socket(connection('192.0.2.7', 51234) as unknown as Socket)
+
+		expect([socket.remoteAddress, socket.remotePort]).toEqual(['192.0.2.7', 51234])
+	})
+
+	// Node forgets a destroyed socket's remote address: kept for logging a consumer that has gone
+	it('keeps them after the connection closes', () => {
+		const fake = connection('192.0.2.7', 51234)
+		const socket = new S101Socket(fake as unknown as Socket)
+		Object.assign(fake, { remoteAddress: undefined, remotePort: undefined })
+		fake.destroy()
+
+		expect([socket.remoteAddress, socket.remotePort]).toEqual(['192.0.2.7', 51234])
+	})
+
+	it('gives none for a socket without a connection', () => {
+		const socket = new S101Socket()
+
+		expect([socket.remoteAddress, socket.remotePort]).toEqual([undefined, undefined])
+	})
+})
