@@ -217,6 +217,31 @@ describe('S101 framing compared with libs101 and libember_slim', () => {
 			expect(packets).toEqual([message])
 		})
 
+		// An EmBER packet's header (version, flags, DTD, the number of app bytes and the app bytes) cut short, or one
+		// counting more app bytes than the packet holds, is dropped with an error saying so, and the rest of the read is
+		// handled. It was rejected with SmartBuffer's "beyond the bounds" error, which said nothing of why.
+		it.each([
+			[
+				'counts more app bytes than it holds',
+				[0x00, 0x0e, 0x00, 0x01, 0xc0, 0x01, 200, 0x32, 0x02, 0x60, 0x00],
+				/of 8 bytes: too short for its header of 200 app bytes$/,
+			],
+			[
+				'is cut short before its app bytes',
+				[0x00, 0x0e, 0x00, 0x01, 0xc0],
+				/of 2 bytes: too short for its header$/,
+			],
+		])('drops an EmBER packet whose header %s, with an error saying so, and reads on', (_, bad, message) => {
+			const good = payload()
+			const { packets, error } = received(
+				new S101Codec(),
+				Buffer.concat([libs101Encode(bad), libs101Encode([...header(0xc0), ...good])])
+			)
+
+			expect(packets).toEqual([good])
+			expect(String(error)).toMatch(message)
+		})
+
 		it('drops a frame whose CRC is wrong, as libs101 does', () => {
 			const frame = libs101Encode([...header(0xc0), ...payload()])
 			frame[frame.length - 2] = at(frame, frame.length - 2) ^ 0x01 // the CRC's high byte (below 0xF8 either way)

@@ -364,6 +364,14 @@ export default class S101Codec extends EventEmitter<S101CodecEvents> {
 
 	/** An EmBER packet's part of a message, from the version byte */
 	private handleEmberPayload(data: Buffer): void {
+		// The header: version, flags, DTD and the number of app bytes, then that many app bytes. One cut short, or that
+		// counts more app bytes than the packet holds, is rejected (as a frame with a bad CRC is), the rest of the read
+		// handled all the same; it was rejected with SmartBuffer's "beyond the bounds" error, which said nothing of why.
+		const counted = data.length >= 4 ? data.readUInt8(3) : undefined
+		if (counted === undefined || data.length < 4 + counted) {
+			const of = counted === undefined ? '' : format(' of %d app bytes', counted)
+			throw new Error(format('dropping EmBER packet of %d bytes: too short for its header%s', data.length, of))
+		}
 		const frame = SmartBuffer.fromBuffer(data)
 		const version = frame.readUInt8()
 		const flags = frame.readUInt8()
