@@ -354,6 +354,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 
 	update<T extends EmberElement>(element: NumberedTreeNode<T>, update: Partial<T>): void {
 		if (this._refuseTemplated(element)) return
+		if (isElementOfType(element, ElementType.Parameter)) checkParameterUpdate(element, update)
 
 		// An identifier the specification doesn't allow, corrected (see _correctIdentifier): before any of the update
 		// is applied, so that one that would be a sibling's refuses the update whole. "The identifier of a node must
@@ -982,6 +983,43 @@ function directoryContents<T extends EmberElement>(contents: T, mask: FieldFlags
 
 function isMatrixContents(contents: EmberElement): contents is Matrix {
 	return contents.type === ElementType.Matrix
+}
+
+/**
+ * Refuses an update() of a parameter, before any of it is applied, that would leave a value or default the parameter's
+ * type doesn't fit (fitsType, as a consumer's setValue is checked): one given that doesn't fit the type, or a type given
+ * that the value or default doesn't fit. Such an update was applied, and the encoder refusing the value, the update's
+ * notification failed, and so did every later reply giving the parameter.
+ *
+ * @throws for such an update, or a type that isn't a parameter type
+ */
+function checkParameterUpdate(parameter: NumberedTreeNode<Parameter>, update: object): void {
+	const given = (key: string): unknown =>
+		key in update ? Reflect.get(update, key) : Reflect.get(parameter.contents, key)
+	const type = given('parameterType')
+	const path = getPath(parameter)
+	if (!isParameterType(type)) throw new Error(`update: ${String(type)} is not a parameter type, for ${path}`)
+	for (const key of ['value', 'defaultValue']) {
+		const value = given(key)
+		if (value !== undefined && !fitsType(type, value)) {
+			const name = key === 'value' ? 'value' : 'default'
+			throw new Error(
+				`update: a ${name} ${describeValue(value)} doesn't fit parameter ${path} of the type ${type}`
+			)
+		}
+	}
+}
+
+/** A value as an error gives it: a string quoted, a number or boolean as it is, anything else by its kind */
+function describeValue(value: unknown): string {
+	if (typeof value === 'string') return JSON.stringify(value)
+	if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+	if (value === null) return 'null'
+	return Buffer.isBuffer(value) ? 'octets' : typeof value
+}
+
+function isParameterType(value: unknown): value is ParameterType {
+	return Object.values<unknown>(ParameterType).includes(value)
 }
 
 /**

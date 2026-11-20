@@ -262,6 +262,90 @@ describe('EmberServer subscriptions', () => {
 		expect(await staying.countSent(changeParameter)).toBe(1)
 	})
 
+	// A parameter's value and default must fit its type, as a consumer's setValue must: an update() that would leave one
+	// that doesn't is refused whole, before any of it is applied. One was applied, and the encoder refusing the value,
+	// the notification failed, and so did every later reply giving the parameter.
+	describe('update() of a parameter with a value its type does not fit', () => {
+		it.each<[string, Partial<Parameter>, string]>([
+			[
+				'a string for an integer',
+				{ value: 'abc' },
+				'a value "abc" doesn\'t fit parameter 1.1.1 of the type INTEGER',
+			],
+			[
+				'a fraction for an integer',
+				{ value: 1.5 },
+				"a value 1.5 doesn't fit parameter 1.1.1 of the type INTEGER",
+			],
+			['NaN for an integer', { value: NaN }, "a value NaN doesn't fit parameter 1.1.1 of the type INTEGER"],
+			[
+				'a default of another type',
+				{ defaultValue: 'x' },
+				'a default "x" doesn\'t fit parameter 1.1.1 of the type INTEGER',
+			],
+			[
+				'a type the value does not fit',
+				{ parameterType: ParameterType.String },
+				"a value 0 doesn't fit parameter 1.1.1 of the type STRING",
+			],
+			[
+				'a type that is not one',
+				{ parameterType: 'NOPE' as ParameterType },
+				'NOPE is not a parameter type, for 1.1.1',
+			],
+		])('refuses %s, applying and sending nothing', async (_, update, message) => {
+			const consumer = await connect()
+			consumer.request('1.1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+			// from a caller that doesn't check types: TypeScript refuses such an update
+			const loose: NumberedTreeNode<Parameter> = parameter
+			const misfit: Partial<Parameter> = { ...update, description: 'Gain' }
+
+			expect(await consumer.countSent(() => expect(() => server.update(loose, misfit)).toThrow(message))).toBe(0)
+			expect(parameter.contents).toMatchObject({
+				parameterType: ParameterType.Integer,
+				value: 0,
+				description: undefined,
+			})
+
+			// the tree is as it was, so a reply giving the parameter still goes out
+			expect(await consumer.countSent(() => consumer.request('1.1', new GetDirectoryImpl()))).toBe(1)
+		})
+
+		it.each<[string, Partial<Parameter>]>([
+			['a whole number', { value: 5 }],
+			['null', { value: null }],
+			['a type with a value it fits', { parameterType: ParameterType.Real, value: 1.5 }],
+			['another property alone', { description: 'Gain' }],
+		])('applies %s', (_, update) => {
+			expect(() => server.update(parameter, update)).not.toThrow()
+			expect(parameter.contents).toMatchObject(update)
+		})
+
+		it('reports a handler applying such a value, and answers the consumer with the current value', async () => {
+			server.onSetValue = async (p) => {
+				server.update(p, { value: 'six' })
+				return Promise.resolve(true)
+			}
+			const errors: string[] = []
+			server.on('error', (e) => errors.push(e.message))
+			const consumer = await connect()
+			consumer.emit('emberTree', {
+				rootType: RootType.Elements,
+				value: [
+					new QualifiedElementImpl(
+						'1.1.1',
+						new ParameterImpl(ParameterType.Integer, undefined, undefined, 6)
+					),
+				],
+			})
+			await new Promise(setImmediate)
+
+			expect(errors).toEqual(['update: a value "six" doesn\'t fit parameter 1.1.1 of the type INTEGER'])
+			expect(consumer.received.map((data) => onlyElement(data).contents)).toMatchObject([{ value: 0 }])
+		})
+	})
+
 	// "It is only required to inform the clients that have already sent a GetDirectory request to the parent node of
 	// the affected parameter. This includes the online/offline state of a node". A node's change went only to the
 	// consumers subscribed to the node itself, with its whole subtree.
