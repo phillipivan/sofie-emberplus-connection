@@ -31,6 +31,7 @@ import { InvocationResultImpl } from '../../model/InvocationResult.js'
 import { StreamEntryImpl } from '../../model/StreamEntry.js'
 import { Children } from '../../model/Tree.js'
 import {
+	EmberTypedValue,
 	EmberValue,
 	NumberedTreeNode,
 	QualifiedElement,
@@ -746,11 +747,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		// parameter failed. Its range (minimum, maximum, entries) is the handler's to check.
 		const value = el.contents.value
 		const { parameterType } = tree.contents
-		const wholeOnly = parameterType === ParameterType.Integer || parameterType === ParameterType.Enum
-		if (
-			!isValueOfType(parameterType, value) ||
-			(wholeOnly && typeof value === 'number' && !Number.isInteger(value))
-		) {
+		if (!fitsType(parameterType, value)) {
 			this.emit(
 				'warn',
 				new Error(
@@ -797,11 +794,17 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			// Only a function can be invoked. An Invoke on anything else (or on the root) fails, as one without a handler
 			// does, rather than handing the handler something that isn't a function.
 			const fn = 'contents' in tree && isElementOfType(tree, ElementType.Function) ? tree : undefined
+			// The arguments, as the function describes them: as many, each of its type. Any were handed to the handler.
+			const problem = fn && argumentsProblem(fn.contents, el.contents.invocation?.args ?? [])
+			if (fn && problem) {
+				this.emit('warn', new Error(`Function ${getPath(fn)}: a consumer's Invoke refused: ${problem}`), client)
+			}
 			let result: InvocationResult
-			if (this.onInvocation && fn) {
+			if (this.onInvocation && fn && !problem) {
 				result = await this.onInvocation(fn, el, client)
 			} else {
-				// The consumer's id, 0 included (it was answered as -1, which the consumer couldn't match); -1 without one
+				// Failed: not a function, arguments that don't fit, or no handler. The consumer's id, 0 included (it was
+				// answered as -1, which the consumer couldn't match); -1 without one.
 				result = new InvocationResultImpl(el.contents.invocation?.id ?? -1, false)
 			}
 			const encoded = berEncode(result, RootType.InvocationResult)
@@ -979,6 +982,36 @@ function directoryContents<T extends EmberElement>(contents: T, mask: FieldFlags
 
 function isMatrixContents(contents: EmberElement): contents is Matrix {
 	return contents.type === ElementType.Matrix
+}
+
+/**
+ * Whether a consumer's value fits a type: as isValueOfType has it, and for an integer or an enumeration a whole number
+ * (the encoder writing an integer drops a fraction, and refuses NaN and Infinity)
+ */
+function fitsType(type: ParameterType, value: unknown): boolean {
+	if (!isValueOfType(type, value)) return false
+	const wholeOnly = type === ParameterType.Integer || type === ParameterType.Enum
+	return !(wholeOnly && typeof value === 'number' && !Number.isInteger(value))
+}
+
+/**
+ * What is wrong with the arguments of a consumer's Invoke, by the function's description of them ("The values of the
+ * arguments as described in Function.arguments"), if anything: another number of them, or one that doesn't fit its
+ * type. Nothing for a function that describes none, there being nothing to check them by.
+ */
+function argumentsProblem(fn: EmberFunction, args: Array<EmberTypedValue>): string | undefined {
+	if (!fn.args) return undefined
+	if (args.length !== fn.args.length) {
+		return `${args.length} ${args.length === 1 ? 'argument' : 'arguments'} given, ${fn.args.length} described`
+	}
+	for (const [i, described] of fn.args.entries()) {
+		const value = args[i]?.value
+		if (!fitsType(described.type, value)) {
+			const name = described.name ? ` (${described.name})` : ''
+			return `argument ${i + 1}${name}, ${String(value)}, doesn't fit its type, ${described.type}`
+		}
+	}
+	return undefined
 }
 
 /** Whether a stream identifier makes a parameter a stream parameter: it "must not be negative" */

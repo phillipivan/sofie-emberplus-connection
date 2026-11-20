@@ -30,6 +30,7 @@ import {
 	EmberElement,
 	EmberFunctionImpl,
 	EmberNodeImpl,
+	FunctionArgumentImpl,
 	InvocationResult,
 	isQualified,
 	Matrix,
@@ -48,7 +49,14 @@ import {
 import { InvocationResultImpl } from '../../../model/InvocationResult.js'
 import { StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
-import { EmberValue, NumberedTreeNode, RelativeOID, RootElement, RootType } from '../../../types/types.js'
+import {
+	EmberTypedValue,
+	EmberValue,
+	NumberedTreeNode,
+	RelativeOID,
+	RootElement,
+	RootType,
+} from '../../../types/types.js'
 import { StreamManager } from '../../Client/StreamManager.js'
 import { isElementOfType } from '../../Lib/util.js'
 import { S101Server } from '../../Socket/S101Server.js'
@@ -1300,6 +1308,67 @@ describe('EmberServer invocations', () => {
 		await new Promise(setImmediate)
 
 		expect(clients).toEqual([consumer])
+	})
+
+	// "The values of the arguments as described in Function.arguments": an Invoke whose arguments are another number,
+	// or don't fit their types, is answered as failed, with a warning, without the handler, which was handed any
+	describe('arguments', () => {
+		/** The function 1.3, set(level: integer, name: string), invoked with the arguments given */
+		async function invokeSet(...args: EmberTypedValue[]) {
+			const consumer = new FakeConnection()
+			const s101Server = (server as unknown as { _server: S101Server })._server
+			s101Server.emit('connection', consumer as unknown as S101Socket)
+			consumer.request('1.3', new InvokeImpl({ id: 9, args }))
+			await new Promise(setImmediate)
+			const decoded = berDecode(at(consumer.received, 0))
+			if (decoded.rootType !== RootType.InvocationResult) throw new Error('Expected an invocation result')
+			return decoded.value
+		}
+		let warnings: string[]
+		beforeEach(async () => {
+			const set = new NumberedTreeNodeImpl(
+				3,
+				new EmberFunctionImpl('set', undefined, [
+					new FunctionArgumentImpl(ParameterType.Integer, 'level'),
+					new FunctionArgumentImpl(ParameterType.String, 'name'),
+				])
+			)
+			const device = server.getElementByPath('1')
+			device?.children?.set(3, set)
+			set.parent = device
+			warnings = []
+			server.on('warn', (e) => warnings.push(e.message))
+		})
+		const integer = (value: number): EmberTypedValue => ({ type: ParameterType.Integer, value })
+		const real = (value: number): EmberTypedValue => ({ type: ParameterType.Real, value })
+		const text = (value: string): EmberTypedValue => ({ type: ParameterType.String, value })
+
+		it('hands the handler arguments that fit, a real that is a whole number too', async () => {
+			expect(await invokeSet(integer(3), text('a'))).toMatchObject({ id: 9, success: true })
+			expect(await invokeSet(real(4), text('b'))).toMatchObject({ id: 9, success: true })
+			expect(invoked).toEqual(['set', 'set'])
+			expect(warnings).toEqual([])
+		})
+
+		it.each([
+			['too few', [integer(3)], '1 argument given, 2 described'],
+			['too many', [integer(3), text('a'), text('b')], '3 arguments given, 2 described'],
+			['of another type', [text('3'), text('a')], "argument 1 (level), 3, doesn't fit its type, INTEGER"],
+			[
+				'a fraction for an integer',
+				[real(1.5), text('a')],
+				"argument 1 (level), 1.5, doesn't fit its type, INTEGER",
+			],
+		])('answers arguments %s as failed, without the handler, and a warning', async (_, args, problem) => {
+			expect(await invokeSet(...args)).toMatchObject({ id: 9, success: false })
+			expect(invoked).toEqual([])
+			expect(warnings).toEqual([`Function 1.3: a consumer's Invoke refused: ${problem}`])
+		})
+
+		it('hands the handler any arguments for a function that describes none', async () => {
+			expect(await invoke('1.2', 4)).toMatchObject({ id: 4, success: true })
+			expect(invoked).toEqual(['reset'])
+		})
 	})
 
 	// An invocation id is any Integer32 the consumer picks: one of 0 was answered as -1, which it couldn't match
