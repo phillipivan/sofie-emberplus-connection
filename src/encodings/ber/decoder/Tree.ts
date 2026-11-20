@@ -29,6 +29,7 @@ import {
 	DecodeResult,
 	defaultDecode,
 	makeResult,
+	missing,
 	skipNext,
 	skipTooDeep,
 	unexpected,
@@ -189,8 +190,9 @@ export function decodeGenericElement(
 
 	let el: RootElement
 	if (isQualified) {
-		path = check(path, 'decode generic element', 'path', '', errors, options)
-		el = new QualifiedElementImpl(path, contents, children)
+		// Not made up: decodeRootElements skips a qualified element without a path, which addresses nothing
+		if (path === null) missing('decode generic element', 'path', errors, options)
+		el = new QualifiedElementImpl(path ?? '', contents, children)
 	} else {
 		number = check(number, 'decode generic element', 'number', -1, errors, options)
 		el = new NumberedTreeNodeImpl(number, contents, children)

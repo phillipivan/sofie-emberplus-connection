@@ -21,6 +21,7 @@ import {
 	DecodeResult,
 	defaultDecode,
 	makeResult,
+	missing,
 	skipNext,
 	skipTooDeep,
 	unexpected,
@@ -81,8 +82,9 @@ export function decodeTemplate(
 		}
 	}
 	if (isQualified) {
-		path = check(path, 'decode template', 'path', '', errors, options)
-		return makeResult(new QualifiedElementImpl(path, new TemplateImpl(element, description)), errors)
+		// Not made up: decodeRootElements skips a qualified element without a path, which addresses nothing
+		if (path === null) missing('decode template', 'path', errors, options)
+		return makeResult(new QualifiedElementImpl(path ?? '', new TemplateImpl(element, description)), errors)
 	} else {
 		number = check(number, 'decode tempalte', 'number', -1, errors, options)
 		return makeResult(new NumberedTreeNodeImpl(number, new TemplateImpl(element, description)), errors)

@@ -6,6 +6,7 @@ export {
 	DecodeResult,
 	whatever,
 	check,
+	missing,
 	DecodeError,
 	makeResult,
 	unknownContext,
@@ -188,6 +189,21 @@ function check<T>(
 		return substitute
 	}
 	return value
+}
+
+/**
+ * Reports a required value as missing when the caller makes up no substitute for it, but does something else instead:
+ * an error, or, when `substituteForRequired` is `false`, a throw, as `check` does, without its "Substituting".
+ */
+function missing<T>(
+	context: string,
+	propertyName: string,
+	decres: DecodeResult<T> | Array<Error>,
+	options: DecodeOptions = defaultDecode
+): void {
+	const errMsg = `${context}: For required property '${propertyName}', value is missing.`
+	if (!options.substituteForRequired) throw new Error(errMsg)
+	addError(decres, new Error(errMsg))
 }
 
 /**

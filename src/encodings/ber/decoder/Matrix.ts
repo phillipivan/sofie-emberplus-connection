@@ -26,6 +26,7 @@ import {
 	DecodeResult,
 	defaultDecode,
 	makeResult,
+	missing,
 	skipNext,
 	unexpected,
 	unknownContext,
@@ -93,8 +94,9 @@ function decodeMatrix(
 
 	let el: QualifiedElement<Matrix> | NumberedTreeNode<Matrix>
 	if (isQualified) {
-		path = check(path, 'decode matrix', 'path', '', errors, options)
-		el = new QualifiedElementImpl(path, contents, kids)
+		// Not made up: decodeRootElements skips a qualified element without a path, which addresses nothing
+		if (path === null) missing('decode matrix', 'path', errors, options)
+		el = new QualifiedElementImpl(path ?? '', contents, kids)
 	} else {
 		number = check(number, 'decode matrix', 'number', -1, errors, options)
 		el = new NumberedTreeNodeImpl(number, contents, kids)

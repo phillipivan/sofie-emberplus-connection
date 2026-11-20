@@ -72,6 +72,9 @@ describe('encoders/Ber/index', () => {
 			expect(result.errors).toHaveLength(0)
 		})
 
+		// A path that isn't there, or isn't an Ember+ path (read as none), is reported missing first, without the
+		// "Substituting ''" it was reported with, the element being skipped rather than given that path
+		const missingPath = (context: string) => `${context}: For required property 'path', value is missing.`
 		test.each([
 			{ name: 'node with a path number of 2^31', tag: QualifiedNodeBERID, path: '1.2147483648', type: 'node' },
 			{
@@ -80,15 +83,23 @@ describe('encoders/Ber/index', () => {
 				path: '1.4294967301',
 				type: 'node',
 			},
-			{ name: 'node with an empty path', tag: QualifiedNodeBERID, path: '', type: 'node' },
 			{ name: 'parameter without a path', tag: QualifiedParameterBERID, path: undefined, type: 'parameter' },
 			{ name: 'matrix without a path', tag: QualifiedMatrixBERID, path: undefined, type: 'matrix' },
 			{ name: 'template without a path', tag: QualifiedTemplateBERID, path: undefined, type: 'template' },
 		])('berDecode skips a qualified $name', ({ tag, path, type }) => {
 			const result = berDecode(message(tag, path))
+			const context = { matrix: 'decode matrix', template: 'decode template' }[type] ?? 'decode generic element'
 
 			expect(result.value).toEqual([])
-			expect(result.errors.map((e) => e.message)).toContain(skipped(type))
+			expect(result.errors.map((e) => e.message)).toEqual([missingPath(context), skipped(type)])
+		})
+
+		// An empty path is read, so isn't missing: it is only skipped
+		test('berDecode skips a qualified node with an empty path', () => {
+			const result = berDecode(message(QualifiedNodeBERID, ''))
+
+			expect(result.value).toEqual([])
+			expect(result.errors.map((e) => e.message)).toEqual([skipped('node')])
 		})
 
 		test('berDecode keeps the elements around it', () => {
@@ -112,6 +123,9 @@ describe('encoders/Ber/index', () => {
 			expect(() =>
 				berDecode(message(QualifiedNodeBERID, ''), { ...defaultDecode, skipUnexpected: false })
 			).toThrow(skipped('node'))
+			expect(() =>
+				berDecode(message(QualifiedMatrixBERID), { ...defaultDecode, substituteForRequired: false })
+			).toThrow(missingPath('decode matrix'))
 		})
 	})
 
