@@ -27,7 +27,7 @@
 		"lint-fix": "run lint --fix",
 		"unit": "vitest run --coverage",
 		"test": "run lint && vitest run",
-		"test:coverage": "run test -- --coverage",
+		"test:coverage": "run test --coverage",
 		"changelog": "sofie-version",
 		"release": "run test && sofie-version",
 		"reset": "git clean -dfx && git reset --hard && yarn",
