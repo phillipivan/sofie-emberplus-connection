@@ -118,6 +118,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	private _streamSubscriptions = new Map<string, Set<S101Socket>>()
 	/** The streams whose values changed since the last stream collections were sent, with the parameter changed last */
 	private _changedStreams = new Map<number, NumberedTreeNode<Parameter>>()
+	/** The parameters' values and defaults warned about as not allowed, by path and which: not again until allowed */
+	private _disallowed = new Set<string>()
 	/** The templates of the tree and the elements their definitions hold, with their paths: they don't change */
 	private _templated = new WeakMap<NumberedTreeNode<EmberElement>, RelativeOID>()
 
@@ -173,6 +175,11 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		}
 		this._changedStreams.clear()
 		this._indexStreams(true)
+		this._disallowed.clear()
+		for (const { path, element, inTemplate } of elementsOf(tree)) {
+			if (inTemplate || !isElementOfType(element, ElementType.Parameter)) continue
+			this._checkRange(path, element.contents, { limits: true, value: true, defaultValue: true })
+		}
 		return this._server.listen()
 	}
 
@@ -333,6 +340,43 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	}
 
 	/**
+	 * Warns, with `warn` events, about what of a parameter's range, value and default it doesn't allow: an inverted
+	 * range (the minimum above the maximum), which isn't checked, and a value or default below the minimum, above the
+	 * maximum, or, for an enumeration, none of its entries (valueProblem). A value or default is warned about once,
+	 * and again only once it has been allowed in between, so a meter held above its maximum isn't warned about at every
+	 * report. Only warns: a provider's value is the device's.
+	 */
+	private _checkRange(
+		path: RelativeOID,
+		parameter: Parameter,
+		check: { limits: boolean; value: boolean; defaultValue: boolean }
+	): void {
+		const { minimum, maximum, inverted } = valueRange(parameter)
+		if (check.limits && inverted) {
+			this.emit(
+				'warn',
+				new Error(
+					`Parameter ${path}: its minimum, ${minimum}, is above its maximum, ${maximum}: its range isn't checked`
+				)
+			)
+		}
+		for (const key of ['value', 'defaultValue'] as const) {
+			if (!check[key]) continue
+			const problem = valueProblem(parameter, parameter[key])
+			const disallowed = `${path} ${key}`
+			if (!problem) {
+				this._disallowed.delete(disallowed)
+			} else if (!this._disallowed.has(disallowed)) {
+				this._disallowed.add(disallowed)
+				this.emit(
+					'warn',
+					new Error(`Parameter ${path}: its ${key === 'value' ? 'value' : 'default'} ${problem}`)
+				)
+			}
+		}
+	}
+
+	/**
 	 * Refuses a change to a template, or to an element its definition holds, with a `warn` event: "A template definition
 	 * has to remain constant over the course of a session", and "No value change notifications must be emitted for
 	 * template elements". It was applied and reported (an element in a definition by its number alone, having no
@@ -393,6 +437,17 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		if (corrected && 'identifier' in element.contents) {
 			element.contents.identifier = corrected.legal
 			element.contents.description ??= corrected.original
+		}
+
+		// A value, default or range the parameter doesn't allow, warned about, but applied: the device reports what it is
+		if (isElementOfType(element, ElementType.Parameter) && !this._templated.has(element)) {
+			const limits = 'minimum' in update || 'maximum' in update
+			const allowed = limits || 'enumeration' in update || 'enumMap' in update || 'parameterType' in update
+			this._checkRange(getPath(element), element.contents, {
+				limits,
+				value: allowed || 'value' in update,
+				defaultValue: allowed || 'defaultValue' in update,
+			})
 		}
 
 		// A stream parameter's value goes, in a stream collection, only to the consumers that subscribed to it: "These

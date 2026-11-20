@@ -1401,6 +1401,81 @@ describe('EmberServer paths', () => {
 	})
 })
 
+// A provider's own value, default or range that the parameter doesn't allow is warned about, at init() and when an
+// update() makes it so, but applied: the device reports what it is. A value or default once, until it is allowed again.
+describe('EmberServer range warnings', () => {
+	let server: EmberServer
+	let warnings: string[]
+
+	async function init(...parameters: Array<NumberedTreeNode<Parameter>>) {
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		server = new EmberServer(9000)
+		warnings = []
+		server.on('warn', (e) => warnings.push(e.message))
+		await server.init(
+			childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf(parameters))])
+		)
+	}
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+	/** An integer parameter with the properties given */
+	const integer = (number: number, properties: Partial<ParameterImpl<ParameterType.Integer>>) => {
+		const contents = new ParameterImpl(ParameterType.Integer, `p${number}`)
+		Object.assign(contents, properties)
+		return new NumberedTreeNodeImpl(number, contents)
+	}
+
+	it("warns at init() about each range, value and default the tree's parameters don't allow", async () => {
+		const level = new ParameterImpl(ParameterType.Enum, 'mode', undefined, 5)
+		level.enumeration = 'Off\nOn'
+		await init(
+			integer(1, { minimum: 10, maximum: -10 }),
+			integer(2, { minimum: -10, maximum: 10, value: 11 }),
+			integer(3, { minimum: -10, maximum: 10, defaultValue: -20 }),
+			new NumberedTreeNodeImpl(4, level),
+			integer(5, { minimum: -10, maximum: 10, value: 10, defaultValue: null })
+		)
+
+		expect(warnings).toEqual([
+			"Parameter 1.1: its minimum, 10, is above its maximum, -10: its range isn't checked",
+			'Parameter 1.2: its value 11 is above its maximum, 10',
+			'Parameter 1.3: its default -20 is below its minimum, -10',
+			"Parameter 1.4: its value 5 isn't one of its entries",
+		])
+	})
+
+	it("warns once about an update()'s value outside the range, and again once it has been within it, applying each", async () => {
+		const gain = integer(1, { minimum: -10, maximum: 10, value: 0 })
+		await init(gain)
+
+		server.update(gain, { value: 11 })
+		server.update(gain, { value: 12 })
+		server.update(gain, { description: 'Gain' })
+		server.update(gain, { value: 5 })
+		server.update(gain, { value: -11 })
+
+		expect(gain.contents.value).toBe(-11)
+		expect(warnings).toEqual([
+			'Parameter 1.1: its value 11 is above its maximum, 10',
+			'Parameter 1.1: its value -11 is below its minimum, -10',
+		])
+	})
+
+	it('warns about an update() inverting the range, or leaving the value outside it', async () => {
+		const gain = integer(1, { minimum: -10, maximum: 10, value: 5 })
+		await init(gain)
+
+		server.update(gain, { maximum: 3 })
+		server.update(gain, { minimum: 8 })
+
+		expect(warnings).toEqual([
+			'Parameter 1.1: its value 5 is above its maximum, 3',
+			"Parameter 1.1: its minimum, 8, is above its maximum, 3: its range isn't checked",
+		])
+	})
+})
+
 describe('EmberServer invocations', () => {
 	// A device, 1, with a node, 1.1, and a function, 1.2
 	let server: EmberServer
