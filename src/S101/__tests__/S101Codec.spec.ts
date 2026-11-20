@@ -432,11 +432,12 @@ describe('S101Codec a stream read in any pieces', () => {
 		])
 	})
 
+	// Some thousands of reads: over a second under coverage, more on a slower CI runner, past the 5 s default
 	test('split in two at every position', () => {
 		for (let i = 1; i < stream.length; i++) {
 			expect([i, read([stream.subarray(0, i), stream.subarray(i)])]).toEqual([i, whole])
 		}
-	})
+	}, 60_000)
 
 	test.each([1, 2, 3, 7, 100, 1460])('in pieces of %d bytes', (size) => {
 		const pieces: Buffer[] = []

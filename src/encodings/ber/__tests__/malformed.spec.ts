@@ -25,6 +25,11 @@ function decodeEnds(message: Buffer): 'returned' | 'threw' | 'did not end' {
 	}
 }
 
+// A test decoding a message cut short at every length, or changed at every byte, decodes it some hundreds of times:
+// seconds under coverage, more on a slower CI runner, past the 5 s default. Each decode has its own limit (decodeEnds),
+// so a hang is still found.
+const EXHAUSTIVE_TIMEOUT = 60_000
+
 // The same messages, and the same with every tag in the multi-byte form
 const allMessages = (): Array<[string, Buffer]> => [
 	...messages(),
@@ -38,40 +43,52 @@ describe('decoding a malformed message ends', () => {
 	})
 
 	// A message that declares more content than it holds: every length the message's own bytes give runs on past its end
-	it.each(allMessages())('%s, cut short at any length', (_, message) => {
-		const hanging: number[] = []
-		for (let length = 0; length < message.length; length++) {
-			if (decodeEnds(message.subarray(0, length)) === 'did not end') hanging.push(length)
-		}
-		expect(hanging).toEqual([])
-	})
+	it.each(allMessages())(
+		'%s, cut short at any length',
+		(_, message) => {
+			const hanging: number[] = []
+			for (let length = 0; length < message.length; length++) {
+				if (decodeEnds(message.subarray(0, length)) === 'did not end') hanging.push(length)
+			}
+			expect(hanging).toEqual([])
+		},
+		EXHAUSTIVE_TIMEOUT
+	)
 
 	// Nor is a message cut short taken for a whole one: it throws, or decodes with errors. A message of indefinite
 	// lengths cut short decoded as an empty tree without errors, its blocks read as empty when their end was missing.
-	it.each(allMessages())('%s, cut short at any length, is not taken as whole', (_, message) => {
-		const takenAsWhole: number[] = []
-		for (let length = 0; length < message.length; length++) {
-			try {
-				if (berDecode(message.subarray(0, length)).errors.length === 0) takenAsWhole.push(length)
-			} catch {
-				// refused, as it should be
+	it.each(allMessages())(
+		'%s, cut short at any length, is not taken as whole',
+		(_, message) => {
+			const takenAsWhole: number[] = []
+			for (let length = 0; length < message.length; length++) {
+				try {
+					if (berDecode(message.subarray(0, length)).errors.length === 0) takenAsWhole.push(length)
+				} catch {
+					// refused, as it should be
+				}
 			}
-		}
-		expect(takenAsWhole).toEqual([])
-	})
+			expect(takenAsWhole).toEqual([])
+		},
+		EXHAUSTIVE_TIMEOUT
+	)
 
 	// Any one byte wrong: a tag, a length (too long, too short, long form, indefinite) or contents
-	it.each(allMessages())('%s, with any one byte changed', (_, message) => {
-		const hanging: string[] = []
-		for (let i = 0; i < message.length; i++) {
-			for (const value of [0x00, 0x01, 0x7f, 0x80, 0x81, 0x84, 0xff, at(message, i) ^ 0x01]) {
-				const changed = Buffer.from(message)
-				changed[i] = value
-				if (decodeEnds(changed) === 'did not end') hanging.push(`byte ${i} = 0x${value.toString(16)}`)
+	it.each(allMessages())(
+		'%s, with any one byte changed',
+		(_, message) => {
+			const hanging: string[] = []
+			for (let i = 0; i < message.length; i++) {
+				for (const value of [0x00, 0x01, 0x7f, 0x80, 0x81, 0x84, 0xff, at(message, i) ^ 0x01]) {
+					const changed = Buffer.from(message)
+					changed[i] = value
+					if (decodeEnds(changed) === 'did not end') hanging.push(`byte ${i} = 0x${value.toString(16)}`)
+				}
 			}
-		}
-		expect(hanging).toEqual([])
-	})
+			expect(hanging).toEqual([])
+		},
+		EXHAUSTIVE_TIMEOUT
+	)
 
 	// The messages from #46, as found
 	it.each(['60036b01', '60026b05', '60056b03a001ff'])('%s', (hex) => {
