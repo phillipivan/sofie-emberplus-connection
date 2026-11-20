@@ -11,7 +11,6 @@ import { StreamDescription } from '../../../model/StreamDescription.js'
 import { EmberValue, isRelativeOID, MinMax, RelativeOID, StringIntegerCollection } from '../../../types/types.js'
 import {
 	appendErrors,
-	check,
 	DecodeOptions,
 	DecodeResult,
 	defaultDecode,
@@ -144,7 +143,12 @@ function decodeParameter(reader: Ber.Reader, options: DecodeOptions = defaultDec
 				: valueType && valueType !== ParameterType.Null
 					? valueType
 					: (parameterType ?? valueType)
-	parameterType = check(parameterType, 'decode parameter', 'parameterType', ParameterType.Null, errors, options)
+	// Neither a type nor a value: the DTD makes the type optional, and libember's effectiveType() gives such a parameter
+	// none (None). It is Null, the model's "no type known", without an error. A provider that never sends the type
+	// (Lawo's TinyEmberPlusRouter, for one) reporting a change to another property of a parameter was decoded with "For
+	// required property 'parameterType', value is missing", a warn event at the client for each, and was refused by
+	// strict decoding. The client keeps the type it has when it merges such a report.
+	parameterType ??= ParameterType.Null
 
 	// The value and default must be of the parameter type's form. The type is the value's own unless the parameter is a
 	// trigger (any value), or an enum by its enumeration (its value an index); a default may be of any type. One that

@@ -3,7 +3,7 @@ import { at } from '../../../lib/at.js'
 import { ElementType } from '../../../model/EmberElement.js'
 import { Parameter, ParameterAccess, ParameterType, TypedParameter } from '../../../model/Parameter.js'
 import { StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
-import { guarded } from '../decoder/DecodeResult.js'
+import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
 import { decodeParameter } from '../decoder/Parameter.js'
 import { encodeParameter } from '../encoder/Parameter.js'
 
@@ -334,6 +334,30 @@ describe('encodings/ber/Parameter', () => {
 			const decoded = decodeParameter(reader)
 
 			expect(decoded.value).toMatchObject(expected)
+			expect(decoded.errors).toEqual([])
+		})
+
+		// Neither a type nor a value: the DTD makes the type optional, and libember gives such a parameter none. It is
+		// Null, "no type known", without an error; it was "For required property 'parameterType', value is missing", and
+		// strict decoding refused it, though a provider that never sends the type (TinyEmberPlusRouter) reports a change
+		// to another property so
+		test.each([
+			['the defaults', undefined],
+			['strict decoding', { ...defaultDecode, substituteForRequired: false, skipUnexpected: false }],
+		])(
+			'decodes one with neither a type nor a value as of no type known, without an error, with %s',
+			(_, options) => {
+				const decoded = decodeParameter(contents([1, str('Gain')]), options)
+
+				expect(decoded.value).toMatchObject({ parameterType: ParameterType.Null, description: 'Gain' })
+				expect(decoded.errors).toEqual([])
+			}
+		)
+
+		test("takes a parameter's type from its value when the type is left out", () => {
+			const decoded = decodeParameter(contents([2, int(3)]))
+
+			expect(decoded.value).toMatchObject({ parameterType: ParameterType.Integer, value: 3 })
 			expect(decoded.errors).toEqual([])
 		})
 
