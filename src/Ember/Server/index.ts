@@ -28,11 +28,12 @@ import {
 	EmberValue,
 	NumberedTreeNode,
 	QualifiedElement,
+	RelativeOID,
 	RootElement,
 	RootType,
 	TreeElement,
 } from '../../types/types.js'
-import { getPath, isElementOfType, isInvokeElement, parentPath, toQualifiedEmberNode } from '../Lib/util.js'
+import { childPath, getPath, isElementOfType, isInvokeElement, parentPath, toQualifiedEmberNode } from '../Lib/util.js'
 import { S101Server, S101ServerOptions } from '../Socket/S101Server.js'
 import S101Socket from '../Socket/S101Socket.js'
 
@@ -150,7 +151,19 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			}
 		}
 		this.tree = tree
+		for (const [path, element] of elementsOf(tree)) this._checkIdentifier(path, element.contents)
 		return this._server.listen()
+	}
+
+	/**
+	 * Warns about an element's identifier the specification doesn't allow: one that contains "/" or doesn't begin with
+	 * a letter or "_" ("The identifier string must not contain the character "/" … and must begin with a letter or the
+	 * lower line character"). Only warns: the tree is the provider's.
+	 */
+	private _checkIdentifier(path: string, contents: EmberElement): void {
+		const identifier = 'identifier' in contents ? contents.identifier : undefined
+		const problem = identifier === undefined ? undefined : identifierProblem(identifier)
+		if (problem) this.emit('warn', new Error(`Element ${path}: identifier '${identifier}' ${problem}`))
 	}
 
 	discard(): void {
@@ -172,6 +185,19 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			for (const connection of connections.values()) {
 				this.updateMatrixConnection(element, connection)
 			}
+		}
+
+		// "The identifier of a node must never change. Otherwise a consumer cannot refer to a specific node or parameter
+		// any more": warned about, as one the specification doesn't allow is, but applied, the tree being the provider's
+		const identifier: unknown = 'identifier' in update ? update.identifier : undefined
+		const current = 'identifier' in element.contents ? element.contents.identifier : undefined
+		if (typeof identifier === 'string' && identifier !== current) {
+			const path = getPath(element)
+			if (current !== undefined) {
+				this.emit('warn', new Error(`Element ${path}: identifier changed from '${current}' to '${identifier}'`))
+			}
+			const problem = identifierProblem(identifier)
+			if (problem) this.emit('warn', new Error(`Element ${path}: identifier '${identifier}' ${problem}`))
 		}
 
 		// The other properties replace the element's. A matrix's connections were merged in above, target by target: the
@@ -697,6 +723,33 @@ function directoryContents<T extends EmberElement>(contents: T, mask: FieldFlags
 
 function isMatrixContents(contents: EmberElement): contents is Matrix {
 	return contents.type === ElementType.Matrix
+}
+
+/**
+ * Every element of a tree, by its path: the elements below each one, and the element a template defines (which has the
+ * template's path: "The number of a template is the number of its contained element definition"), and those below it
+ */
+function* elementsOf(
+	elements: Children,
+	parent: RelativeOID = ''
+): Generator<[RelativeOID, NumberedTreeNode<EmberElement>]> {
+	for (const element of elements.values()) {
+		const path = childPath(parent, element.number)
+		yield [path, element]
+		if (element.children) yield* elementsOf(element.children, path)
+		if (element.contents.type === ElementType.Template && element.contents.element) {
+			const templated = element.contents.element
+			yield [path, templated]
+			if (templated.children) yield* elementsOf(templated.children, path)
+		}
+	}
+}
+
+/** What the specification's rule for identifiers finds wrong with one, if anything */
+function identifierProblem(identifier: string): string | undefined {
+	if (!/^[A-Za-z_]/.test(identifier)) return 'does not begin with a letter or _'
+	if (identifier.includes('/')) return 'contains /'
+	return undefined
 }
 
 /**

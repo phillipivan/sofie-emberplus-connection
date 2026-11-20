@@ -43,6 +43,7 @@ import {
 	ParameterType,
 	QualifiedElementImpl,
 	signalsOf,
+	TemplateImpl,
 } from '../../../model/index.js'
 import { InvocationResultImpl } from '../../../model/InvocationResult.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
@@ -729,6 +730,70 @@ describe('EmberServer GetDirectory field mask', () => {
 
 	it('gives the top-level elements only what the mask asks for', async () => {
 		expect(await directory('', FieldFlags.Identifier)).toEqual({ 1: { identifier: 'device' } })
+	})
+})
+
+// "The identifier string must not contain the character "/" … and must begin with a letter or the lower line
+// character", and "The identifier of a node must never change". Warned about, not refused: the tree is the
+// provider's. Nothing checked them.
+describe('EmberServer identifiers', () => {
+	let server: EmberServer
+	let warnings: string[]
+
+	async function init(...elements: Array<NumberedTreeNode<EmberElement>>) {
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		server = new EmberServer(9000)
+		warnings = []
+		server.on('warn', (e) => warnings.push(e.message))
+		await server.init(childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf(elements))]))
+	}
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+	const parameter = (number: number, identifier?: string) =>
+		new NumberedTreeNodeImpl(number, new ParameterImpl(ParameterType.Integer, identifier))
+
+	it('warns about one that contains / or does not begin with a letter or _', async () => {
+		await init(
+			parameter(1, 'in/out'),
+			parameter(2, '2nd'),
+			parameter(3, ''),
+			parameter(4, 'gain'),
+			parameter(5, '_x')
+		)
+
+		expect(warnings).toEqual([
+			"Element 1.1: identifier 'in/out' contains /",
+			"Element 1.2: identifier '2nd' does not begin with a letter or _",
+			"Element 1.3: identifier '' does not begin with a letter or _",
+		])
+	})
+
+	it('warns about one in a template definition, by the path of the template', async () => {
+		const templated = new NumberedTreeNodeImpl(
+			7,
+			new EmberNodeImpl('channel'),
+			childrenOf([parameter(1, 'level/dB')])
+		)
+		await init(new NumberedTreeNodeImpl(7, new TemplateImpl(templated)))
+
+		expect(warnings).toEqual(["Element 1.7.1: identifier 'level/dB' contains /"])
+	})
+
+	it('warns when update() changes one, or sets one it does not allow, and applies it', async () => {
+		const gain = parameter(1, 'gain')
+		await init(gain)
+
+		server.update(gain, { identifier: 'gain' })
+		server.update(gain, { identifier: 'level' })
+		server.update(gain, { identifier: 'a/b' })
+
+		expect(warnings).toEqual([
+			"Element 1.1: identifier changed from 'gain' to 'level'",
+			"Element 1.1: identifier changed from 'level' to 'a/b'",
+			"Element 1.1: identifier 'a/b' contains /",
+		])
+		expect(gain.contents.identifier).toBe('a/b')
 	})
 })
 
