@@ -10,7 +10,15 @@ import { ParameterType } from '../../../model/Parameter.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { childrenOf, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImpl } from '../../../model/Tree.js'
 import { RelativeOID, Root, RootElement, RootType } from '../../../types/types.js'
-import { ElementCollectionBERID, QualifiedNodeBERID, RootBERID, RootElementsBERID } from '../constants.js'
+import {
+	ElementCollectionBERID,
+	QualifiedMatrixBERID,
+	QualifiedNodeBERID,
+	QualifiedParameterBERID,
+	QualifiedTemplateBERID,
+	RootBERID,
+	RootElementsBERID,
+} from '../constants.js'
 import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
 import { encodeQualifedElement } from '../encoder/Qualified.js'
 import { encodeNumberedElement } from '../encoder/Tree.js'
@@ -27,36 +35,83 @@ describe('encoders/Ber/index', () => {
 
 		expect(decoded).toEqual(root[0])
 	}
-	// An Ember+ path's numbers are Integer32 (Glow DTD). One above 2^31 - 1 is refused when encoding, and decoded as no
-	// path, with the error a missing one gives; read with 32-bit shifts, 2^32 + 5 had decoded as element 5.
-	describe('a path number above 2^31 - 1', () => {
-		test('berEncode refuses it', () => {
-			expect(() => berEncode([qualified('1.2147483648', 'node')], RootType.Elements)).toThrow(
-				'RELATIVE-OID 1.2147483648 has a number above 2^31 - 1'
-			)
-		})
+	// An Ember+ path's numbers are Integer32 (Glow DTD)
+	test('berEncode refuses a path number above 2^31 - 1', () => {
+		expect(() => berEncode([qualified('1.2147483648', 'node')], RootType.Elements)).toThrow(
+			'RELATIVE-OID 1.2147483648 has a number above 2^31 - 1'
+		)
+	})
 
-		test.each<{ path: string; decoded: RelativeOID; errors: number }>([
-			{ path: '1.2147483647', decoded: '1.2147483647', errors: 0 },
-			{ path: '1.2147483648', decoded: '', errors: 1 },
-			{ path: '1.4294967301', decoded: '', errors: 1 },
-		])('berDecode reads path $path as $decoded', ({ path, decoded, errors }) => {
+	// A qualified element is addressed by its path alone, so one without (missing, empty, or with a number above
+	// 2^31 - 1) is skipped, with an error. Its path was '', which the client and the server took as element 0.
+	describe('a qualified element without a path', () => {
+		const message = (tag: number, path?: string) => {
 			const w = new Asn1Writer() // without the Ember+ limit, as a provider might write it
 			w.startSequence(RootBERID)
 			w.startSequence(RootElementsBERID)
 			w.startSequence(Ber.CONTEXT(0))
-			w.startSequence(QualifiedNodeBERID)
-			w.startSequence(Ber.CONTEXT(0))
-			w.writeRelativeOID(path, Ber.BERDataTypes.RELATIVE_OID)
+			w.startSequence(tag)
+			if (path !== undefined) {
+				w.startSequence(Ber.CONTEXT(0))
+				w.writeRelativeOID(path, Ber.BERDataTypes.RELATIVE_OID)
+				w.endSequence()
+			}
 			w.endSequence()
 			w.endSequence()
 			w.endSequence()
+			w.endSequence()
+			return w.buffer
+		}
+		const skipped = (type: string) =>
+			`decode root elements: a qualified ${type} without a path addresses no element: skipped`
+
+		test('berDecode keeps one whose path numbers fit in an Integer32', () => {
+			const result = berDecode(message(QualifiedNodeBERID, '1.2147483647'))
+
+			expect(result.value).toEqual([new QualifiedElementImpl('1.2147483647', new EmberNodeImpl())])
+			expect(result.errors).toHaveLength(0)
+		})
+
+		test.each([
+			{ name: 'node with a path number of 2^31', tag: QualifiedNodeBERID, path: '1.2147483648', type: 'node' },
+			{
+				name: 'node with a path number of 2^32 + 5',
+				tag: QualifiedNodeBERID,
+				path: '1.4294967301',
+				type: 'node',
+			},
+			{ name: 'node with an empty path', tag: QualifiedNodeBERID, path: '', type: 'node' },
+			{ name: 'parameter without a path', tag: QualifiedParameterBERID, path: undefined, type: 'parameter' },
+			{ name: 'matrix without a path', tag: QualifiedMatrixBERID, path: undefined, type: 'matrix' },
+			{ name: 'template without a path', tag: QualifiedTemplateBERID, path: undefined, type: 'template' },
+		])('berDecode skips a qualified $name', ({ tag, path, type }) => {
+			const result = berDecode(message(tag, path))
+
+			expect(result.value).toEqual([])
+			expect(result.errors.map((e) => e.message)).toContain(skipped(type))
+		})
+
+		test('berDecode keeps the elements around it', () => {
+			const w = new Ber.Writer()
+			w.startSequence(RootBERID)
+			w.startSequence(RootElementsBERID)
+			for (const element of [qualified('1', 'a'), qualified('', 'stray'), qualified('2', 'b')]) {
+				w.startSequence(Ber.CONTEXT(0))
+				encodeQualifedElement(element, w)
+				w.endSequence()
+			}
 			w.endSequence()
 			w.endSequence()
 
 			const result = berDecode(w.buffer)
-			expect(result.value).toEqual([new QualifiedElementImpl(decoded, new EmberNodeImpl())])
-			expect(result.errors).toHaveLength(errors)
+			expect(result.value).toEqual([qualified('1', 'a'), qualified('2', 'b')])
+			expect(result.errors.map((e) => e.message)).toEqual([skipped('node')])
+		})
+
+		test('strict decoding refuses one', () => {
+			expect(() =>
+				berDecode(message(QualifiedNodeBERID, ''), { ...defaultDecode, skipUnexpected: false })
+			).toThrow(skipped('node'))
 		})
 	})
 

@@ -29,7 +29,6 @@ import {
 	DecodeResult,
 	defaultDecode,
 	makeResult,
-	safeSet,
 	skipNext,
 	skipTooDeep,
 	unexpected,
@@ -222,13 +221,23 @@ export function decodeRootElements(
 			skipNext(reader)
 			continue
 		}
-		const rootEl = decodeGenericElement(reader, options)
+		const rootEl = appendErrors(decodeGenericElement(reader, options), rootEls)
+		// A qualified element is addressed by its path alone, so one without (missing, empty, or not an Ember+ path)
+		// addresses nothing: it is skipped. Its path was '', which the client took as element 0, merging the element into
+		// it, and the server too, applying a consumer's request to it. (The root is addressed by a command, never a path.)
+		if (!isNumbered(rootEl) && rootEl.path === '') {
+			unexpected(
+				rootEls,
+				'decode root elements',
+				`a qualified ${rootEl.contents.type.toLowerCase()} without a path addresses no element: skipped`,
+				rootEls.value,
+				options
+			)
+			continue
+		}
 		// In the order they came, as many as came: an element's number or path is in the element, and a message may report
 		// one element twice. (Keyed by number, one could replace another, and the order was lost.)
-		safeSet(rootEl, rootEls, (x, y) => {
-			y.push(x)
-			return y
-		})
+		rootEls.value.push(rootEl)
 	}
 	return rootEls
 }
