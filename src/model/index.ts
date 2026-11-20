@@ -11,6 +11,7 @@ import {
 	Unsubscribe,
 } from './Command.js'
 import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation, isConnection } from './Connection.js'
+import { deviceValue, DisplayValue, displayValue, enumEntries, EnumEntry } from './Display.js'
 import { ElementType, EmberElement, isEmberElement } from './EmberElement.js'
 import { EmberFunction, EmberFunctionImpl } from './EmberFunction.js'
 import { EmberNode, EmberNodeImpl } from './EmberNode.js'
@@ -81,6 +82,11 @@ export {
 	FormulaError,
 	FormulaInput,
 	parseFormula,
+	DisplayValue,
+	displayValue,
+	deviceValue,
+	EnumEntry,
+	enumEntries,
 	Invocation,
 	InvocationResult,
 	Label,

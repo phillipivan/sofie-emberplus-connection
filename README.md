@@ -185,6 +185,25 @@ await client.disconnect()
 console.log('disconnected')
 ```
 
+### Displaying Values
+
+A parameter's `format`, `factor`, `formula` and enumeration describe how its value is shown. `Model.displayValue`
+applies them: the formula's first expression or the factor, then the format (with a factor, `%d` keeps the factor's
+decimals), giving the text and the unit (the part of the format after its `°`). `Model.deviceValue` turns a value
+entered back into the device's, for `setValue`. `Model.enumEntries` gives an enumeration's entries, from its `enumMap`
+or its `enumeration`, with those beginning with `~` marked hidden. `Model.parseFormula` parses a formula on its own.
+
+```javascript
+const { Model } = require('@phillipivan/emberplus-connection')
+
+const gain = await client.getElementByPath('path.to.gain') // format "%d°dB", factor 10, value -125
+const { text, unit } = Model.displayValue(gain.contents) // text "-12.5dB", unit "dB"
+await client.setValue(gain, Model.deviceValue(gain.contents, -6)) // sends -60
+
+const mode = await client.getElementByPath('path.to.mode') // enumeration "Off\n~Test\nOn"
+const choices = Model.enumEntries(mode.contents).filter((entry) => !entry.hidden) // Off (0) and On (2)
+```
+
 ### Invoking Function
 
 ```javascript
