@@ -671,6 +671,71 @@ describe('EmberServer subscriptions', () => {
 			})
 		})
 
+		// The minimum and maximum are "the smallest value allowed" and "the largest value allowed", and "If the value is
+		// invalid, the provider shall respond with the current value": one outside them, or an enumeration's value that
+		// isn't one of its entries, isn't handed to the handler. Any was.
+		describe('with a value outside what the parameter allows', () => {
+			/** The consumer asks for 1.1.1 to be set to the value given; gives the values it was answered with */
+			async function request(consumer: FakeConnection, value: number | null) {
+				consumer.received.length = 0
+				consumer.emit('emberTree', {
+					rootType: RootType.Elements,
+					value: [
+						new QualifiedElementImpl(
+							'1.1.1',
+							new ParameterImpl(ParameterType.Integer, undefined, undefined, value)
+						),
+					],
+				})
+				await new Promise(setImmediate)
+				return consumer.received.map(reportedValue)
+			}
+			let warnings: string[]
+			beforeEach(() => {
+				server.onSetValue = applyValue
+				warnings = []
+				server.on('warn', (e) => warnings.push(e.message))
+			})
+			const limit = (minimum: number | null | undefined, maximum: number | null | undefined) => {
+				parameter.contents.minimum = minimum
+				parameter.contents.maximum = maximum
+			}
+
+			it.each<[number, string]>([
+				[11, '11 is above its maximum, 10'],
+				[-11, '-11 is below its minimum, -10'],
+			])('answers %d with the current value, without the handler, and a warning', async (value, problem) => {
+				limit(-10, 10)
+				const consumer = await connect()
+
+				expect(await request(consumer, value)).toEqual([['1.1.1', 0]])
+				expect(warnings).toEqual([`Parameter 1.1.1: a consumer's setValue refused: ${problem}`])
+			})
+
+			it.each<[string, number | null | undefined, number | null | undefined, number | null]>([
+				['the maximum itself', -10, 10, 10],
+				['the minimum itself', -10, 10, -10],
+				['null', -10, 10, null],
+				['any value below a null minimum', null, 10, -1000],
+				['any value within an inverted range, which is not checked', 10, -10, 50],
+			])('hands the handler %s', async (_, minimum, maximum, value) => {
+				limit(minimum, maximum)
+				const consumer = await connect()
+
+				expect(await request(consumer, value)).toEqual([['1.1.1', value]])
+				expect(warnings).toEqual([])
+			})
+
+			it("answers an enumeration's value that isn't one of its entries with the current value, a hidden one being one", async () => {
+				Object.assign(parameter.contents, { parameterType: ParameterType.Enum, enumeration: 'Off\n~Test\nOn' })
+				const consumer = await connect()
+
+				expect(await request(consumer, 3)).toEqual([['1.1.1', 0]])
+				expect(await request(consumer, 1)).toEqual([['1.1.1', 1]])
+				expect(warnings).toEqual(["Parameter 1.1.1: a consumer's setValue refused: 3 isn't one of its entries"])
+			})
+		})
+
 		// Only a writeable parameter takes a consumer's value: any was handed to the handler, so a read-only one took it
 		// unless the handler checked its access itself
 		describe('on a parameter that is not writeable', () => {

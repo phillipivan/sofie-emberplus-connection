@@ -12,6 +12,7 @@ import {
 	EmberElement,
 	EmberFunction,
 	EmberNodeImpl,
+	enumEntries,
 	hasSignal,
 	InvocationResult,
 	isConnections,
@@ -760,6 +761,19 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			return
 		}
 
+		// Within its range and, for an enumeration, one of its entries: the minimum and maximum are "the smallest value
+		// allowed" and "the largest value allowed". Any was handed to the handler.
+		const problem = valueProblem(tree.contents, value)
+		if (problem) {
+			this.emit(
+				'warn',
+				new Error(`Parameter ${getPath(tree)}: a consumer's setValue refused: ${problem}`),
+				client
+			)
+			client.sendBER(berEncode([toQualifiedEmberNode(tree)], RootType.Elements))
+			return
+		}
+
 		const qualified = toQualifiedEmberNode(tree)
 		const pending: PendingValueReply = { path: qualified.path, client, answered: false }
 		this._pendingValueReplies.add(pending)
@@ -1020,6 +1034,38 @@ function describeValue(value: unknown): string {
 
 function isParameterType(value: unknown): value is ParameterType {
 	return Object.values<unknown>(ParameterType).includes(value)
+}
+
+/**
+ * The range a parameter's value keeps to: its minimum and maximum when they are numbers (null, or none, being no limit),
+ * and whether the range is inverted, the minimum above the maximum, which isn't checked (there is no telling which
+ * limit is wrong, and every value would be outside it). The limits are in the value's own unit: "All properties have
+ * to be reported in the same unit", a factor or a formula applying to them as to the value.
+ */
+function valueRange(parameter: Parameter): { minimum?: number; maximum?: number; inverted: boolean } {
+	const minimum = typeof parameter.minimum === 'number' ? parameter.minimum : undefined
+	const maximum = typeof parameter.maximum === 'number' ? parameter.maximum : undefined
+	const inverted = minimum !== undefined && maximum !== undefined && minimum > maximum
+	return { minimum, maximum, inverted }
+}
+
+/**
+ * What makes a numeric value one a parameter doesn't allow, if anything: below its minimum ("the smallest value
+ * allowed"), above its maximum ("the largest value allowed"), or, for an enumeration with entries, none of them (a
+ * hidden entry being one). An inverted range isn't checked; a value that isn't a number (null, say) is never outside.
+ */
+function valueProblem(parameter: Parameter, value: unknown): string | undefined {
+	if (typeof value !== 'number') return undefined
+	if (parameter.parameterType === ParameterType.Enum) {
+		const entries = enumEntries(parameter)
+		if (entries.length && !entries.some((entry) => entry.value === value))
+			return `${value} isn't one of its entries`
+	}
+	const { minimum, maximum, inverted } = valueRange(parameter)
+	if (inverted) return undefined
+	if (minimum !== undefined && value < minimum) return `${value} is below its minimum, ${minimum}`
+	if (maximum !== undefined && value > maximum) return `${value} is above its maximum, ${maximum}`
+	return undefined
 }
 
 /**
