@@ -154,18 +154,67 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		}
 		this.tree = tree
 		this._templated = new WeakMap()
-		for (const [path, element, inTemplate] of elementsOf(tree)) {
-			this._checkIdentifier(path, element.contents)
+		for (const { path, element, inTemplate, siblings } of elementsOf(tree)) {
+			this._correctIdentifier(path, element, siblings)
 			if (inTemplate) this._templated.set(element, path)
 		}
 		return this._server.listen()
 	}
 
 	/**
-	 * Warns about an element's identifier the specification doesn't allow: one that contains "/" or doesn't begin with
-	 * a letter or "_" ("The identifier string must not contain the character "/" … and must begin with a letter or the
-	 * lower line character"). Only warns: the tree is the provider's.
+	 * Corrects an element's identifier the specification doesn't allow ("The identifier string must not contain the
+	 * character "/" … and must begin with a letter or the lower line character"), in the tree, with a `warn` event: as
+	 * legalIdentifier makes it, and with the identifier as it was for the element's description, when it has none, as a
+	 * description "shall be displayed instead of the identifier". One was only warned about, so it was published as it
+	 * was.
+	 *
+	 * @throws when the corrected identifier is a sibling's (`siblings`, the collection the element is in), as
+	 * identifiers are "unique within the current context"
 	 */
+	private _correctIdentifier(
+		path: RelativeOID,
+		element: NumberedTreeNode<EmberElement>,
+		siblings: Children | undefined
+	): void {
+		const contents = element.contents
+		if (!('identifier' in contents) || contents.identifier === undefined) return
+		const original = contents.identifier
+		const legal = this._legalIdentifier(path, original, element, siblings)
+		if (legal === original) return
+		contents.identifier = legal
+		contents.description ??= original
+	}
+
+	/**
+	 * An identifier as the element is to have it: as legalIdentifier makes it, with a `warn` event when it isn't as it
+	 * was given
+	 *
+	 * @throws when that is a sibling's identifier
+	 */
+	private _legalIdentifier(
+		path: RelativeOID,
+		identifier: string,
+		element: NumberedTreeNode<EmberElement>,
+		siblings: Children | undefined
+	): string {
+		const legal = legalIdentifier(identifier)
+		if (legal === identifier) return identifier
+		for (const sibling of siblings?.values() ?? []) {
+			if (sibling !== element && 'identifier' in sibling.contents && sibling.contents.identifier === legal) {
+				throw new Error(
+					`Element ${path}: identifier '${identifier}' isn't allowed, and '${legal}', which it would be corrected to, is element ${childPath(parentPath(path), sibling.number)}'s`
+				)
+			}
+		}
+		this.emit(
+			'warn',
+			new Error(
+				`Element ${path}: identifier '${identifier}' corrected to '${legal}': an identifier has no "/" and begins with a letter or "_"`
+			)
+		)
+		return legal
+	}
+
 	/**
 	 * Refuses a change to a template, or to an element its definition holds, with a `warn` event: "A template definition
 	 * has to remain constant over the course of a session", and "No value change notifications must be emitted for
@@ -179,12 +228,6 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		return true
 	}
 
-	private _checkIdentifier(path: string, contents: EmberElement): void {
-		const identifier = 'identifier' in contents ? contents.identifier : undefined
-		const problem = identifier === undefined ? undefined : identifierProblem(identifier)
-		if (problem) this.emit('warn', new Error(`Element ${path}: identifier '${identifier}' ${problem}`))
-	}
-
 	discard(): void {
 		this._clients.forEach((c) => {
 			c.removeAllListeners()
@@ -195,6 +238,23 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 
 	update<T extends EmberElement>(element: NumberedTreeNode<T>, update: Partial<T>): void {
 		if (this._refuseTemplated(element)) return
+
+		// An identifier the specification doesn't allow, corrected (see _correctIdentifier): before any of the update
+		// is applied, so that one that would be a sibling's refuses the update whole. "The identifier of a node must
+		// never change. Otherwise a consumer cannot refer to a specific node or parameter any more": warned about, but
+		// applied, the tree being the provider's.
+		const identifier: unknown = 'identifier' in update ? update.identifier : undefined
+		let corrected: { original: string; legal: string } | undefined
+		if (typeof identifier === 'string') {
+			const path = getPath(element)
+			const siblings = element.parent ? element.parent.children : this.tree
+			const legal = this._legalIdentifier(path, identifier, element, siblings)
+			const current = 'identifier' in element.contents ? element.contents.identifier : undefined
+			if (current !== undefined && legal !== current) {
+				this.emit('warn', new Error(`Element ${path}: identifier changed from '${current}' to '${legal}'`))
+			}
+			if (legal !== identifier) corrected = { original: identifier, legal }
+		}
 		// A matrix's connections, checked, since TypeScript can't tie the update to the element through T: before any
 		// of the update is applied, so that one that isn't any is refused whole
 		const connections: unknown = 'connections' in update ? update.connections : undefined
@@ -207,24 +267,15 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			}
 		}
 
-		// "The identifier of a node must never change. Otherwise a consumer cannot refer to a specific node or parameter
-		// any more": warned about, as one the specification doesn't allow is, but applied, the tree being the provider's
-		const identifier: unknown = 'identifier' in update ? update.identifier : undefined
-		const current = 'identifier' in element.contents ? element.contents.identifier : undefined
-		if (typeof identifier === 'string' && identifier !== current) {
-			const path = getPath(element)
-			if (current !== undefined) {
-				this.emit('warn', new Error(`Element ${path}: identifier changed from '${current}' to '${identifier}'`))
-			}
-			const problem = identifierProblem(identifier)
-			if (problem) this.emit('warn', new Error(`Element ${path}: identifier '${identifier}' ${problem}`))
-		}
-
 		// The other properties replace the element's. A matrix's connections were merged in above, target by target: the
 		// update lists only the targets it changes.
 		const changes: Partial<T> = { ...update }
 		if (element.contents.type === ElementType.Matrix) Reflect.deleteProperty(changes, 'connections')
 		Object.assign(element.contents, changes)
+		if (corrected && 'identifier' in element.contents) {
+			element.contents.identifier = corrected.legal
+			element.contents.description ??= corrected.original
+		}
 		const el = toQualifiedEmberNode(element)
 		// The change, without the element's children, which change on their own: a node's whole subtree went with it
 		el.children = undefined
@@ -751,34 +802,42 @@ function isMatrixContents(contents: EmberElement): contents is Matrix {
 	return contents.type === ElementType.Matrix
 }
 
+/** An element of a tree, as elementsOf finds it */
+interface FoundElement {
+	path: RelativeOID
+	element: NumberedTreeNode<EmberElement>
+	/** Whether it is a template, or in a template's definition */
+	inTemplate: boolean
+	/** The collection it is in: none for the element a template defines */
+	siblings: Children | undefined
+}
+
 /**
- * Every element of a tree, by its path, with whether it is a template or in a template's definition: the elements below
- * each one, and the element a template defines (which has the template's path: "The number of a template is the
- * number of its contained element definition"), and those below it
+ * Every element of a tree: the elements below each one, and the element a template defines (which has the template's
+ * path: "The number of a template is the number of its contained element definition"), and those below it
  */
-function* elementsOf(
-	elements: Children,
-	parent: RelativeOID = '',
-	inTemplate = false
-): Generator<[RelativeOID, NumberedTreeNode<EmberElement>, boolean]> {
+function* elementsOf(elements: Children, parent: RelativeOID = '', inTemplate = false): Generator<FoundElement> {
 	for (const element of elements.values()) {
 		const path = childPath(parent, element.number)
 		const isTemplate = element.contents.type === ElementType.Template
-		yield [path, element, inTemplate || isTemplate]
+		yield { path, element, inTemplate: inTemplate || isTemplate, siblings: elements }
 		if (element.children) yield* elementsOf(element.children, path, inTemplate)
 		if (element.contents.type === ElementType.Template && element.contents.element) {
 			const templated = element.contents.element
-			yield [path, templated, true]
+			yield { path, element: templated, inTemplate: true, siblings: undefined }
 			if (templated.children) yield* elementsOf(templated.children, path, true)
 		}
 	}
 }
 
-/** What the specification's rule for identifiers finds wrong with one, if anything */
-function identifierProblem(identifier: string): string | undefined {
-	if (!/^[A-Za-z_]/.test(identifier)) return 'does not begin with a letter or _'
-	if (identifier.includes('/')) return 'contains /'
-	return undefined
+/**
+ * An identifier as the specification allows it ("must not contain the character "/" … and must begin with a letter or
+ * the lower line character"): each "/" replaced by "_", and "_" put before one that doesn't begin with a letter or "_"
+ * (an empty one is "_"). Replaced rather than removed, so nothing of it is lost: "1/2" is "_1_2".
+ */
+function legalIdentifier(identifier: string): string {
+	const replaced = identifier.replaceAll('/', '_')
+	return /^[A-Za-z_]/.test(replaced) ? replaced : `_${replaced}`
 }
 
 /**

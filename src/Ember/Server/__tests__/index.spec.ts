@@ -734,8 +734,9 @@ describe('EmberServer GetDirectory field mask', () => {
 })
 
 // "The identifier string must not contain the character "/" … and must begin with a letter or the lower line
-// character", and "The identifier of a node must never change". Warned about, not refused: the tree is the
-// provider's. Nothing checked them.
+// character": one that doesn't is corrected, "/" replaced by "_" and "_" put before it, in the tree, with a warning,
+// and kept as the description when there is none, as a description "shall be displayed instead of the identifier".
+// It was only warned about, and published as it was. "The identifier of a node must never change": warned about.
 describe('EmberServer identifiers', () => {
 	let server: EmberServer
 	let warnings: string[]
@@ -750,37 +751,54 @@ describe('EmberServer identifiers', () => {
 	afterEach(() => {
 		vi.restoreAllMocks()
 	})
-	const parameter = (number: number, identifier?: string) =>
-		new NumberedTreeNodeImpl(number, new ParameterImpl(ParameterType.Integer, identifier))
+	const parameter = (number: number, identifier?: string, description?: string) =>
+		new NumberedTreeNodeImpl(number, new ParameterImpl(ParameterType.Integer, identifier, description))
+	const corrected = (path: string, from: string, to: string) =>
+		`Element ${path}: identifier '${from}' corrected to '${to}': an identifier has no "/" and begins with a letter or "_"`
 
-	it('warns about one that contains / or does not begin with a letter or _', async () => {
-		await init(
+	it('corrects one that contains / or does not begin with a letter or _, keeping it as the description', async () => {
+		const elements = [
 			parameter(1, 'in/out'),
 			parameter(2, '2nd'),
 			parameter(3, ''),
-			parameter(4, 'gain'),
-			parameter(5, '_x')
-		)
+			parameter(4, '1/2', 'Half'),
+			parameter(5, 'gain'),
+			parameter(6, '_x'),
+		]
+		await init(...elements)
 
+		expect(elements.map((e) => [e.contents.identifier, e.contents.description])).toEqual([
+			['in_out', 'in/out'],
+			['_2nd', '2nd'],
+			['_', ''],
+			['_1_2', 'Half'],
+			['gain', undefined],
+			['_x', undefined],
+		])
 		expect(warnings).toEqual([
-			"Element 1.1: identifier 'in/out' contains /",
-			"Element 1.2: identifier '2nd' does not begin with a letter or _",
-			"Element 1.3: identifier '' does not begin with a letter or _",
+			corrected('1.1', 'in/out', 'in_out'),
+			corrected('1.2', '2nd', '_2nd'),
+			corrected('1.3', '', '_'),
+			corrected('1.4', '1/2', '_1_2'),
 		])
 	})
 
-	it('warns about one in a template definition, by the path of the template', async () => {
-		const templated = new NumberedTreeNodeImpl(
-			7,
-			new EmberNodeImpl('channel'),
-			childrenOf([parameter(1, 'level/dB')])
-		)
+	it('corrects one in a template definition, by the path of the template', async () => {
+		const level = parameter(1, 'level/dB')
+		const templated = new NumberedTreeNodeImpl(7, new EmberNodeImpl('channel'), childrenOf([level]))
 		await init(new NumberedTreeNodeImpl(7, new TemplateImpl(templated)))
 
-		expect(warnings).toEqual(["Element 1.7.1: identifier 'level/dB' contains /"])
+		expect(level.contents.identifier).toBe('level_dB')
+		expect(warnings).toEqual([corrected('1.7.1', 'level/dB', 'level_dB')])
 	})
 
-	it('warns when update() changes one, or sets one it does not allow, and applies it', async () => {
+	it("refuses a tree in which a corrected identifier would be a sibling's", async () => {
+		await expect(init(parameter(1, 'in/out'), parameter(2, 'in_out'))).rejects.toThrow(
+			"Element 1.1: identifier 'in/out' isn't allowed, and 'in_out', which it would be corrected to, is element 1.2's"
+		)
+	})
+
+	it('corrects one update() sets, and warns when it changes one', async () => {
 		const gain = parameter(1, 'gain')
 		await init(gain)
 
@@ -790,10 +808,20 @@ describe('EmberServer identifiers', () => {
 
 		expect(warnings).toEqual([
 			"Element 1.1: identifier changed from 'gain' to 'level'",
-			"Element 1.1: identifier changed from 'level' to 'a/b'",
-			"Element 1.1: identifier 'a/b' contains /",
+			corrected('1.1', 'a/b', 'a_b'),
+			"Element 1.1: identifier changed from 'level' to 'a_b'",
 		])
-		expect(gain.contents.identifier).toBe('a/b')
+		expect([gain.contents.identifier, gain.contents.description]).toEqual(['a_b', 'a/b'])
+	})
+
+	it("refuses an update() whose corrected identifier would be a sibling's, applying none of it", async () => {
+		const gain = parameter(1, 'gain')
+		await init(gain, parameter(2, 'a_b'))
+
+		expect(() => server.update(gain, { identifier: 'a/b', value: 5 })).toThrow(
+			"Element 1.1: identifier 'a/b' isn't allowed, and 'a_b', which it would be corrected to, is element 1.2's"
+		)
+		expect([gain.contents.identifier, gain.contents.value]).toEqual(['gain', undefined])
 	})
 })
 
