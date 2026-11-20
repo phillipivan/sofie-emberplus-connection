@@ -387,4 +387,23 @@ s.onMatrixOperation = async (matrix, connections) => {
 }
 ```
 
+A parameter with a `streamIdentifier` (not negative) is a stream parameter, such as an audio meter. `update()` sends its
+value only to the consumers that sent a Subscribe for it, in a stream collection, not as a change notification; values
+changed at once go out together. Several parameters can share a stream, packed into one octet string, each by its
+`streamDescriptor` (format and offset). The specification recommends sending stream values every 50 to 80 ms.
+
+```javascript
+const { Model } = require('@phillipivan/emberplus-connection')
+
+const left = new Model.ParameterImpl(Model.ParameterType.Integer, 'left', undefined, 0)
+left.streamIdentifier = 1
+left.streamDescriptor = { format: Model.StreamFormat.Int16LE, offset: 0 }
+const right = new Model.ParameterImpl(Model.ParameterType.Integer, 'right', undefined, 0)
+right.streamIdentifier = 1
+right.streamDescriptor = { format: Model.StreamFormat.Int16LE, offset: 2 }
+// ... in the tree, as left and right below a meters node; then, every 50 ms:
+s.update(leftNode, { value: meters.left })
+s.update(rightNode, { value: meters.right }) // both in one stream collection
+```
+
 ---

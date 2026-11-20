@@ -1,6 +1,7 @@
 import { EventEmitter } from 'eventemitter3'
 
 import { DecodeResult } from '../../encodings/ber/decoder/DecodeResult.js'
+import { typedValue } from '../../encodings/ber/encoder/Parameter.js'
 import { berEncode } from '../../encodings/ber/index.js'
 import { Command, CommandType, FieldFlags, Invoke, isGetDirectory } from '../../model/Command.js'
 import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation } from '../../model/Connection.js'
@@ -21,8 +22,12 @@ import {
 	NumberedTreeNodeImpl,
 	Parameter,
 	ParameterAccess,
+	ParameterType,
+	StreamEntry,
+	StreamFormat,
 } from '../../model/index.js'
 import { InvocationResultImpl } from '../../model/InvocationResult.js'
+import { StreamEntryImpl } from '../../model/StreamEntry.js'
 import { Children } from '../../model/Tree.js'
 import {
 	EmberValue,
@@ -105,6 +110,12 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	private _pendingValueReplies = new Set<PendingValueReply>()
 	/** The locked targets of each matrix, by its path */
 	private _lockedTargets = new Map<string, Set<number>>()
+	/** The stream parameters of the tree (stream identifier not negative, not in a template), by stream identifier */
+	private _streams = new Map<number, Array<{ path: RelativeOID; parameter: NumberedTreeNode<Parameter> }>>()
+	/** The consumers that sent a Subscribe for each path: a stream parameter's values go only to them */
+	private _streamSubscriptions = new Map<string, Set<S101Socket>>()
+	/** The streams whose values changed since the last stream collections were sent, with the parameter changed last */
+	private _changedStreams = new Map<number, NumberedTreeNode<Parameter>>()
 	/** The templates of the tree and the elements their definitions hold, with their paths: they don't change */
 	private _templated = new WeakMap<NumberedTreeNode<EmberElement>, RelativeOID>()
 
@@ -158,6 +169,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			this._correctIdentifier(path, element, siblings)
 			if (inTemplate) this._templated.set(element, path)
 		}
+		this._changedStreams.clear()
+		this._indexStreams(true)
 		return this._server.listen()
 	}
 
@@ -213,6 +226,108 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			)
 		)
 		return legal
+	}
+
+	/**
+	 * Notes the tree's stream parameters, by stream identifier: those with a stream identifier that isn't negative ("a
+	 * globally unique identifier which must not be negative"), outside template definitions. With `warn`, a `warn`
+	 * event for a negative one (not a stream) and for a stream parameter of the type string or Boolean ("its type must
+	 * not be a string or Boolean"), which is streamed all the same.
+	 */
+	private _indexStreams(warn = false): void {
+		this._streams.clear()
+		for (const { path, element, inTemplate } of elementsOf(this.tree)) {
+			if (inTemplate || !isElementOfType(element, ElementType.Parameter)) continue
+			const { streamIdentifier, parameterType } = element.contents
+			if (streamIdentifier === undefined) continue
+			if (!isStreamIdentifier(streamIdentifier)) {
+				if (warn) {
+					this.emit(
+						'warn',
+						new Error(`Parameter ${path}: stream identifier ${streamIdentifier} is negative: not a stream`)
+					)
+				}
+				continue
+			}
+			if (warn && (parameterType === ParameterType.String || parameterType === ParameterType.Boolean)) {
+				this.emit(
+					'warn',
+					new Error(`Parameter ${path}: a stream parameter's type must not be ${parameterType}`)
+				)
+			}
+			const parameters = this._streams.get(streamIdentifier) ?? []
+			parameters.push({ path, parameter: element })
+			this._streams.set(streamIdentifier, parameters)
+		}
+	}
+
+	/** Sends a stream's value with the next stream collections, sent once whatever else changes now is done */
+	private _queueStream(streamIdentifier: number, parameter: NumberedTreeNode<Parameter>): void {
+		if (!this._changedStreams.size) setImmediate(() => this._sendStreams())
+		this._changedStreams.set(streamIdentifier, parameter)
+	}
+
+	/**
+	 * Sends each consumer one stream collection with the changed streams it subscribed to: the streams of the
+	 * parameters it sent a Subscribe for. A stream several parameters share, packed by their stream descriptors, goes
+	 * to a consumer subscribed to any of them.
+	 */
+	private _sendStreams(): void {
+		const byClient = new Map<S101Socket, Map<number, StreamEntry>>()
+		for (const [streamIdentifier, changed] of this._changedStreams) {
+			const entry = this._streamEntry(streamIdentifier, changed)
+			if (!entry) continue
+			for (const { path } of this._streams.get(streamIdentifier) ?? []) {
+				for (const client of this._streamSubscriptions.get(path) ?? []) {
+					const entries = byClient.get(client) ?? new Map<number, StreamEntry>()
+					entries.set(streamIdentifier, entry)
+					byClient.set(client, entries)
+				}
+			}
+		}
+		this._changedStreams.clear()
+		byClient.forEach((entries, client) => client.sendBER(berEncode([...entries.values()], RootType.Streams)))
+	}
+
+	/**
+	 * A stream's entry. For a stream whose parameters have stream descriptors ("required when a single stream entry
+	 * contains more than one value and is provided as octet string"), octets with each one's value at its offset, in
+	 * its format; otherwise the value of the parameter changed, as its type has it.
+	 */
+	private _streamEntry(streamIdentifier: number, changed: NumberedTreeNode<Parameter>): StreamEntry | undefined {
+		const described = (this._streams.get(streamIdentifier) ?? []).filter(
+			({ parameter }) => parameter.contents.streamDescriptor
+		)
+		if (!described.length) {
+			try {
+				return new StreamEntryImpl(streamIdentifier, typedValue(changed.contents, 'value'))
+			} catch (e) {
+				this.emit('warn', normalizeWarning(e))
+				return undefined
+			}
+		}
+		let length = 0
+		for (const { parameter } of described) {
+			const descriptor = parameter.contents.streamDescriptor
+			if (descriptor) length = Math.max(length, descriptor.offset + STREAM_FORMATS[descriptor.format].size)
+		}
+		const octets = Buffer.alloc(Math.max(length, 0))
+		for (const { path, parameter } of described) {
+			const descriptor = parameter.contents.streamDescriptor
+			const value = parameter.contents.value
+			if (!descriptor || typeof value !== 'number') continue
+			try {
+				STREAM_FORMATS[descriptor.format].write(octets, value, descriptor.offset)
+			} catch {
+				this.emit(
+					'warn',
+					new Error(
+						`Parameter ${path}: stream value ${value} doesn't fit ${descriptor.format} at offset ${descriptor.offset}: left out`
+					)
+				)
+			}
+		}
+		return new StreamEntryImpl(streamIdentifier, { type: ParameterType.Octets, value: octets })
 	}
 
 	/**
@@ -276,9 +391,31 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			element.contents.identifier = corrected.legal
 			element.contents.description ??= corrected.original
 		}
+
+		// A stream parameter's value goes, in a stream collection, only to the consumers that subscribed to it: "These
+		// notifications must not be sent when the parameter has a stream identifier". Its other properties are notified
+		// as any element's are, without the value. It was notified as any parameter.
+		if ('streamIdentifier' in update || 'streamDescriptor' in update) this._indexStreams()
+		const streamIdentifier = isElementOfType(element, ElementType.Parameter)
+			? element.contents.streamIdentifier
+			: undefined
+		const streamed =
+			isElementOfType(element, ElementType.Parameter) &&
+			streamIdentifier !== undefined &&
+			isStreamIdentifier(streamIdentifier) &&
+			!this._templated.has(element)
+		if (streamed && isElementOfType(element, ElementType.Parameter) && 'value' in update) {
+			this._queueStream(streamIdentifier, element)
+		}
+		if (streamed && Object.keys(update).every((key) => key === 'value')) return
 		const el = toQualifiedEmberNode(element)
 		// The change, without the element's children, which change on their own: a node's whole subtree went with it
 		el.children = undefined
+		if (streamed) {
+			const contents = { ...el.contents }
+			Reflect.deleteProperty(contents, 'value')
+			el.contents = contents
+		}
 		const data = berEncode([el], RootType.Elements)
 
 		// The consumers that listed the element, with a GetDirectory on its parent, as the specification says ("the
@@ -625,6 +762,7 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 
 		if (el.contents.number === CommandType.Subscribe) {
 			this._subscribe(path, client)
+			this._subscribe(path, client, this._streamSubscriptions) // a stream parameter's values come only so
 		} else if (el.contents.number === CommandType.Unsubscribe) {
 			// On a node (or the root), "all parameter subscriptions for that consumer must be removed": those at the node
 			// and below it, which only the node's own were. On anything else, the element's own.
@@ -682,30 +820,32 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		return tree
 	}
 
-	private _subscribe(path: string, client: S101Socket) {
+	private _subscribe(path: string, client: S101Socket, subscriptions = this._subscriptions) {
 		// A Set: a consumer may ask for the same path more than once (a GetDirectory again, or a Subscribe after one),
 		// and is sent each change once
-		let clients = this._subscriptions.get(path)
-		if (!clients) this._subscriptions.set(path, (clients = new Set()))
+		let clients = subscriptions.get(path)
+		if (!clients) subscriptions.set(path, (clients = new Set()))
 		clients.add(client)
 	}
+	/** Removes a consumer's subscription to a path, its stream subscription included */
 	private _unsubscribe(path: string, client: S101Socket) {
-		const clients = this._subscriptions.get(path)
-		if (!clients) return
-		clients.delete(client)
-		if (!clients.size) this._subscriptions.delete(path)
+		for (const subscriptions of [this._subscriptions, this._streamSubscriptions]) {
+			const clients = subscriptions.get(path)
+			if (!clients) continue
+			clients.delete(client)
+			if (!clients.size) subscriptions.delete(path)
+		}
 	}
 	/** Removes a consumer's subscriptions at a path and below it ('' for the root: all of them) */
 	private _unsubscribeBelow(path: string, client: S101Socket) {
-		for (const subscribed of [...this._subscriptions.keys()]) {
+		const paths = new Set([...this._subscriptions.keys(), ...this._streamSubscriptions.keys()])
+		for (const subscribed of paths) {
 			if (path === '' || subscribed === path || subscribed.startsWith(path + '.'))
 				this._unsubscribe(subscribed, client)
 		}
 	}
 	private _clearSubscription(client: S101Socket) {
-		for (const path of [...this._subscriptions.keys()]) {
-			this._unsubscribe(path, client)
-		}
+		this._unsubscribeBelow('', client)
 	}
 
 	/**
@@ -800,6 +940,44 @@ function directoryContents<T extends EmberElement>(contents: T, mask: FieldFlags
 
 function isMatrixContents(contents: EmberElement): contents is Matrix {
 	return contents.type === ElementType.Matrix
+}
+
+/** Whether a stream identifier makes a parameter a stream parameter: it "must not be negative" */
+function isStreamIdentifier(streamIdentifier: number): boolean {
+	return Number.isInteger(streamIdentifier) && streamIdentifier >= 0
+}
+
+/** A failure as a warning: an Error as it is, anything else as the message of one */
+function normalizeWarning(e: unknown): Error {
+	return e instanceof Error ? e : new Error(String(e))
+}
+
+/**
+ * How a stream value is written into a stream's octets in each of the DTD's stream formats, as the client's
+ * StreamManager reads it: an integer format takes the value rounded, and a value out of its range throws (RangeError)
+ */
+const STREAM_FORMATS: Record<
+	StreamFormat,
+	{ size: number; write: (octets: Buffer, value: number, offset: number) => void }
+> = {
+	[StreamFormat.UInt8]: { size: 1, write: (o, v, at) => o.writeUInt8(Math.round(v), at) },
+	[StreamFormat.UInt16BE]: { size: 2, write: (o, v, at) => o.writeUInt16BE(Math.round(v), at) },
+	[StreamFormat.UInt16LE]: { size: 2, write: (o, v, at) => o.writeUInt16LE(Math.round(v), at) },
+	[StreamFormat.UInt32BE]: { size: 4, write: (o, v, at) => o.writeUInt32BE(Math.round(v), at) },
+	[StreamFormat.UInt32LE]: { size: 4, write: (o, v, at) => o.writeUInt32LE(Math.round(v), at) },
+	[StreamFormat.UInt64BE]: { size: 8, write: (o, v, at) => o.writeBigUInt64BE(BigInt(Math.round(v)), at) },
+	[StreamFormat.UInt64LE]: { size: 8, write: (o, v, at) => o.writeBigUInt64LE(BigInt(Math.round(v)), at) },
+	[StreamFormat.Int8]: { size: 1, write: (o, v, at) => o.writeInt8(Math.round(v), at) },
+	[StreamFormat.Int16BE]: { size: 2, write: (o, v, at) => o.writeInt16BE(Math.round(v), at) },
+	[StreamFormat.Int16LE]: { size: 2, write: (o, v, at) => o.writeInt16LE(Math.round(v), at) },
+	[StreamFormat.Int32BE]: { size: 4, write: (o, v, at) => o.writeInt32BE(Math.round(v), at) },
+	[StreamFormat.Int32LE]: { size: 4, write: (o, v, at) => o.writeInt32LE(Math.round(v), at) },
+	[StreamFormat.Int64BE]: { size: 8, write: (o, v, at) => o.writeBigInt64BE(BigInt(Math.round(v)), at) },
+	[StreamFormat.Int64LE]: { size: 8, write: (o, v, at) => o.writeBigInt64LE(BigInt(Math.round(v)), at) },
+	[StreamFormat.Float32BE]: { size: 4, write: (o, v, at) => o.writeFloatBE(v, at) },
+	[StreamFormat.Float32LE]: { size: 4, write: (o, v, at) => o.writeFloatLE(v, at) },
+	[StreamFormat.Float64BE]: { size: 8, write: (o, v, at) => o.writeDoubleBE(v, at) },
+	[StreamFormat.Float64LE]: { size: 8, write: (o, v, at) => o.writeDoubleLE(v, at) },
 }
 
 /** An element of a tree, as elementsOf finds it */

@@ -46,8 +46,11 @@ import {
 	TemplateImpl,
 } from '../../../model/index.js'
 import { InvocationResultImpl } from '../../../model/InvocationResult.js'
+import { StreamDescriptionImpl, StreamFormat } from '../../../model/StreamDescription.js'
 import { StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { EmberValue, NumberedTreeNode, RelativeOID, RootElement, RootType } from '../../../types/types.js'
+import { StreamManager } from '../../Client/StreamManager.js'
+import { isElementOfType } from '../../Lib/util.js'
 import { S101Server } from '../../Socket/S101Server.js'
 import { EmberServer } from '../index.js'
 import type S101Socket from '../../Socket/S101Socket.js'
@@ -909,6 +912,209 @@ describe('EmberServer templates', () => {
 	it('changes and reports an element outside a template', async () => {
 		expect(await consumer.countSent(() => server.update(gain, { value: 5 }))).toBe(1)
 		expect(warnings).toEqual([])
+	})
+})
+
+// "A parameter that contains a stream-identifier requires an explicit subscription in order to report its value via
+// the StreamCollection", and parameter change notifications "must not be sent when the parameter has a stream
+// identifier". A stream parameter was notified as any parameter, and no stream collection was ever sent.
+describe('EmberServer streams', () => {
+	// A device, 1, with a node, 1.1, holding: 1.1.1 a real level streamed as 5; 1.1.2 an ordinary gain; 1.1.3 and
+	// 1.1.4 integer levels sharing stream 7, packed as 16-bit little-endian at offsets 0 and 2
+	let server: EmberServer
+	let warnings: string[]
+	let level: NumberedTreeNode<ParameterImpl<ParameterType.Real>>
+	let gain: NumberedTreeNode<ParameterImpl<ParameterType.Integer>>
+	let left: NumberedTreeNode<ParameterImpl<ParameterType.Integer>>
+	let right: NumberedTreeNode<ParameterImpl<ParameterType.Integer>>
+
+	/** The contents given, with a stream identifier and, packed, a 16-bit little-endian stream descriptor */
+	const streamed = <P extends Parameter>(contents: P, streamIdentifier: number, offset?: number): P => {
+		contents.streamIdentifier = streamIdentifier
+		if (offset !== undefined) contents.streamDescriptor = new StreamDescriptionImpl(StreamFormat.Int16LE, offset)
+		return contents
+	}
+	const integer = (identifier: string) => new ParameterImpl(ParameterType.Integer, identifier, undefined, 0)
+
+	async function init(...more: Array<NumberedTreeNode<EmberElement>>) {
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		level = new NumberedTreeNodeImpl(1, streamed(new ParameterImpl(ParameterType.Real, 'level', undefined, 0), 5))
+		gain = new NumberedTreeNodeImpl(2, integer('gain'))
+		left = new NumberedTreeNodeImpl(3, streamed(integer('left'), 7, 0))
+		right = new NumberedTreeNodeImpl(4, streamed(integer('right'), 7, 2))
+		const node = new NumberedTreeNodeImpl(
+			1,
+			new EmberNodeImpl('meters'),
+			childrenOf([level, gain, left, right, ...more])
+		)
+		server = new EmberServer(9000)
+		warnings = []
+		server.on('warn', (e) => warnings.push(e.message))
+		await server.init(childrenOf([new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([node]))]))
+	}
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	async function connect(...commands: Array<[RelativeOID, Command]>): Promise<FakeConnection> {
+		const consumer = new FakeConnection()
+		const s101Server = (server as unknown as { _server: S101Server })._server
+		s101Server.emit('connection', consumer as unknown as S101Socket)
+		for (const [path, command] of commands) consumer.request(path, command)
+		await new Promise(setImmediate)
+		consumer.received.length = 0
+		return consumer
+	}
+	/** The stream collections a consumer received, each as its entries */
+	const streams = (consumer: FakeConnection) =>
+		consumer.received.map((data) => {
+			const decoded = berDecode(data)
+			if (decoded.rootType !== RootType.Streams) throw new Error('Expected a stream collection')
+			return decoded.value.map((entry) => [entry.identifier, entry.value])
+		})
+	/** Lets the stream collections of what changed now be sent */
+	const sent = async () => new Promise(setImmediate)
+
+	describe('values', () => {
+		beforeEach(async () => init())
+
+		it('sends a stream value only to a consumer that subscribed to the parameter, in a stream collection', async () => {
+			const subscriber = await connect(['1.1.1', new SubscribeImpl()])
+			const lister = await connect(['1.1', new GetDirectoryImpl()])
+			const asker = await connect(['1.1.1', new GetDirectoryImpl()])
+
+			server.update(level, { value: -12.5 })
+			await sent()
+
+			expect(streams(subscriber)).toEqual([[[5, { type: ParameterType.Real, value: -12.5 }]]])
+			expect(lister.received).toEqual([])
+			expect(asker.received).toEqual([])
+		})
+
+		it('sends what changes at once in one stream collection', async () => {
+			const subscriber = await connect(['1.1.1', new SubscribeImpl()], ['1.1.3', new SubscribeImpl()])
+
+			server.update(level, { value: -1 })
+			server.update(level, { value: -2 })
+			server.update(left, { value: 3 })
+			await sent()
+
+			expect(subscriber.received).toHaveLength(1)
+			expect(streams(subscriber)[0]?.map(([identifier]) => identifier)).toEqual([5, 7])
+		})
+
+		it('packs the values of a shared stream by their descriptors, for a consumer of any of them', async () => {
+			const subscriber = await connect(['1.1.3', new SubscribeImpl()])
+
+			server.update(left, { value: 3 })
+			server.update(right, { value: -2 })
+			await sent()
+
+			expect(streams(subscriber)).toEqual([
+				[[7, { type: ParameterType.Octets, value: Buffer.from([0x03, 0x00, 0xfe, 0xff]) }]],
+			])
+		})
+
+		it("gives values the client's StreamManager reads back", async () => {
+			const subscriber = await connect(['1.1.1', new SubscribeImpl()], ['1.1.4', new SubscribeImpl()])
+			const manager = new StreamManager()
+			manager.registerParameter(level.contents, '1.1.1')
+			manager.registerParameter(right.contents, '1.1.4')
+			const read: Array<[string, unknown]> = []
+			manager.on('streamUpdate', (path, value) => read.push([path, value]))
+
+			server.update(level, { value: -6 })
+			server.update(right, { value: 300 })
+			await sent()
+			const decoded = berDecode(at(subscriber.received, 0))
+			if (decoded.rootType !== RootType.Streams) throw new Error('Expected a stream collection')
+			manager.updateStreamValues(decoded.value)
+
+			expect(read).toEqual([
+				['1.1.1', -6],
+				['1.1.4', 300],
+			])
+		})
+
+		it('leaves out a value that does not fit its format, with a warning', async () => {
+			const subscriber = await connect(['1.1.3', new SubscribeImpl()])
+
+			server.update(left, { value: 40000 })
+			server.update(right, { value: 1 })
+			await sent()
+
+			expect(streams(subscriber)).toEqual([
+				[[7, { type: ParameterType.Octets, value: Buffer.from([0x00, 0x00, 0x01, 0x00]) }]],
+			])
+			expect(warnings).toEqual(["Parameter 1.1.3: stream value 40000 doesn't fit Int16LE at offset 0: left out"])
+		})
+
+		it('notifies a change to the other properties of a stream parameter as any, without the value', async () => {
+			const lister = await connect(['1.1', new GetDirectoryImpl()])
+
+			server.update(level, { description: 'Level', value: -3 })
+			await sent()
+
+			expect(lister.received).toHaveLength(1)
+			const report = onlyElement(at(lister.received, 0))
+			expect(report.contents).toMatchObject({ type: ElementType.Parameter, description: 'Level' })
+			expect(report.contents).not.toHaveProperty('value', -3)
+		})
+
+		it('still notifies an ordinary parameter as before', async () => {
+			const lister = await connect(['1.1', new GetDirectoryImpl()])
+
+			expect(await lister.countSent(() => server.update(gain, { value: 4 }))).toBe(1)
+		})
+	})
+
+	describe('subscriptions', () => {
+		beforeEach(async () => init())
+
+		it('stops after an Unsubscribe of the parameter, or of a node above it', async () => {
+			const byParameter = await connect(['1.1.1', new SubscribeImpl()], ['1.1.1', new UnsubscribeImpl()])
+			const byNode = await connect(['1.1.1', new SubscribeImpl()], ['1', new UnsubscribeImpl()])
+			const staying = await connect(['1.1.1', new SubscribeImpl()])
+
+			server.update(level, { value: -1 })
+			await sent()
+
+			expect(byParameter.received).toEqual([])
+			expect(byNode.received).toEqual([])
+			expect(streams(staying)).toHaveLength(1)
+		})
+
+		it('stops for a consumer whose connection has closed', async () => {
+			const subscriber = await connect(['1.1.1', new SubscribeImpl()])
+			const staying = await connect(['1.1.1', new SubscribeImpl()])
+			subscriber.emit('disconnected')
+
+			server.update(level, { value: -1 })
+			await sent()
+
+			expect(subscriber.received).toEqual([])
+			expect(streams(staying)).toHaveLength(1)
+		})
+	})
+
+	describe('parameters that are not streams', () => {
+		it('warns about a negative stream identifier, and notifies that parameter as any', async () => {
+			await init(new NumberedTreeNodeImpl(5, streamed(integer('odd'), -1)))
+			const lister = await connect(['1.1', new GetDirectoryImpl()])
+			const odd = server.getElementByPath('1.1.5')
+			if (!odd || !isElementOfType(odd, ElementType.Parameter)) throw new Error('Expected a parameter')
+
+			expect(await lister.countSent(() => server.update(odd, { value: 1 }))).toBe(1)
+			expect(warnings).toEqual(['Parameter 1.1.5: stream identifier -1 is negative: not a stream'])
+		})
+
+		it('warns about a stream parameter of the type string', async () => {
+			const name = new ParameterImpl(ParameterType.String, 'name', undefined, '')
+			name.streamIdentifier = 9
+			await init(new NumberedTreeNodeImpl(5, name))
+
+			expect(warnings).toEqual(["Parameter 1.1.5: a stream parameter's type must not be STRING"])
+		})
 	})
 })
 

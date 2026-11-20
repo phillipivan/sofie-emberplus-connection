@@ -125,7 +125,7 @@ const parameterTypeToInt = (pt: ParameterType): number => {
  * the type, from a caller that doesn't check types, is refused: it was coerced (Number(), + ''), written as NaN for a
  * real, thrown on by the writer, or, for a Null parameter, written as a NULL whatever it was.
  */
-function typedValue(parameter: Parameter, key: 'value' | 'defaultValue'): EmberTypedValue {
+export function typedValue(parameter: Parameter, key: 'value' | 'defaultValue'): EmberTypedValue {
 	const value = parameter[key] ?? null
 	if (!isValueOfType(parameter.parameterType, value)) {
 		throw new InvalidEmberNode(
