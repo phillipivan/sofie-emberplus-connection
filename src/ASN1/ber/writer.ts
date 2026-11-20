@@ -185,16 +185,7 @@ export class Writer {
 
 		const tmp = s === '' ? [] : s.split('.')
 		const bytes: number[] = []
-		for (const arc of tmp) {
-			// base 128, the most significant first, bit 8 set on every byte but the last
-			let val = parseInt(arc)
-			const encodedBytes = [val & 0x7f]
-			while (val > 0x7f) {
-				val = val >> 7
-				encodedBytes.unshift((val & 0x7f) | 0x80)
-			}
-			bytes.push(...encodedBytes)
-		}
+		for (const arc of tmp) writeArc(bytes, parseInt(arc, 10))
 
 		this._ensure(2 + bytes.length)
 		this.writeTag(tag)
@@ -212,30 +203,6 @@ export class Writer {
 		// at least two arcs, which the first byte holds (a single one was written as NaN)
 		if (!/^[0-9]+(\.[0-9]+)+$/.test(s)) throw new Error('argument is not a valid OID string')
 
-		function encodeOctet(bytes: number[], octet: number) {
-			if (octet < 128) {
-				bytes.push(octet)
-			} else if (octet < 16384) {
-				bytes.push((octet >>> 7) | 0x80)
-				bytes.push(octet & 0x7f)
-			} else if (octet < 2097152) {
-				bytes.push((octet >>> 14) | 0x80)
-				bytes.push(((octet >>> 7) | 0x80) & 0xff)
-				bytes.push(octet & 0x7f)
-			} else if (octet < 268435456) {
-				bytes.push((octet >>> 21) | 0x80)
-				bytes.push(((octet >>> 14) | 0x80) & 0xff)
-				bytes.push(((octet >>> 7) | 0x80) & 0xff)
-				bytes.push(octet & 0x7f)
-			} else {
-				bytes.push(((octet >>> 28) | 0x80) & 0xff)
-				bytes.push(((octet >>> 21) | 0x80) & 0xff)
-				bytes.push(((octet >>> 14) | 0x80) & 0xff)
-				bytes.push(((octet >>> 7) | 0x80) & 0xff)
-				bytes.push(octet & 0x7f)
-			}
-		}
-
 		// The first two arcs are one subidentifier, first * 40 + second (X.690 8.19.4), in base 128 like the others: as a
 		// single byte, one of 128 or more (from 2.48) was cut short. The first arc is 0, 1 or 2, and under 0 or 1 the
 		// second is below 40; any other would read back as another OID (1.40 as 2.0).
@@ -244,8 +211,8 @@ export class Writer {
 		const second = at(arcs, 1)
 		if (first > 2 || (first < 2 && second > 39)) throw new Error('argument is not a valid OID string')
 		const bytes: number[] = []
-		encodeOctet(bytes, first * 40 + second)
-		arcs.slice(2).forEach((arc) => encodeOctet(bytes, arc))
+		writeArc(bytes, first * 40 + second)
+		arcs.slice(2).forEach((arc) => writeArc(bytes, arc))
 
 		this._ensure(2 + bytes.length)
 		this.writeTag(tag)
@@ -343,4 +310,16 @@ export class Writer {
 			this._size = sz
 		}
 	}
+}
+
+/**
+ * An OID's subidentifier (X.690 8.19.2), in base 128, the most significant first, bit 8 set on every byte but its last.
+ * Written with arithmetic, not 32-bit shifts, which wrote one of 2^31 or more as another (2^31 as 0): exact up to
+ * 2^53 - 1, and one above that, which a number doesn't hold exactly, is refused.
+ */
+function writeArc(bytes: number[], arc: number): void {
+	if (!Number.isSafeInteger(arc)) throw new Error('argument has an OID arc above 2^53 - 1')
+	const encoded = [arc % 128]
+	for (let rest = Math.floor(arc / 128); rest > 0; rest = Math.floor(rest / 128)) encoded.unshift((rest % 128) | 0x80)
+	bytes.push(...encoded)
 }

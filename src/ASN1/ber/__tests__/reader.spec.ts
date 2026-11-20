@@ -285,3 +285,28 @@ test.each([
 	const reader = new Reader(Buffer.from([0x06, bytes.length, ...bytes]))
 	expect(reader.readOID()).toEqual(oid)
 })
+
+// Arcs are read with arithmetic, exact up to 2^53 - 1: 32-bit shifts read 2^31 as a negative number and 2^32 + 5 as 5
+test.each([
+	{ bytes: [0x01, 0x88, 0x80, 0x80, 0x80, 0x00], oid: '1.2147483648' },
+	{ bytes: [0x01, 0x90, 0x80, 0x80, 0x80, 0x05], oid: '1.4294967301' },
+	{ bytes: [0x01, 0x8f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f], oid: '1.9007199254740991' },
+])('read relative OID $oid', ({ bytes, oid }) => {
+	const reader = new Reader(Buffer.from([0x0d, bytes.length, ...bytes]))
+	expect(reader.readRelativeOID()).toEqual(oid)
+})
+
+// The first subidentifier of 2.(2^32 + 5) is 2^32 + 85
+test('read OID with an arc above 32 bits', () => {
+	const reader = new Reader(Buffer.from([0x06, 0x06, 0x90, 0x80, 0x80, 0x80, 0x55, 0x03]))
+	expect(reader.readOID()).toEqual('2.4294967301.3')
+})
+
+// One of 2^53 or more, which a number can't hold exactly, is refused rather than read as another
+test.each([
+	{ name: 'relative OID', read: (reader: Reader) => reader.readRelativeOID(), tag: 0x0d },
+	{ name: 'OID', read: (reader: Reader) => reader.readOID(), tag: 0x06 },
+])('read $name refuses an arc of 2^53', ({ read, tag }) => {
+	const bytes = [0x01, 0x90, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00]
+	expect(() => read(new Reader(Buffer.from([tag, bytes.length, ...bytes])))).toThrow('OID arc above 2^53 - 1')
+})

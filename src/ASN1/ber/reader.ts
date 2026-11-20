@@ -18,6 +18,25 @@ const RESERVED_LENGTH = 'Invalid length: the first length byte 0xFF is reserved 
 // times the elements' limit (MAX_TREE_DEPTH in the decoder), for a provider that uses the indefinite form throughout.
 const MAX_BLOCK_DEPTH = 512
 
+/**
+ * An OID's subidentifiers (X.690 8.19.2): each in base 128, the most significant first, bit 8 set on every byte but its
+ * last. Read with arithmetic, not 32-bit shifts, which wrapped one of 2^31 or more (to a negative number, or from 2^32
+ * to a small one, as if another): exact up to 2^53 - 1, and one above that, which a number can't hold, is refused.
+ */
+function readArcs(b: Buffer): number[] {
+	const arcs: number[] = []
+	let value = 0
+	for (const byte of b) {
+		value = value * 128 + (byte & 0x7f)
+		if (value > Number.MAX_SAFE_INTEGER) throw newInvalidAsn1Error('OID arc above 2^53 - 1')
+		if ((byte & 0x80) === 0) {
+			arcs.push(value)
+			value = 0
+		}
+	}
+	return arcs
+}
+
 ///--- API
 
 export class Reader {
@@ -277,20 +296,7 @@ export class Reader {
 		const b = this.readStringAsBuffer(tag)
 		if (b === null) return null
 
-		const values = []
-		let value = 0
-
-		for (const byte of b) {
-			value += byte & 0x7f
-			if ((byte & 0x80) == 0x80) {
-				value <<= 7
-				continue
-			}
-			values.push(value)
-			value = 0
-		}
-
-		return values.join('.')
+		return readArcs(b).join('.')
 	}
 
 	readOID(tag?: number): string | null {
@@ -299,21 +305,11 @@ export class Reader {
 		const b = this.readStringAsBuffer(tag)
 		if (b === null) return null
 
-		const values: number[] = []
-		let value = 0
-
-		for (const byte of b) {
-			value <<= 7
-			value += byte & 0x7f
-			if ((byte & 0x80) === 0) {
-				values.push(value)
-				value = 0
-			}
-		}
+		const values = readArcs(b)
 
 		// The first subidentifier holds the first two arcs, first * 40 + second (X.690 8.19.4). The first arc is 0, 1 or
 		// 2, and only under 2 can the second be 40 or more: 2.100 is 180, which dividing by 40 read as 4.20.
-		value = values.shift() ?? 0
+		const value = values.shift() ?? 0
 		const first = value < 40 ? 0 : value < 80 ? 1 : 2
 		values.unshift(value - first * 40)
 		values.unshift(first)

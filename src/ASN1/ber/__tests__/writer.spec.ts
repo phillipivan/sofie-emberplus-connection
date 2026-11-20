@@ -423,6 +423,38 @@ test('write relative OID with arcs of more than one byte', () => {
 	expect(writer.buffer).toEqual(Buffer.from([0x0d, 0x09, 0x00, 0x7f, 0x81, 0x00, 0x82, 0x2c, 0x81, 0x80, 0x00]))
 })
 
+// Arcs are written with arithmetic, exact up to 2^53 - 1: 32-bit shifts wrote 2^31 as 0
+test.each([
+	{ oid: '1.2147483648', bytes: [0x01, 0x88, 0x80, 0x80, 0x80, 0x00] },
+	{ oid: '1.4294967301', bytes: [0x01, 0x90, 0x80, 0x80, 0x80, 0x05] },
+	{ oid: '1.9007199254740991', bytes: [0x01, 0x8f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f] },
+])('write relative OID $oid', ({ oid, bytes }) => {
+	const writer = new Writer()
+	writer.writeRelativeOID(oid, 0x0d)
+
+	expect(writer.buffer).toEqual(Buffer.from([0x0d, bytes.length, ...bytes]))
+	expect(new Reader(writer.buffer).readRelativeOID()).toEqual(oid)
+})
+
+// The first subidentifier of 2.(2^32 + 5) is 2^32 + 85: as 32-bit shifts wrote it, the bits above 32 were lost
+test('write OID with an arc above 32 bits', () => {
+	const writer = new Writer()
+	writer.writeOID('2.4294967301.3')
+
+	expect(writer.buffer).toEqual(Buffer.from([0x06, 0x06, 0x90, 0x80, 0x80, 0x80, 0x55, 0x03]))
+	expect(new Reader(writer.buffer).readOID()).toEqual('2.4294967301.3')
+})
+
+// One of 2^53 or more, which a number doesn't hold exactly, is refused rather than written as another; for an OID's
+// first two arcs that is their combined subidentifier
+test.each([
+	{ name: 'relative OID 1.2^53', write: (writer: Writer) => writer.writeRelativeOID('1.9007199254740992', 0x0d) },
+	{ name: 'OID 1.2.2^53', write: (writer: Writer) => writer.writeOID('1.2.9007199254740992') },
+	{ name: 'OID 2.(2^53 - 80)', write: (writer: Writer) => writer.writeOID('2.9007199254740912') },
+])('write $name refuses an arc of 2^53', ({ write }) => {
+	expect(() => write(new Writer())).toThrow('argument has an OID arc above 2^53 - 1')
+})
+
 test('write empty relative OID', () => {
 	const writer = new Writer()
 	writer.writeRelativeOID('', 0x0d)
