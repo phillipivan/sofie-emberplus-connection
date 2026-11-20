@@ -14,6 +14,7 @@ import { Connection, ConnectionDisposition, ConnectionImpl, ConnectionOperation,
 import { ElementType, EmberElement, isEmberElement } from './EmberElement.js'
 import { EmberFunction, EmberFunctionImpl } from './EmberFunction.js'
 import { EmberNode, EmberNodeImpl } from './EmberNode.js'
+import { Formula, FormulaError, FormulaInput, parseFormula } from './Formula.js'
 import { FunctionArgument, FunctionArgumentImpl } from './FunctionArgument.js'
 import { Invocation } from './Invocation.js'
 import { InvocationResult } from './InvocationResult.js'
@@ -76,6 +77,10 @@ export {
 	EmberNodeImpl,
 	FunctionArgument,
 	FunctionArgumentImpl,
+	Formula,
+	FormulaError,
+	FormulaInput,
+	parseFormula,
 	Invocation,
 	InvocationResult,
 	Label,
