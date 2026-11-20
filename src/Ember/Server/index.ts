@@ -721,11 +721,16 @@ const WHOLE_MATRIX_PROPERTIES = new Set(['targets', 'sources', 'connections'])
  * An element's contents as a directory reply gives them for a field mask, as TinyEmberPlusRouter does: a copy, with the
  * identifier, description and value when the mask has their bits, a matrix's target and source counts always, and
  * every other property only for all. A matrix's targets and sources (for all) and connections (for connections) are
- * given only when the reply is on the matrix itself (`wholeMatrix`), the connections as directoryConnections makes
- * them. So a GetDirectory for values only gets each parameter's value, and one for connections on a matrix its
- * identifier, counts and connections. An element without what the mask asks for has no properties, as the DTD says.
+ * given only when the reply is on the matrix itself (`asked`: the element the GetDirectory is on), the connections as
+ * directoryConnections makes them. So a GetDirectory for values only gets each parameter's value, and one for
+ * connections on a matrix its identifier, counts and connections. An element without what the mask asks for has no
+ * properties, as the DTD says.
+ *
+ * A template asked about is given whole, whatever the mask: "when a consumer queries a template, the provider must
+ * report the entire template structure". (Listed under a node, it is given as the mask asks.)
  */
-function directoryContents<T extends EmberElement>(contents: T, mask: FieldFlags, wholeMatrix: boolean): T {
+function directoryContents<T extends EmberElement>(contents: T, mask: FieldFlags, asked: boolean): T {
+	if (asked && contents.type === ElementType.Template) return { ...contents }
 	const bits = FIELD_MASK_BITS[mask]
 	const has = (field: number) => (bits & field) === field
 	const copy = { ...contents }
@@ -734,7 +739,7 @@ function directoryContents<T extends EmberElement>(contents: T, mask: FieldFlags
 		const given = ALWAYS_GIVEN.has(key) || has(field ?? ALL_FIELDS)
 		if (!given || WHOLE_MATRIX_PROPERTIES.has(key)) Reflect.deleteProperty(copy, key)
 	}
-	if (wholeMatrix && isMatrixContents(contents) && isMatrixContents(copy)) {
+	if (asked && isMatrixContents(contents) && isMatrixContents(copy)) {
 		if (has(ALL_FIELDS) && contents.targets) copy.targets = contents.targets
 		if (has(ALL_FIELDS) && contents.sources) copy.sources = contents.sources
 		if (has(CONNECTIONS_FIELD)) copy.connections = directoryConnections(contents)

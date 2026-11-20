@@ -858,6 +858,26 @@ describe('EmberServer templates', () => {
 		expect(warnings).toHaveLength(2)
 	})
 
+	// "when a consumer queries a template, the provider must report the entire template structure": whatever the mask.
+	// It was given as the mask asked, which for identifier left a template (which has none) without anything.
+	it('reports a template asked about whole, whatever the field mask, and one listed as the mask asks', async () => {
+		consumer.received.length = 0
+		consumer.request('1.7', new GetDirectoryImpl(FieldFlags.Identifier))
+		consumer.request('1', new GetDirectoryImpl(FieldFlags.Identifier))
+		await new Promise(setImmediate)
+
+		const asked = onlyElement(at(consumer.received, 0))
+		if (asked.contents.type !== ElementType.Template) throw new Error('Expected a template')
+		expect(asked.contents.description).toBe('A channel')
+		expect(asked.contents.element?.contents).toMatchObject({ identifier: 'channel' })
+		expect([...(asked.contents.element?.children?.keys() ?? [])]).toEqual([1])
+
+		const listed = onlyElement(at(consumer.received, 1)).children?.get(7)
+		if (listed?.contents.type !== ElementType.Template) throw new Error('Expected a template')
+		expect(listed.contents.description).toBeUndefined()
+		expect(listed.contents.element).toBeUndefined()
+	})
+
 	it('changes and reports an element outside a template', async () => {
 		expect(await consumer.countSent(() => server.update(gain, { value: 5 }))).toBe(1)
 		expect(warnings).toEqual([])
