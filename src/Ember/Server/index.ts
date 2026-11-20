@@ -528,7 +528,10 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		if (el.contents.number === CommandType.Subscribe) {
 			this._subscribe(path, client)
 		} else if (el.contents.number === CommandType.Unsubscribe) {
-			this._unsubscribe(path, client)
+			// On a node (or the root), "all parameter subscriptions for that consumer must be removed": those at the node
+			// and below it, which only the node's own were. On anything else, the element's own.
+			if (tree instanceof Map || isElementOfType(tree, ElementType.Node)) this._unsubscribeBelow(path, client)
+			else this._unsubscribe(path, client)
 		} else if (isGetDirectory(el.contents)) {
 			this._subscribe(path, client) // send updates to client
 			this._handleGetDirectory(tree, el.contents.dirFieldMask || FieldFlags.Default, client)
@@ -592,6 +595,13 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		if (!clients) return
 		clients.delete(client)
 		if (!clients.size) this._subscriptions.delete(path)
+	}
+	/** Removes a consumer's subscriptions at a path and below it ('' for the root: all of them) */
+	private _unsubscribeBelow(path: string, client: S101Socket) {
+		for (const subscribed of [...this._subscriptions.keys()]) {
+			if (path === '' || subscribed === path || subscribed.startsWith(path + '.'))
+				this._unsubscribe(subscribed, client)
+		}
 	}
 	private _clearSubscription(client: S101Socket) {
 		for (const path of [...this._subscriptions.keys()]) {

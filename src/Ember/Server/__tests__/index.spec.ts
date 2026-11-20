@@ -148,6 +148,60 @@ describe('EmberServer subscriptions', () => {
 		expect(await consumer.countSent(changeParameter)).toBe(0)
 	})
 
+	// "When applied to a node, … all parameter subscriptions for that consumer must be removed": those below it too.
+	// Only the node's own were.
+	describe('an Unsubscribe', () => {
+		it('on a node removes the subscriptions below it', async () => {
+			const consumer = await connect()
+			consumer.request('1.1', new GetDirectoryImpl())
+			consumer.request('1.1.1', new GetDirectoryImpl())
+			consumer.request('1', new UnsubscribeImpl())
+			await new Promise(setImmediate)
+
+			expect(await consumer.countSent(changeParameter)).toBe(0)
+			expect(await consumer.countSent(() => server.update(node, { description: 'Channel' }))).toBe(0)
+		})
+
+		it('on the root removes every subscription', async () => {
+			const consumer = await connect()
+			consumer.request('1', new GetDirectoryImpl())
+			consumer.request('1.1.1', new SubscribeImpl())
+			consumer.emit('emberTree', {
+				rootType: RootType.Elements,
+				value: [new NumberedTreeNodeImpl(0, new UnsubscribeImpl())],
+			})
+			await new Promise(setImmediate)
+
+			expect(await consumer.countSent(changeParameter)).toBe(0)
+			expect(await consumer.countSent(() => server.update(node, { description: 'Channel' }))).toBe(0)
+		})
+
+		it("on a parameter removes only the parameter's own, keeping its parent's", async () => {
+			const consumer = await connect()
+			consumer.request('1.1', new GetDirectoryImpl())
+			consumer.request('1.1.1', new SubscribeImpl())
+			consumer.request('1.1.1', new UnsubscribeImpl())
+			await new Promise(setImmediate)
+
+			expect(await consumer.countSent(changeParameter)).toBe(1)
+		})
+
+		it("keeps another consumer's subscriptions, and a path beside the node's", async () => {
+			const consumer = await connect()
+			const other = await connect()
+			const subscriptions = (server as unknown as { _subscriptions: Map<string, Set<unknown>> })._subscriptions
+			other.request('1.1', new GetDirectoryImpl())
+			consumer.request('1.1', new GetDirectoryImpl())
+			await new Promise(setImmediate)
+			subscriptions.set('1.10', new Set([consumer])) // beside 1.1, not below it, though its path starts with it
+			consumer.request('1.1', new UnsubscribeImpl())
+			await new Promise(setImmediate)
+
+			expect(await other.countSent(changeParameter)).toBe(1)
+			expect([...(subscriptions.get('1.10') ?? [])]).toEqual([consumer])
+		})
+	})
+
 	it('forgets a consumer whose connection has closed', async () => {
 		const consumer = await connect()
 		for (let i = 0; i < 4; i++) consumer.request('1.1', new GetDirectoryImpl())
