@@ -543,7 +543,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			if (this.onInvocation && fn) {
 				result = await this.onInvocation(fn, el, client)
 			} else {
-				result = new InvocationResultImpl(el.contents.invocation?.id || -1, false)
+				// The consumer's id, 0 included (it was answered as -1, which the consumer couldn't match); -1 without one
+				result = new InvocationResultImpl(el.contents.invocation?.id ?? -1, false)
 			}
 			const encoded = berEncode(result, RootType.InvocationResult)
 			client.sendBER(encoded)

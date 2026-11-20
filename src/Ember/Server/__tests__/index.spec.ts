@@ -790,6 +790,11 @@ describe('EmberServer invocations', () => {
 		expect(clients).toEqual([consumer])
 	})
 
+	// An invocation id is any Integer32 the consumer picks: one of 0 was answered as -1, which it couldn't match
+	it('answers a failed Invoke with the id 0 it came with', async () => {
+		expect(await invoke('1.1', 0)).toMatchObject({ id: 0, success: false })
+	})
+
 	it('hands an Invoke on a function to the handler, and sends its result', async () => {
 		expect(await invoke('1.2', 7)).toMatchObject({ id: 7, success: true })
 		expect(invoked).toEqual(['reset'])
