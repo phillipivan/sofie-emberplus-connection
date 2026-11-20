@@ -13,6 +13,7 @@ import { at } from '../../../lib/at.js'
 import {
 	Command,
 	CommandType,
+	FieldFlags,
 	GetDirectoryImpl,
 	InvokeImpl,
 	SubscribeImpl,
@@ -464,6 +465,170 @@ describe('EmberServer subscriptions', () => {
 
 // Only a function can be invoked: an Invoke on anything else is answered as a failure, without the handler, which was
 // handed whatever was at the path (for the root, the whole tree) as if it were a function
+// A GetDirectory's field mask asks for some of each element's properties, and the reply gives them as
+// TinyEmberPlusRouter does: identifier (1), description (2) and value (4) by their bits, so tree (3) is identifier and
+// description and connections (5) identifier and value too; a matrix's counts always; every other property for all
+// (or default, or sparse) only; a matrix's targets, sources and connections only on the matrix itself. The mask was
+// ignored: every reply had everything.
+describe('EmberServer GetDirectory field mask', () => {
+	// A device, 1, with a node, 1.1, a parameter, 1.2, a matrix, 1.3, and a function, 1.4
+	let server: EmberServer
+
+	beforeEach(async () => {
+		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
+		const node = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel', 'Channel', undefined, true))
+		const parameter = new NumberedTreeNodeImpl(
+			2,
+			new ParameterImpl(ParameterType.Integer, 'gain', 'Gain', 3, 10, -10, ParameterAccess.ReadWrite)
+		)
+		const contents = new MatrixImpl(
+			'router',
+			signalsOf([0, 1]),
+			signalsOf([0, 1]),
+			connectionsOf([new ConnectionImpl(0, [1])]),
+			'Router',
+			MatrixType.NToN
+		)
+		contents.targetCount = 2
+		contents.sourceCount = 2
+		const matrix = new NumberedTreeNodeImpl(3, contents)
+		const fn = new NumberedTreeNodeImpl(4, new EmberFunctionImpl('reset', 'Reset'))
+		const device = new NumberedTreeNodeImpl(
+			1,
+			new EmberNodeImpl('device', 'Device'),
+			childrenOf([node, parameter, matrix, fn])
+		)
+		server = new EmberServer(9000)
+		await server.init(childrenOf([device]))
+	})
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	/** The properties of each element the reply to a GetDirectory on `path` ('' for the root) gives, by path or number */
+	async function directory(path: RelativeOID, mask?: FieldFlags) {
+		const consumer = new FakeConnection()
+		const s101Server = (server as unknown as { _server: S101Server })._server
+		s101Server.emit('connection', consumer as unknown as S101Socket)
+		const command = new GetDirectoryImpl(mask)
+		if (path) consumer.request(path, command)
+		else consumer.emit('emberTree', { rootType: RootType.Elements, value: [new NumberedTreeNodeImpl(0, command)] })
+		await new Promise(setImmediate)
+		const decoded = berDecode(at(consumer.received, 0))
+		if (decoded.rootType !== RootType.Elements) throw new Error('Expected elements')
+		const properties: Record<string, Record<string, unknown>> = {}
+		for (const element of decoded.value) {
+			const elements = [element, ...(element.children?.values() ?? [])]
+			for (const e of elements) properties['path' in e ? e.path : e.number] = given(e.contents)
+		}
+		return properties
+	}
+	/** The properties contents give: those defined, but for the kind and a parameter's type */
+	const given = (contents: object) =>
+		Object.fromEntries(
+			Object.keys(contents)
+				.filter((key) => key !== 'type' && key !== 'parameterType')
+				.map((key): [string, unknown] => [key, Reflect.get(contents, key)])
+				.filter(([, v]) => v !== undefined)
+		)
+
+	const everything = {
+		1: { identifier: 'channel', description: 'Channel', isOnline: true },
+		2: {
+			identifier: 'gain',
+			description: 'Gain',
+			value: 3,
+			maximum: 10,
+			minimum: -10,
+			access: ParameterAccess.ReadWrite,
+		},
+		3: {
+			identifier: 'router',
+			description: 'Router',
+			matrixType: MatrixType.NToN,
+			targetCount: 2,
+			sourceCount: 2,
+		},
+		4: { identifier: 'reset', description: 'Reset' },
+	}
+
+	it.each([
+		['no mask', undefined],
+		['all', FieldFlags.All],
+		['default', FieldFlags.Default],
+		['sparse', FieldFlags.Sparse],
+	])('gives every property for %s', async (_, mask) => {
+		expect(await directory('1', mask)).toMatchObject(everything)
+	})
+
+	it.each([
+		[
+			'identifier',
+			FieldFlags.Identifier,
+			{
+				1: { identifier: 'channel' },
+				2: { identifier: 'gain' },
+				3: { identifier: 'router', targetCount: 2, sourceCount: 2 },
+				4: { identifier: 'reset' },
+			},
+		],
+		[
+			'description',
+			FieldFlags.Description,
+			{
+				1: { description: 'Channel' },
+				2: { description: 'Gain' },
+				3: { description: 'Router', targetCount: 2, sourceCount: 2 },
+				4: { description: 'Reset' },
+			},
+		],
+		[
+			'tree (identifier and description)',
+			FieldFlags.Tree,
+			{
+				1: { identifier: 'channel', description: 'Channel' },
+				2: { identifier: 'gain', description: 'Gain' },
+				3: { identifier: 'router', description: 'Router', targetCount: 2, sourceCount: 2 },
+				4: { identifier: 'reset', description: 'Reset' },
+			},
+		],
+		['value', FieldFlags.Value, { 1: {}, 2: { value: 3 }, 3: { targetCount: 2, sourceCount: 2 }, 4: {} }],
+	])('gives the children only what %s asks for', async (_, mask, expected) => {
+		const reply = await directory('1', mask)
+		for (const [number, properties] of Object.entries<Record<string, unknown>>(expected))
+			expect(reply[number]).toEqual(properties)
+	})
+
+	it('gives a matrix its connections, identifier and counts for connections on the matrix itself', async () => {
+		expect((await directory('1.3', FieldFlags.Connections))['1.3']).toEqual({
+			identifier: 'router',
+			targetCount: 2,
+			sourceCount: 2,
+			connections: new Map([
+				[0, new ConnectionImpl(0, [1])],
+				[1, new ConnectionImpl(1)],
+			]),
+		})
+	})
+
+	it('gives a matrix its targets and sources only for all on the matrix itself', async () => {
+		const whole = (await directory('1.3'))['1.3']
+		const listed = (await directory('1', FieldFlags.All))['3']
+
+		expect(whole?.targets).toEqual(signalsOf([0, 1]))
+		expect(listed?.targets).toBeUndefined()
+		expect(listed?.connections).toBeUndefined()
+	})
+
+	it('gives a parameter only its value for value', async () => {
+		expect(await directory('1.2', FieldFlags.Value)).toEqual({ '1.2': { value: 3 } })
+	})
+
+	it('gives the top-level elements only what the mask asks for', async () => {
+		expect(await directory('', FieldFlags.Identifier)).toEqual({ 1: { identifier: 'device' } })
+	})
+})
+
 describe('EmberServer invocations', () => {
 	// A device, 1, with a node, 1.1, and a function, 1.2
 	let server: EmberServer

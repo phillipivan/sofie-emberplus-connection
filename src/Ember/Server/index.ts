@@ -597,57 +597,28 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		}
 	}
 
-	private _handleGetDirectory(
-		tree: Children | NumberedTreeNode<EmberElement>,
-		_dirFieldMasks: FieldFlags,
-		client: S101Socket
-	) {
+	/**
+	 * Answers a GetDirectory: on the root, the top-level elements; on a node with children, the node and its children
+	 * (without theirs); on any other element, the element. Each element has the properties the request's field mask
+	 * asks for, as TinyEmberPlusRouter gives them (directoryContents), and a matrix its targets, sources and
+	 * connections only in a GetDirectory on the matrix itself. (The mask was ignored: every reply had everything.)
+	 */
+	private _handleGetDirectory(tree: Children | NumberedTreeNode<EmberElement>, mask: FieldFlags, client: S101Socket) {
 		if (tree instanceof Map) {
-			// getDir on root: the top-level elements, without their children
 			const response = [...tree.values()].map(
-				(rootEl) => new NumberedTreeNodeImpl(rootEl.number, rootEl.contents)
+				(rootEl) => new NumberedTreeNodeImpl(rootEl.number, directoryContents(rootEl.contents, mask, false))
 			)
 			const data = berEncode(response, RootType.Elements)
 			client.sendBER(data)
 		} else {
 			const qualified = toQualifiedEmberNode(tree)
 			qualified.children = new Map() // destroy ref to this.tree
-			if (isElementOfType(tree, ElementType.Matrix)) {
-				// A copy, not the tree's own contents, with its connections as a directory reply gives them
-				qualified.contents = { ...tree.contents, connections: directoryConnections(tree.contents) }
-			}
+			qualified.contents = directoryContents(qualified.contents, mask, true)
 			if (tree.children) {
 				// the children, without their children, keyed by number
 				for (const child of tree.children.values()) {
-					if (child.contents.type === ElementType.Matrix) {
-						// matrix should not have connections, targets and sources:
-						qualified.children.set(
-							child.number,
-							new NumberedTreeNodeImpl(
-								child.number,
-								new MatrixImpl(
-									child.contents.identifier,
-									undefined,
-									undefined,
-									undefined,
-									child.contents.description,
-									child.contents.matrixType,
-									child.contents.addressingMode,
-									child.contents.targetCount,
-									child.contents.sourceCount,
-									child.contents.maximumTotalConnects,
-									child.contents.maximumConnectsPerTarget,
-									child.contents.parametersLocation,
-									child.contents.gainParameterNumber,
-									child.contents.labels,
-									child.contents.schemaIdentifiers,
-									child.contents.templateReference
-								)
-							)
-						)
-					} else {
-						qualified.children.set(child.number, new NumberedTreeNodeImpl(child.number, child.contents))
-					}
+					const contents = directoryContents(child.contents, mask, false)
+					qualified.children.set(child.number, new NumberedTreeNodeImpl(child.number, contents))
 				}
 			} else if (qualified.contents.type === ElementType.Node) {
 				// node without children -> none of the properties should be set
@@ -658,6 +629,61 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 			client.sendBER(data)
 		}
 	}
+}
+
+/**
+ * A GetDirectory's field mask as TinyEmberPlusRouter takes it: the Glow DTD's numbers for the values, tested as bits,
+ * so tree (3) is identifier (1) and description (2), and connections (5) identifier and value (4) as well. Default (0)
+ * is all, as the DTD says ("same as all") and TinyEmberPlusRouter takes it. Sparse (-2) is all too: the DTD makes it
+ * the same as all for an element without a template reference, and this server leaves out nothing a template gives.
+ * (TinyEmberPlusRouter, older than sparse, tests its bits too, which leaves out the identifier.)
+ */
+const FIELD_MASK_BITS: Record<FieldFlags, number> = {
+	[FieldFlags.Sparse]: -1,
+	[FieldFlags.All]: -1,
+	[FieldFlags.Default]: -1,
+	[FieldFlags.Identifier]: 1,
+	[FieldFlags.Description]: 2,
+	[FieldFlags.Tree]: 3,
+	[FieldFlags.Value]: 4,
+	[FieldFlags.Connections]: 5,
+}
+const ALL_FIELDS = -1
+const CONNECTIONS_FIELD = 5
+/** The properties a field mask names by its own bits: every other property is given for all only */
+const MASKED_PROPERTIES: Partial<Record<string, number>> = { identifier: 1, description: 2, value: 4 }
+/** Given whatever the mask: the element's kind, a parameter's type (by which its value is read), a matrix's counts */
+const ALWAYS_GIVEN = new Set(['type', 'parameterType', 'targetCount', 'sourceCount'])
+/** A matrix's properties a directory reply gives only on the matrix itself */
+const WHOLE_MATRIX_PROPERTIES = new Set(['targets', 'sources', 'connections'])
+
+/**
+ * An element's contents as a directory reply gives them for a field mask, as TinyEmberPlusRouter does: a copy, with the
+ * identifier, description and value when the mask has their bits, a matrix's target and source counts always, and
+ * every other property only for all. A matrix's targets and sources (for all) and connections (for connections) are
+ * given only when the reply is on the matrix itself (`wholeMatrix`), the connections as directoryConnections makes
+ * them. So a GetDirectory for values only gets each parameter's value, and one for connections on a matrix its
+ * identifier, counts and connections. An element without what the mask asks for has no properties, as the DTD says.
+ */
+function directoryContents<T extends EmberElement>(contents: T, mask: FieldFlags, wholeMatrix: boolean): T {
+	const bits = FIELD_MASK_BITS[mask]
+	const has = (field: number) => (bits & field) === field
+	const copy = { ...contents }
+	for (const key of Object.keys(copy)) {
+		const field = MASKED_PROPERTIES[key]
+		const given = ALWAYS_GIVEN.has(key) || has(field ?? ALL_FIELDS)
+		if (!given || WHOLE_MATRIX_PROPERTIES.has(key)) Reflect.deleteProperty(copy, key)
+	}
+	if (wholeMatrix && isMatrixContents(contents) && isMatrixContents(copy)) {
+		if (has(ALL_FIELDS) && contents.targets) copy.targets = contents.targets
+		if (has(ALL_FIELDS) && contents.sources) copy.sources = contents.sources
+		if (has(CONNECTIONS_FIELD)) copy.connections = directoryConnections(contents)
+	}
+	return copy
+}
+
+function isMatrixContents(contents: EmberElement): contents is Matrix {
+	return contents.type === ElementType.Matrix
 }
 
 /**
