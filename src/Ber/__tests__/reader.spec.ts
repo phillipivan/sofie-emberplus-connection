@@ -175,3 +175,14 @@ describe('BER REAL every exponent', () => {
 		expect(wrong).toEqual([])
 	})
 })
+
+// An Ember+ path's numbers are Integer32 (Glow DTD): one above 2^31 - 1 is read as no path, as a value that isn't one
+describe('BER Reader.readRelativeOID', () => {
+	test.each([
+		{ bytes: [0x01, 0x87, 0xff, 0xff, 0xff, 0x7f], path: '1.2147483647' },
+		{ bytes: [0x01, 0x88, 0x80, 0x80, 0x80, 0x00], path: null },
+	])('reads $bytes as $path', ({ bytes, path }) => {
+		const reader = new Reader(Buffer.from([BERDataTypes.RELATIVE_OID, bytes.length, ...bytes]))
+		expect(reader.readRelativeOID(BERDataTypes.RELATIVE_OID)).toBe(path)
+	})
+})

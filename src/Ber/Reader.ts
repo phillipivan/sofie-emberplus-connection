@@ -3,7 +3,7 @@ import { ASN1Error, UnimplementedEmberTypeError } from '../Errors.js'
 import { ParameterType } from '../model/Parameter.js'
 import { EmberTypedValue, isRelativeOID, RelativeOID } from '../types/types.js'
 import { BERDataTypes } from './BERDataTypes.js'
-import { UNIVERSAL } from './functions.js'
+import { hasInteger32Arcs, UNIVERSAL } from './functions.js'
 import { shl64 } from './uint64.js'
 
 export { ExtendedReader as Reader }
@@ -23,10 +23,14 @@ class ExtendedReader extends Reader {
 	// 	return new ExtendedReader(buf)
 	// }
 
-	/** A RELATIVE-OID as the numeric path (RelativeOID) it is: its numbers joined by '.' */
+	/**
+	 * A RELATIVE-OID as the numeric path (RelativeOID) it is: its numbers joined by '.'. One with a number above 2^31 - 1
+	 * isn't an Ember+ path (the Glow DTD's numbers are Integer32), and is read as none, as the decoders take a value that
+	 * isn't a path; its 32-bit reading made such a number negative, which wasn't a path either, only by chance.
+	 */
 	readRelativeOID(tag?: number): RelativeOID | null {
 		const oid = super.readRelativeOID(tag)
-		return oid === null || isRelativeOID(oid) ? oid : null
+		return oid !== null && isRelativeOID(oid) && hasInteger32Arcs(oid) ? oid : null
 	}
 
 	readValue(): EmberTypedValue {

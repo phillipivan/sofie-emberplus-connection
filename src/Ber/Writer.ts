@@ -2,7 +2,7 @@ import { Writer, WriterOptions } from '../ASN1/ber/writer.js'
 import { ParameterType } from '../model/Parameter.js'
 import { EmberTypedValue, EmberValue } from '../types/types.js'
 import { BERDataTypes } from './BERDataTypes.js'
-import { CONTEXT, UNIVERSAL } from './functions.js'
+import { CONTEXT, hasInteger32Arcs, UNIVERSAL } from './functions.js'
 import { shl64 } from './uint64.js'
 
 export { ExtendedWriter as Writer }
@@ -10,6 +10,17 @@ export { ExtendedWriter as Writer }
 class ExtendedWriter extends Writer {
 	constructor(options?: WriterOptions) {
 		super(options)
+	}
+
+	/**
+	 * A RELATIVE-OID as Ember+ has it: one with a number above 2^31 - 1 is refused, the Glow DTD's numbers being
+	 * Integer32. It was written as it came, and read back as another (2^31 as 0) or not at all.
+	 */
+	writeRelativeOID(s: string, tag: number): void {
+		if (typeof s === 'string' && !hasInteger32Arcs(s)) {
+			throw new Error(`RELATIVE-OID ${s} has a number above 2^31 - 1, the largest an Ember+ path takes`)
+		}
+		super.writeRelativeOID(s, tag)
 	}
 
 	writeReal(value: number, tag: number): void {

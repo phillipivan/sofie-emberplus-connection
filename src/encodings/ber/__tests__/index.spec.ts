@@ -1,3 +1,4 @@
+import { Writer as Asn1Writer } from '../../../ASN1/ber/writer.js'
 import * as Ber from '../../../Ber/index.js'
 import { at } from '../../../lib/at.js'
 import { ConnectionImpl, ConnectionOperation } from '../../../model/Connection.js'
@@ -26,6 +27,39 @@ describe('encoders/Ber/index', () => {
 
 		expect(decoded).toEqual(root[0])
 	}
+	// An Ember+ path's numbers are Integer32 (Glow DTD). One above 2^31 - 1 is refused when encoding, and decoded as no
+	// path, with the error a missing one gives; read with 32-bit shifts, 2^32 + 5 had decoded as element 5.
+	describe('a path number above 2^31 - 1', () => {
+		test('berEncode refuses it', () => {
+			expect(() => berEncode([qualified('1.2147483648', 'node')], RootType.Elements)).toThrow(
+				'RELATIVE-OID 1.2147483648 has a number above 2^31 - 1'
+			)
+		})
+
+		test.each<{ path: string; decoded: RelativeOID; errors: number }>([
+			{ path: '1.2147483647', decoded: '1.2147483647', errors: 0 },
+			{ path: '1.2147483648', decoded: '', errors: 1 },
+			{ path: '1.4294967301', decoded: '', errors: 1 },
+		])('berDecode reads path $path as $decoded', ({ path, decoded, errors }) => {
+			const w = new Asn1Writer() // without the Ember+ limit, as a provider might write it
+			w.startSequence(RootBERID)
+			w.startSequence(RootElementsBERID)
+			w.startSequence(Ber.CONTEXT(0))
+			w.startSequence(QualifiedNodeBERID)
+			w.startSequence(Ber.CONTEXT(0))
+			w.writeRelativeOID(path, Ber.BERDataTypes.RELATIVE_OID)
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+			w.endSequence()
+
+			const result = berDecode(w.buffer)
+			expect(result.value).toEqual([new QualifiedElementImpl(decoded, new EmberNodeImpl())])
+			expect(result.errors).toHaveLength(errors)
+		})
+	})
+
 	// berDecode says which kind of root it decoded, so a caller can tell them apart without a cast
 	describe('the kind of root', () => {
 		const element = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))

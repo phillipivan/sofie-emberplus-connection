@@ -62,3 +62,19 @@ describe('BER', () => {
 		})
 	})
 })
+
+// An Ember+ path's numbers are Integer32 (Glow DTD): one above 2^31 - 1 is refused, which was written as it came and
+// read back as another (2^31 as 0)
+describe('BER Writer.writeRelativeOID', () => {
+	test('writes a path whose numbers fit in an Integer32', () => {
+		const w = new Writer()
+		w.writeRelativeOID('1.2147483647', BERDataTypes.RELATIVE_OID)
+		expect(w.buffer).toEqual(Buffer.from([0x0d, 0x06, 0x01, 0x87, 0xff, 0xff, 0xff, 0x7f]))
+	})
+
+	test.each(['2147483648', '1.2.2147483648', '1.99999999999999999999'])('refuses %s', (path) => {
+		expect(() => new Writer().writeRelativeOID(path, BERDataTypes.RELATIVE_OID)).toThrow(
+			`RELATIVE-OID ${path} has a number above 2^31 - 1, the largest an Ember+ path takes`
+		)
+	})
+})

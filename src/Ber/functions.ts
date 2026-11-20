@@ -12,4 +12,12 @@ function UNIVERSAL(x: number): number {
 	return makeTag(0x00, x)
 }
 
-export { APPLICATION, CONTEXT, UNIVERSAL }
+/**
+ * Whether every arc of a RELATIVE-OID fits in an Integer32. An Ember+ path's arcs are element numbers, and a
+ * connection's its sources' numbers, all Integer32 in the Glow DTD: one above 2^31 - 1 names nothing a provider has.
+ */
+function hasInteger32Arcs(oid: string): boolean {
+	return oid.split('.').every((arc) => !(Number(arc) > 0x7fff_ffff))
+}
+
+export { APPLICATION, CONTEXT, UNIVERSAL, hasInteger32Arcs }
