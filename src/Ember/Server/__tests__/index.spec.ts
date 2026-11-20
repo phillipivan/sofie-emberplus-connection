@@ -36,6 +36,7 @@ import {
 	MatrixType,
 	NumberedTreeNodeImpl,
 	Parameter,
+	ParameterAccess,
 	ParameterImpl,
 	ParameterType,
 	QualifiedElementImpl,
@@ -96,7 +97,18 @@ describe('EmberServer subscriptions', () => {
 
 	beforeEach(async () => {
 		vi.spyOn(S101Server.prototype, 'listen').mockResolvedValue() // no port needed
-		parameter = new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 0))
+		parameter = new NumberedTreeNodeImpl(
+			1,
+			new ParameterImpl(
+				ParameterType.Integer,
+				'gain',
+				undefined,
+				0,
+				undefined,
+				undefined,
+				ParameterAccess.ReadWrite
+			)
+		)
 		node = new NumberedTreeNodeImpl(1, new EmberNodeImpl('channel'), childrenOf([parameter]))
 		const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([node]))
 		server = new EmberServer(9000)
@@ -375,6 +387,37 @@ describe('EmberServer subscriptions', () => {
 			await requestValue(consumer)
 
 			expect(await consumer.countSent(changeParameter)).toBe(0)
+		})
+
+		// Only a writeable parameter takes a consumer's value: any was handed to the handler, so a read-only one took it
+		// unless the handler checked its access itself
+		describe('on a parameter that is not writeable', () => {
+			it.each([
+				{ access: ParameterAccess.Read, name: 'Read' },
+				{ access: ParameterAccess.None, name: 'None' },
+				{ access: undefined, name: 'left out, the default Read' },
+			])('answers with the current value, without the handler, when its access is $name', async ({ access }) => {
+				parameter.contents.access = access
+				const handler = vi.fn(applyValue)
+				server.onSetValue = handler
+				const warnings: Error[] = []
+				server.on('warn', (e) => warnings.push(e))
+				const consumer = await connect()
+
+				expect(await requestValue(consumer)).toEqual([['1.1.1', 0]])
+				expect(handler).not.toHaveBeenCalled()
+				expect(warnings.map((e) => e.message)).toEqual([
+					`Parameter 1.1.1: a consumer's setValue refused: its access is ${access ?? ParameterAccess.Read}`,
+				])
+			})
+
+			it('hands the handler a setValue on a parameter whose access is Write', async () => {
+				parameter.contents.access = ParameterAccess.Write
+				server.onSetValue = applyValue
+				const consumer = await connect()
+
+				expect(await requestValue(consumer)).toEqual([['1.1.1', 6]])
+			})
 		})
 
 		/** The path and value of the parameter a message reports */

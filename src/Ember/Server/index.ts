@@ -19,6 +19,7 @@ import {
 	MatrixType,
 	NumberedTreeNodeImpl,
 	Parameter,
+	ParameterAccess,
 } from '../../model/index.js'
 import { InvocationResultImpl } from '../../model/InvocationResult.js'
 import { Children } from '../../model/Tree.js'
@@ -41,8 +42,9 @@ export type EmberServerEvents = {
 	error: [Error]
 	clientError: [client: S101Socket, error: Error]
 	/**
-	 * Something not done, and why: a connection request or change naming a target or source the matrix doesn't have, or
-	 * a consumer's connection refused, as many being connected as maxClients allows
+	 * Something not done, and why: a connection request or change naming a target or source the matrix doesn't have, a
+	 * consumer's setValue on a parameter that isn't writeable, or a consumer's connection refused, as many being
+	 * connected as maxClients allows
 	 */
 	warn: [Error]
 }
@@ -72,7 +74,8 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	) => Promise<InvocationResult>
 	/**
 	 * Applies a consumer's setValue, normally with update(). The consumer is always answered: with that update when the
-	 * handler makes one, or otherwise with the parameter's current value. What the handler resolves to is not used.
+	 * handler makes one, or otherwise with the parameter's current value. What the handler resolves to is not used. It
+	 * is given only a setValue on a writeable parameter, one whose access is Write or ReadWrite.
 	 */
 	onSetValue?: (parameter: NumberedTreeNode<Parameter>, value: EmberValue) => Promise<boolean>
 	/** Applies a consumer's connection request, normally with updateMatrixConnection; what it resolves to is ignored */
@@ -376,6 +379,19 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 	) {
 		const tree = this.getElementByPath(path)
 		if (!tree || !isElementOfType(tree, ElementType.Parameter) || el.contents.value === undefined) return
+
+		// Only a parameter the provider makes writeable takes a consumer's value: Write or ReadWrite, as libember's
+		// isWriteable() has it, an access left out being Read (the DTD's default). Any parameter's was handed to the
+		// handler, so a read-only one took a consumer's value unless the handler checked its access itself.
+		const access = tree.contents.access ?? ParameterAccess.Read
+		if (access !== ParameterAccess.Write && access !== ParameterAccess.ReadWrite) {
+			this.emit(
+				'warn',
+				new Error(`Parameter ${getPath(tree)}: a consumer's setValue refused: its access is ${access}`)
+			)
+			client.sendBER(berEncode([toQualifiedEmberNode(tree)], RootType.Elements))
+			return
+		}
 
 		const qualified = toQualifiedEmberNode(tree)
 		const pending: PendingValueReply = { path: qualified.path, client, answered: false }
