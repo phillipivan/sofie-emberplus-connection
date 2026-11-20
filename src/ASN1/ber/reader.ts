@@ -311,9 +311,12 @@ export class Reader {
 			}
 		}
 
+		// The first subidentifier holds the first two arcs, first * 40 + second (X.690 8.19.4). The first arc is 0, 1 or
+		// 2, and only under 2 can the second be 40 or more: 2.100 is 180, which dividing by 40 read as 4.20.
 		value = values.shift() ?? 0
-		values.unshift(value % 40)
-		values.unshift((value / 40) >> 0)
+		const first = value < 40 ? 0 : value < 80 ? 1 : 2
+		values.unshift(value - first * 40)
+		values.unshift(first)
 
 		return values.join('.')
 	}

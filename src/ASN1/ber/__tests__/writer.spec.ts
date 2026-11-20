@@ -1,5 +1,6 @@
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 
+import { Reader } from '../reader.js'
 import { Writer } from '../writer.js'
 
 test('write byte', () => {
@@ -310,6 +311,26 @@ test('Write OID', () => {
 	writer.writeOID(oid)
 
 	expect(writer.buffer).toEqual(Buffer.from([0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01]))
+})
+
+// The first two arcs are one subidentifier, in base 128 like the others: from 2.48 it takes more than one byte, and
+// was written as a single byte cut short
+test.each([
+	{ oid: '2.39.3', bytes: [0x77, 0x03] },
+	{ oid: '2.48.3', bytes: [0x81, 0x00, 0x03] },
+	{ oid: '2.100.3', bytes: [0x81, 0x34, 0x03] },
+	{ oid: '2.999.3', bytes: [0x88, 0x37, 0x03] },
+])('Write OID $oid', ({ oid, bytes }) => {
+	const writer = new Writer()
+	writer.writeOID(oid)
+
+	expect(writer.buffer).toEqual(Buffer.from([0x06, bytes.length, ...bytes]))
+	expect(new Reader(writer.buffer).readOID()).toEqual(oid)
+})
+
+// The first arc is 0, 1 or 2, and under 0 or 1 the second is below 40: 1.40 would read back as 2.0
+test.each(['3.0', '0.40', '1.40.3'])('Write OID refuses first arcs %s', (oid) => {
+	expect(() => new Writer().writeOID(oid)).toThrow('argument is not a valid OID string')
 })
 
 // The first byte holds the first two arcs: a single arc was written as NaN

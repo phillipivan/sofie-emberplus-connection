@@ -236,8 +236,15 @@ export class Writer {
 			}
 		}
 
+		// The first two arcs are one subidentifier, first * 40 + second (X.690 8.19.4), in base 128 like the others: as a
+		// single byte, one of 128 or more (from 2.48) was cut short. The first arc is 0, 1 or 2, and under 0 or 1 the
+		// second is below 40; any other would read back as another OID (1.40 as 2.0).
 		const arcs = s.split('.').map((arc) => parseInt(arc, 10))
-		const bytes: number[] = [at(arcs, 0) * 40 + at(arcs, 1)]
+		const first = at(arcs, 0)
+		const second = at(arcs, 1)
+		if (first > 2 || (first < 2 && second > 39)) throw new Error('argument is not a valid OID string')
+		const bytes: number[] = []
+		encodeOctet(bytes, first * 40 + second)
 		arcs.slice(2).forEach((arc) => encodeOctet(bytes, arc))
 
 		this._ensure(2 + bytes.length)

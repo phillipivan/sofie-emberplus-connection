@@ -268,3 +268,20 @@ test('read boolean with no value', () => {
 	expect(new Reader(Buffer.from([0x01, 0x01, 0x00])).readBoolean()).toEqual(false)
 	expect(new Reader(Buffer.from([0x01, 0x01, 0xff])).readBoolean()).toEqual(true)
 })
+
+// The first subidentifier holds the first two arcs, first * 40 + second: the first arc is 0 below 40, 1 below 80 and 2
+// from there, its second arc then 40 or more (dividing by 40 read 2.100.3 as 4.20.3)
+test.each([
+	{ bytes: [0x00, 0x03], oid: '0.0.3' },
+	{ bytes: [0x27, 0x03], oid: '0.39.3' },
+	{ bytes: [0x28, 0x03], oid: '1.0.3' },
+	{ bytes: [0x4f, 0x03], oid: '1.39.3' },
+	{ bytes: [0x50, 0x03], oid: '2.0.3' },
+	{ bytes: [0x77, 0x03], oid: '2.39.3' },
+	{ bytes: [0x78, 0x03], oid: '2.40.3' },
+	{ bytes: [0x81, 0x34, 0x03], oid: '2.100.3' },
+	{ bytes: [0x88, 0x37, 0x03], oid: '2.999.3' },
+])('read OID $oid', ({ bytes, oid }) => {
+	const reader = new Reader(Buffer.from([0x06, bytes.length, ...bytes]))
+	expect(reader.readOID()).toEqual(oid)
+})
