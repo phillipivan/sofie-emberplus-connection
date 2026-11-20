@@ -1,10 +1,10 @@
 import * as Ber from '../../../Ber/index.js'
 import { Command } from '../../../model/Command.js'
-import { ElementType } from '../../../model/EmberElement.js'
+import { ElementType, EmberElement } from '../../../model/EmberElement.js'
 import { EmberNode, EmberNodeImpl } from '../../../model/EmberNode.js'
 import { EmberFunction, EmberFunctionImpl, Parameter, ParameterImpl, ParameterType } from '../../../model/index.js'
 import { Children, isNumbered, NumberedTreeNodeImpl, QualifiedElementImpl } from '../../../model/Tree.js'
-import { RelativeOID, RootElement } from '../../../types/types.js'
+import { NumberedTreeNode, RelativeOID, RootElement } from '../../../types/types.js'
 import {
 	CommandBERID,
 	ElementCollectionBERID,
@@ -24,7 +24,6 @@ import { decodeCommand } from './Command.js'
 import {
 	addError,
 	appendErrors,
-	check,
 	DecodeOptions,
 	DecodeResult,
 	defaultDecode,
@@ -68,6 +67,7 @@ export function decodeChildren(
 			)
 			continue
 		}
+		if (skipUnaddressable(kid, kids, 'decode children', options)) continue
 		// An ElementCollection may give a number twice: it is kept once, the later element
 		if (kids.value.has(kid.number))
 			addError(kids, new Error(`decode children: child ${kid.number} is listed more than once`))
@@ -194,8 +194,9 @@ export function decodeGenericElement(
 		if (path === null) missing('decode generic element', 'path', errors, options)
 		el = new QualifiedElementImpl(path ?? '', contents, children)
 	} else {
-		number = check(number, 'decode generic element', 'number', -1, errors, options)
-		el = new NumberedTreeNodeImpl(number, contents, children)
+		// Not made up: decodeChildren and decodeRootElements skip an element without a number (-1), which addresses nothing
+		if (number === null) missing('decode generic element', 'number', errors, options)
+		el = new NumberedTreeNodeImpl(number ?? -1, contents, children)
 	}
 
 	if (children) {
@@ -227,6 +228,7 @@ export function decodeRootElements(
 		// A qualified element is addressed by its path alone, so one without (missing, empty, or not an Ember+ path)
 		// addresses nothing: it is skipped. Its path was '', which the client took as element 0, merging the element into
 		// it, and the server too, applying a consumer's request to it. (The root is addressed by a command, never a path.)
+		if (isNumbered(rootEl) && skipUnaddressable(rootEl, rootEls, 'decode root elements', options)) continue
 		if (!isNumbered(rootEl) && rootEl.path === '') {
 			unexpected(
 				rootEls,
@@ -242,6 +244,24 @@ export function decodeRootElements(
 		rootEls.value.push(rootEl)
 	}
 	return rootEls
+}
+
+/**
+ * Skips a numbered element, with an error, that no path can address: one without a number (decoded as -1) or with a
+ * negative one, a path's numbers (a RELATIVE-OID's) being none of them negative. Such an element was kept, numbered as
+ * it came or -1, and a client took it into its tree, where a request on it couldn't be encoded. A command, numbered by
+ * its command type, is kept. Gives whether it skipped it.
+ */
+export function skipUnaddressable(
+	element: NumberedTreeNode<EmberElement>,
+	decres: DecodeResult<unknown> | Array<Error>,
+	context: string,
+	options: DecodeOptions
+): boolean {
+	if (element.number >= 0 || element.contents.type === ElementType.Command) return false
+	const message = `a ${element.contents.type.toLowerCase()} numbered ${element.number}, which no path can address: skipped`
+	unexpected(decres, context, message, Array.isArray(decres) ? undefined : decres.value, options)
+	return true
 }
 
 function isTagQualified(tag: number): boolean {

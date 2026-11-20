@@ -21,7 +21,6 @@ import { MatrixBERID, QualifiedMatrixBERID, SourceBERID, TargetBERID } from '../
 import { decodeConnection } from './Connection.js'
 import {
 	appendErrors,
-	check,
 	DecodeOptions,
 	DecodeResult,
 	defaultDecode,
@@ -98,8 +97,9 @@ function decodeMatrix(
 		if (path === null) missing('decode matrix', 'path', errors, options)
 		el = new QualifiedElementImpl(path ?? '', contents, kids)
 	} else {
-		number = check(number, 'decode matrix', 'number', -1, errors, options)
-		el = new NumberedTreeNodeImpl(number, contents, kids)
+		// Not made up: decodeChildren and decodeRootElements skip a matrix without a number (-1), which addresses nothing
+		if (number === null) missing('decode matrix', 'number', errors, options)
+		el = new NumberedTreeNodeImpl(number ?? -1, contents, kids)
 	}
 
 	if (kids) {

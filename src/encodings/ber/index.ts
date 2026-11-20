@@ -1,8 +1,6 @@
 import * as Ber from '../../Ber/index.js'
-import { EmberNodeImpl } from '../../model/EmberNode.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
 import { StreamEntry } from '../../model/StreamEntry.js'
-import { NumberedTreeNodeImpl } from '../../model/Tree.js'
 import { QualifiedCommand, RootElement, RootType } from '../../types/types.js'
 import { InvocationResultBERID, RootBERID, RootElementsBERID, StreamEntriesBERID } from './constants.js'
 import { DecodeOptions, DecodeResult, defaultDecode, makeResult, unknownApplication } from './decoder/DecodeResult.js'
@@ -73,11 +71,9 @@ function berDecode(b: Buffer, options: DecodeOptions = defaultDecode): DecodedRo
 	const tag = reader.peek()
 
 	if (tag !== RootBERID) {
+		// No elements: one numbered -1 was made up, which a client took into its tree
 		unknownApplication(errors, 'decode root', tag, options)
-		return {
-			...makeResult([new NumberedTreeNodeImpl(-1, new EmberNodeImpl())], errors),
-			rootType: RootType.Elements,
-		}
+		return { ...makeResult<Array<RootElement>>([], errors), rootType: RootType.Elements }
 	}
 
 	reader.readSequence(tag !== null ? tag : undefined)
@@ -92,5 +88,5 @@ function berDecode(b: Buffer, options: DecodeOptions = defaultDecode): DecodedRo
 	}
 
 	unknownApplication(errors, 'decode root', rootSeqType, options)
-	return { ...makeResult([new NumberedTreeNodeImpl(-1, new EmberNodeImpl())], errors), rootType: RootType.Elements }
+	return { ...makeResult<Array<RootElement>>([], errors), rootType: RootType.Elements }
 }

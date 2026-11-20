@@ -16,7 +16,6 @@ import { RelativeOID, RootElement } from '../../../types/types.js'
 import { QualifiedTemplateBERID, TemplateBERID } from '../constants.js'
 import {
 	appendErrors,
-	check,
 	DecodeOptions,
 	DecodeResult,
 	defaultDecode,
@@ -27,7 +26,7 @@ import {
 	unexpected,
 	unknownContext,
 } from './DecodeResult.js'
-import { decodeGenericElement } from './Tree.js'
+import { decodeGenericElement, skipUnaddressable } from './Tree.js'
 
 /** @param depth how deep the template is below the message's own elements, which are at 0 */
 export function decodeTemplate(
@@ -58,7 +57,9 @@ export function decodeTemplate(
 				if (skipTooDeep(reader, depth + 1, errors, 'decode template')) break
 				const templated = appendErrors(decodeGenericElement(reader, options, depth + 1), errors)
 				if (isTemplateElement(templated)) {
-					element = templated
+					// one without a number, or with a negative one, is not the template's: "The number of a template is
+					// the number of its contained element definition"
+					if (!skipUnaddressable(templated, errors, 'decode template', options)) element = templated
 				} else {
 					unexpected(
 						errors,
@@ -86,8 +87,9 @@ export function decodeTemplate(
 		if (path === null) missing('decode template', 'path', errors, options)
 		return makeResult(new QualifiedElementImpl(path ?? '', new TemplateImpl(element, description)), errors)
 	} else {
-		number = check(number, 'decode tempalte', 'number', -1, errors, options)
-		return makeResult(new NumberedTreeNodeImpl(number, new TemplateImpl(element, description)), errors)
+		// Not made up: decodeChildren and decodeRootElements skip a template without a number (-1), which addresses nothing
+		if (number === null) missing('decode template', 'number', errors, options)
+		return makeResult(new NumberedTreeNodeImpl(number ?? -1, new TemplateImpl(element, description)), errors)
 	}
 }
 

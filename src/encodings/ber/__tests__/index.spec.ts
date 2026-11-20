@@ -12,12 +12,14 @@ import { childrenOf, NumberedTreeNodeImpl, QualifiedElement, QualifiedElementImp
 import { RelativeOID, Root, RootElement, RootType } from '../../../types/types.js'
 import {
 	ElementCollectionBERID,
+	NodeBERID,
 	QualifiedMatrixBERID,
 	QualifiedNodeBERID,
 	QualifiedParameterBERID,
 	QualifiedTemplateBERID,
 	RootBERID,
 	RootElementsBERID,
+	TemplateBERID,
 } from '../constants.js'
 import { defaultDecode, guarded } from '../decoder/DecodeResult.js'
 import { encodeQualifedElement } from '../encoder/Qualified.js'
@@ -126,6 +128,117 @@ describe('encoders/Ber/index', () => {
 			expect(() =>
 				berDecode(message(QualifiedMatrixBERID), { ...defaultDecode, substituteForRequired: false })
 			).toThrow(missingPath('decode matrix'))
+		})
+	})
+
+	// A numbered element without a number (decoded as -1), or with a negative one, addresses nothing: a path's numbers
+	// aren't negative. It is skipped, with an error; it was kept, and a client took it into its tree, where a request on
+	// it couldn't be encoded.
+	describe('a numbered element without a usable number', () => {
+		/** A message of the elements the writer writes, as a root's elements */
+		const message = (write: (w: Ber.Writer) => void) => {
+			const w = new Ber.Writer()
+			w.startSequence(RootBERID)
+			w.startSequence(RootElementsBERID)
+			write(w)
+			w.endSequence()
+			w.endSequence()
+			return w.buffer
+		}
+		/** A node, numbered as given (none: no number), holding the children the writer writes */
+		const node = (w: Ber.Writer, number: number | undefined, children?: () => void) => {
+			w.startSequence(Ber.CONTEXT(0))
+			w.startSequence(NodeBERID)
+			if (number !== undefined) {
+				w.startSequence(Ber.CONTEXT(0))
+				w.writeInt(number)
+				w.endSequence()
+			}
+			if (children) {
+				w.startSequence(Ber.CONTEXT(2))
+				w.startSequence(ElementCollectionBERID)
+				children()
+				w.endSequence()
+				w.endSequence()
+			}
+			w.endSequence()
+			w.endSequence()
+		}
+		const skipped = (context: string, number: number) =>
+			`${context}: a node numbered ${number}, which no path can address: skipped`
+
+		test.each([
+			['without a number', undefined, -1],
+			['with a negative number', -5, -5],
+		])('a top-level node %s is skipped, keeping the others', (_, number, shown) => {
+			const decoded = berDecode(
+				message((w) => {
+					node(w, number)
+					node(w, 2)
+				})
+			)
+
+			expect(decoded.value).toEqual([new NumberedTreeNodeImpl(2, new EmberNodeImpl())])
+			expect(decoded.errors.map((e) => e.message)).toContain(skipped('decode root elements', shown))
+		})
+
+		test('a child without a number is skipped, keeping its siblings', () => {
+			const decoded = berDecode(
+				message((w) =>
+					node(w, 1, () => {
+						node(w, undefined)
+						node(w, 3)
+					})
+				)
+			)
+			if (decoded.rootType !== RootType.Elements) throw new Error('Expected elements')
+			const top = at(decoded.value, 0)
+
+			expect([...(top.children?.keys() ?? [])]).toEqual([3])
+			expect(decoded.errors.map((e) => e.message)).toEqual([
+				"decode generic element: For required property 'number', value is missing.",
+				skipped('decode children', -1),
+			])
+		})
+
+		// "The number of a template is the number of its contained element definition": one without isn't the template's
+		test("a template's element without a number is left out of it", () => {
+			const decoded = berDecode(
+				message((w) => {
+					w.startSequence(Ber.CONTEXT(0))
+					w.startSequence(TemplateBERID)
+					w.startSequence(Ber.CONTEXT(0))
+					w.writeInt(7)
+					w.endSequence()
+					w.startSequence(Ber.CONTEXT(1))
+					w.startSequence(NodeBERID) // the templated node, without a number
+					w.endSequence()
+					w.endSequence()
+					w.endSequence()
+					w.endSequence()
+				})
+			)
+			if (decoded.rootType !== RootType.Elements) throw new Error('Expected elements')
+			const template = at(decoded.value, 0)
+
+			expect(template.contents).toMatchObject({ type: ElementType.Template, element: undefined })
+			expect(decoded.errors.map((e) => e.message)).toContain(skipped('decode template', -1))
+		})
+
+		test('strict decoding refuses one', () => {
+			const strict = { ...defaultDecode, skipUnexpected: false }
+			expect(() =>
+				berDecode(
+					message((w) => node(w, -5)),
+					strict
+				)
+			).toThrow(skipped('decode root elements', -5))
+			expect(() =>
+				berDecode(
+					message((w) => node(w, undefined)),
+					{ ...defaultDecode, substituteForRequired: false }
+				)
+			).toThrow("For required property 'number', value is missing.")
 		})
 	})
 
@@ -289,22 +402,22 @@ describe('encoders/Ber/index', () => {
 		// anything that belongs in the contents still writes them
 		roundTrip([matrix({ identifier: 'matrix' })], RootType.Elements)
 	})
+	// No elements, with the error: an empty node numbered -1 was made up, which a client took into its tree
 	test('Unknown root', () => {
 		const testBuffer = Buffer.from([Ber.APPLICATION(30)])
 		const decoded = berDecode(testBuffer)
 
-		expect(decoded.value).toHaveLength(1)
-		expect(decoded.value).toMatchObject({ 0: { contents: { type: ElementType.Node } } })
+		expect(decoded.value).toEqual([])
 		expect(decoded.errors).toHaveLength(1)
 		expect(decoded.errors?.toString()).toMatch(/Unexpected BER application tag '126'/)
 	})
 	// Application tag 30, the highest number a one-byte tag holds (31 and up take the multi-byte form)
+	// No elements, with the error: an empty node numbered -1 was made up, which a client took into its tree
 	test('Unknown root elements', () => {
 		const testBuffer = Buffer.from([RootBERID, 1, Ber.APPLICATION(30)])
 		const decoded = berDecode(testBuffer)
 
-		expect(decoded.value).toHaveLength(1)
-		expect(decoded.value).toMatchObject({ 0: { contents: { type: ElementType.Node } } })
+		expect(decoded.value).toEqual([])
 		expect(decoded.errors).toHaveLength(1)
 		expect(decoded.errors?.toString()).toMatch(/Unexpected BER application tag '126'/)
 	})
