@@ -69,13 +69,53 @@ export function propertiesOf<T extends object>(contents: T): Array<keyof T> {
 	return Object.keys(contents) as Array<keyof T>
 }
 
-/** Copies the properties that are defined in newProps, and differ, onto oldProps: by default, all of them */
-export function updateProps<T extends object>(oldProps: T, newProps: T, props = propertiesOf(newProps)): void {
+/**
+ * Copies the properties that are defined in newProps, and differ (see sameValue), onto oldProps: by default, all of
+ * them. Returns the properties copied, each with the value it had (undefined: none). One sent again unchanged, an
+ * object holding the same as before among them, keeps the value it had and isn't returned.
+ */
+export function updateProps<T extends object>(oldProps: T, newProps: T, props = propertiesOf(newProps)): Partial<T> {
+	const previous: Partial<T> = {}
 	for (const key of props) {
-		if (newProps[key] !== undefined && newProps[key] !== oldProps[key]) {
+		if (newProps[key] !== undefined && !sameValue(newProps[key], oldProps[key])) {
+			previous[key] = oldProps[key]
 			oldProps[key] = newProps[key]
 		}
 	}
+	return previous
+}
+
+/**
+ * Whether two property values are the same: by Object.is (NaN is NaN, 0 isn't -0), and for objects by what they hold.
+ * Buffers by their bytes; Maps by their entries and arrays by their items, in order (the order a provider gives
+ * signals or enumeration entries in is part of them); other objects by their own properties, one that is undefined
+ * as one that is missing, leaving out an element's `parent`, which leads back up the tree.
+ */
+export function sameValue(a: unknown, b: unknown): boolean {
+	if (Object.is(a, b)) return true
+	if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+	if (Buffer.isBuffer(a) || Buffer.isBuffer(b)) return Buffer.isBuffer(a) && Buffer.isBuffer(b) && a.equals(b)
+	if (a instanceof Map || b instanceof Map) {
+		if (!(a instanceof Map && b instanceof Map) || a.size !== b.size) return false
+		const bEntries = b.entries()
+		for (const [key, value] of a) {
+			const next = bEntries.next()
+			if (next.done || !Object.is(key, next.value[0]) || !sameValue(value, next.value[1])) return false
+		}
+		return true
+	}
+	if (Array.isArray(a) || Array.isArray(b)) {
+		if (!(Array.isArray(a) && Array.isArray(b)) || a.length !== b.length) return false
+		return a.every((item, i) => sameValue(item, b[i]))
+	}
+	const defined = (o: object) =>
+		Object.entries<unknown>({ ...o }).filter(([key, value]) => key !== 'parent' && value !== undefined)
+	const aEntries = defined(a)
+	const bValues = new Map(defined(b))
+	return (
+		aEntries.length === bValues.size &&
+		aEntries.every(([key, value]) => bValues.has(key) && sameValue(value, bValues.get(key)))
+	)
 }
 
 /**

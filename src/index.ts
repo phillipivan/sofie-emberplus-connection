@@ -1,10 +1,16 @@
 import { ConnectionStatus } from './Ember/Client/ConnectionStatus.js'
 import {
+	ContentsProperty,
 	EmberClient,
 	EmberClientEvents,
 	EmberClientOptions,
 	RequestPromise,
 	RequestPromiseArguments,
+	TreeChange,
+	TreeChangeAdded,
+	TreeChangeKind,
+	TreeChangeOutsideTree,
+	TreeChangeUpdated,
 } from './Ember/Client/index.js'
 import { EmberLib } from './Ember/Lib/index.js'
 import { EmberServer, EmberServerEvents, EmberServerOptions } from './Ember/Server/index.js'
@@ -56,6 +62,12 @@ export {
 	EmberClientOptions,
 	RequestPromise,
 	RequestPromiseArguments,
+	TreeChange,
+	TreeChangeAdded,
+	TreeChangeKind,
+	TreeChangeOutsideTree,
+	TreeChangeUpdated,
+	ContentsProperty,
 	ConnectionStatus,
 	Decoder,
 	EmberLib,

@@ -99,6 +99,55 @@ export interface Change {
 	connections?: Connections
 }
 
+/** What happened to an element a message reported: see TreeChange */
+export enum TreeChangeKind {
+	/** An element the tree didn't have was put into it. Each element below it is a change of its own. */
+	Added = 'ADDED',
+	/** Properties of an element the tree has changed */
+	Updated = 'UPDATED',
+	/** An element was reported below one the tree hasn't loaded, so it has no place in the tree */
+	OutsideTree = 'OUTSIDE_TREE',
+}
+
+/** The name of a property of an element's contents, of any kind of element */
+export type ContentsProperty =
+	Exclude<EmberElement, Command> extends infer E ? (E extends unknown ? keyof E : never) : never
+
+/** An element the tree didn't have, put into it */
+export interface TreeChangeAdded {
+	kind: TreeChangeKind.Added
+	path: RelativeOID
+	/** The element, as the tree has it */
+	element: NumberedTreeNode<EmberElement>
+}
+
+/** An element the tree has, with properties of its contents changed */
+export interface TreeChangeUpdated {
+	kind: TreeChangeKind.Updated
+	path: RelativeOID
+	/** The element, as the tree has it: with the new values */
+	element: NumberedTreeNode<EmberElement>
+	/** The properties that changed */
+	changed: Array<ContentsProperty>
+	/** The value each changed property had before (undefined: it had none) */
+	previous: { [K in ContentsProperty]?: unknown }
+}
+
+/** An element reported below one the tree hasn't loaded: not in the tree, so given as the provider reported it */
+export interface TreeChangeOutsideTree {
+	kind: TreeChangeKind.OutsideTree
+	path: RelativeOID
+	element: QualifiedElement<Exclude<EmberElement, Command>>
+}
+
+/**
+ * A change one message from the provider made to the client's tree, or an element it reported that has no place in
+ * the tree. A property sent again with the value it had is no change: an element is Updated only when one of its
+ * properties got a different value. An element merely passed through, as the nodes above the one a nested report is
+ * about, isn't a change.
+ */
+export type TreeChange = TreeChangeAdded | TreeChangeUpdated | TreeChangeOutsideTree
+
 export type EmberClientEvents = {
 	error: [Error]
 	warn: [Error]
@@ -106,6 +155,11 @@ export type EmberClientEvents = {
 	connected: []
 	disconnected: []
 	streamUpdate: [path: string, value: EmberValue]
+	/**
+	 * The changes one message from the provider made, in the order it gave them, once the tree has them. Not emitted
+	 * for a message that changed nothing. Stream values come with streamUpdate instead.
+	 */
+	change: [changes: Array<TreeChange>]
 }
 
 export interface EmberClientOptions {
@@ -839,8 +893,9 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	}
 
 	private _handleIncoming(incoming: DecodedRoot) {
-		// update tree:
-		const changes = this._applyRootToTree(incoming)
+		// update tree (noting its changes for the change event only when something listens):
+		const treeChanges: Array<TreeChange> | undefined = this.listenerCount('change') ? [] : undefined
+		const changes = this._applyRootToTree(incoming, treeChanges)
 
 		// check for subscriptiions:
 		for (const change of changes) {
@@ -898,9 +953,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 
 		// at last, emit the errors for logging purposes
 		incoming.errors.forEach((e) => this.emit('warn', e))
+
+		if (treeChanges?.length) this.emit('change', treeChanges)
 	}
 
-	private _applyRootToTree(root: DecodedRoot): Array<Change> {
+	/** Puts a message's elements into the tree. Notes each change for the change event in `notes`, when given. */
+	private _applyRootToTree(root: DecodedRoot, notes?: Array<TreeChange>): Array<Change> {
 		const changes: Array<Change> = []
 
 		if (root.rootType === RootType.InvocationResult) {
@@ -928,6 +986,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						if (path.length) {
 							// Assuming this means that no get directory was done on the root of the tree.
 							changes.push(reportedChange(rootElement))
+							notes?.push(outsideTree(rootElement))
 							continue
 						} else {
 							const number = Number(rootElement.path)
@@ -935,6 +994,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 							const inserted = toTreeElement(rootElement, number)
 							this.tree.set(number, inserted)
 							changes.push({ path: undefined, node: inserted }, insertedChange(rootElement, inserted))
+							if (notes) noteAdded(inserted, notes)
 							continue
 						}
 					}
@@ -956,6 +1016,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 								{ path: rootElement.path.split('.').slice(0, -1).join('.'), node: tree },
 								insertedChange(rootElement, element)
 							)
+							if (notes) noteAdded(element, notes)
 							inserted = true
 							break
 						}
@@ -965,9 +1026,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					if (inserted) continue
 					if (notLoaded) {
 						changes.push(reportedChange(rootElement))
+						notes?.push(outsideTree(rootElement))
 						continue
 					}
-					changes.push(...this._updateTree(rootElement, tree))
+					changes.push(...this._updateTree(rootElement, tree, notes))
 					// a top-level element, as in a reply to a GetDirectory on the root: also a change at the root,
 					// as when it was inserted, which is what resolves that request
 					if (topLevel) changes.push({ path: undefined, node: tree })
@@ -980,11 +1042,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						// Merge into the cached element. A reply to a GetDirectory on the root (the usual source)
 						// lists the top-level elements without their children: replacing the cached element would
 						// drop everything loaded below it.
-						changes.push(...this._updateTree(rootElement, cached))
+						changes.push(...this._updateTree(rootElement, cached, notes))
 						changes.push({ path: undefined, node: cached })
 					} else {
 						this.tree.set(rootElement.number, rootElement)
 						changes.push({ path: undefined, node: rootElement })
+						if (notes) noteAdded(rootElement, notes)
 					}
 				}
 			}
@@ -993,7 +1056,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		return changes
 	}
 
-	private _updateTree(update: TreeElement<EmberElement>, tree: NumberedTreeNode<EmberElement>): Array<Change> {
+	/** Merges an update into an element of the tree. Notes each change for the change event in `notes`, when given. */
+	private _updateTree(
+		update: TreeElement<EmberElement>,
+		tree: NumberedTreeNode<EmberElement>,
+		notes?: Array<TreeChange>
+	): Array<Change> {
 		const changes: Array<Change> = []
 
 		if (update.contents.type === tree.contents.type) {
@@ -1003,13 +1071,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				emptyNode: isEmptyNode(update),
 				connections: reportedConnections(update),
 			})
-			// changes.push({ path: getPath(tree), node: tree })
 			// A provider reports changes to any property, and leaves out the ones that haven't changed
+			let previous: TreeChangeUpdated['previous'] = {}
 			switch (tree.contents.type) {
 				case ElementType.Node:
 				case ElementType.Function:
 				case ElementType.Template:
-					updateProps<EmberElement>(tree.contents, update.contents)
+					previous = updateProps<EmberElement>(tree.contents, update.contents)
 					break
 				case ElementType.Parameter:
 					// (The update is of the same type, checked above; this check narrows it for TypeScript.)
@@ -1032,7 +1100,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 								)
 							)
 						}
-						updateProps<Parameter>(
+						previous = updateProps<Parameter>(
 							tree.contents,
 							updated,
 							propertiesOf(updated).filter(
@@ -1044,8 +1112,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					break
 				case ElementType.Matrix:
 					if (update.contents.type !== ElementType.Matrix) break // the same type, as above
-					this._updateMatrix(update.contents, tree.contents)
+					previous = this._updateMatrix(update.contents, tree.contents)
 					break
+			}
+			const changed = propertiesOf(previous)
+			if (notes && changed.length) {
+				notes.push({ kind: TreeChangeKind.Updated, path: getPath(tree), element: tree, changed, previous })
 			}
 		}
 		if (update.children) {
@@ -1059,6 +1131,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				tree.children = update.children
 				for (const c of update.children.values()) {
 					c.parent = tree
+					if (notes) noteAdded(c, notes)
 				}
 			} else {
 				// Update existing children and insert missing children without recursing into undefined nodes.
@@ -1067,10 +1140,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					const i = child.number
 					const oldChild = tree.children.get(i)
 					if (oldChild) {
-						changes.push(...this._updateTree(child, oldChild))
+						changes.push(...this._updateTree(child, oldChild, notes))
 					} else {
 						child.parent = tree
 						tree.children.set(i, child)
+						if (notes) noteAdded(child, notes)
 						insertedChild = true
 					}
 				}
@@ -1091,11 +1165,12 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._streamManager.registerParameter(parameter, path)
 	}
 
-	private _updateMatrix(update: Matrix, matrix: Matrix) {
+	/** Merges a matrix update into the matrix the tree has, returning the properties changed (as updateProps) */
+	private _updateMatrix(update: Matrix, matrix: Matrix): Partial<Matrix> {
 		// Connections are merged below, since a report may cover only the targets that changed. The targets and sources
 		// are replaced, contents and all, by a report that has them: they are the matrix's whole collection.
 		const properties = propertiesOf(update).filter((key) => key !== 'connections')
-		updateProps<Matrix>(matrix, update, properties)
+		const previous = updateProps<Matrix>(matrix, update, properties)
 
 		// update connections
 		if (update.connections) {
@@ -1126,6 +1201,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				}
 			}
 		}
+		return previous
 	}
 
 	private _addSubscription(path: string | undefined, cb: SubscriptionCallback): void {
@@ -1170,6 +1246,17 @@ function reportedConnections(update: TreeElement<EmberElement>): Connections | u
 
 function findConnection(connections: Connections | undefined, target: number): Connection | undefined {
 	return connections?.get(target)
+}
+
+/** Notes an element put into the tree, and each element below it, as added */
+function noteAdded(element: NumberedTreeNode<EmberElement>, notes: Array<TreeChange>): void {
+	notes.push({ kind: TreeChangeKind.Added, path: getPath(element), element })
+	for (const child of element.children?.values() ?? []) noteAdded(child, notes)
+}
+
+/** The change event's note of an element reported below one the tree hasn't loaded */
+function outsideTree(reported: QualifiedElement<Exclude<EmberElement, Command>>): TreeChangeOutsideTree {
+	return { kind: TreeChangeKind.OutsideTree, path: reported.path, element: reported }
 }
 
 /**

@@ -145,6 +145,35 @@ client.on('streamUpdate', (internalNodePath, value) => {
 })
 ```
 
+### Following every change
+
+The `change` event gives every change a message from the provider made to the client's tree, without a callback for each element. It comes once per message that changed anything, after the tree has the changes, with them in the order the message gave them:
+
+```javascript
+const { EmberClient, TreeChangeKind } = require('@phillipivan/emberplus-connection')
+
+client.on('change', (changes) => {
+	for (const change of changes) {
+		switch (change.kind) {
+			case TreeChangeKind.Updated:
+				// change.changed: the properties that got a different value; change.previous: the values they had
+				if (change.changed.includes('value')) {
+					console.log(change.path, change.previous.value, '->', change.element.contents.value)
+				}
+				break
+			case TreeChangeKind.Added:
+				// an element the tree didn't have; each element below it is a change of its own
+				break
+			case TreeChangeKind.OutsideTree:
+				// an element below one the tree hasn't loaded, as the provider reported it
+				break
+		}
+	}
+})
+```
+
+A property sent again with the value it had isn't a change, so a GetDirectory's reply, which sends every property again, gives none for what is already known. An object, such as an `enumMap` or a matrix's `labels`, is compared by what it holds. The nodes a nested report passes through aren't changes either. The event reports only what the provider sends: a GetDirectory on a node is what asks it to send the changes to that node's children. Stream values come with `streamUpdate` instead.
+
 ### Connection and Reconnecting
 
 `connect()` resolves once connected. Normal connection failures resolve with an `Error`: the provider refuses the connection, or doesn't answer within 5 seconds. Either way the client keeps retrying until it connects, and whenever the connection drops it tries again at once and then the same way, for as long as it is meant to be connected. Retries back off: the first comes 5 seconds after the first attempt, and each one after that waits 5 seconds longer than the one before, up to a minute (attempts at 0, 5, 15, 30, 50 s and so on, once a minute from about 5½ minutes on). Each connection starts the backoff over. `disconnect()` and `discard()` stop the retries, also while an attempt is in progress.

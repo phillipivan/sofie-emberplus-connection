@@ -7,6 +7,7 @@ import {
 	DecodeOptions,
 	DecodeResult,
 	EmberClient,
+	EmberClientEvents,
 	EmberClientOptions,
 	EmberServer,
 	EncodableRoot,
@@ -18,6 +19,8 @@ import {
 	S101Socket,
 	S101SocketEvents,
 	setDebugLogging,
+	TreeChange,
+	TreeChangeKind,
 	Types,
 } from '../index.js'
 
@@ -29,6 +32,14 @@ describe('the package exports', () => {
 		expect(Model.CommandType.Invoke).toBe(33)
 		expect(Model.CommandType.Unknown).toBe(0)
 		expect(ConnectionStatus.Connected).toBe(3)
+	})
+
+	test('the change event and its entries', () => {
+		const kinds = (...[changes]: EmberClientEvents['change']): Array<TreeChangeKind> =>
+			changes.map((change: TreeChange) => change.kind)
+
+		expect(kinds([])).toEqual([])
+		expect(TreeChangeKind.Updated).toBe('UPDATED')
 	})
 
 	test('the element type guard', () => {

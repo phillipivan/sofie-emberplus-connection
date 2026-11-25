@@ -37,7 +37,7 @@ import { Parameter, ParameterAccess, TypedParameter } from '../../../model/Param
 import { StreamDescriptionImpl } from '../../../model/StreamDescription.js'
 import { StreamEntry, StreamEntryImpl } from '../../../model/StreamEntry.js'
 import { EmberTypedValue, EmberValue, RelativeOID, Root, RootElement, RootType } from '../../../types/types.js'
-import { EmberClient, EmberClientOptions } from '../index.js'
+import { EmberClient, EmberClientOptions, TreeChange, TreeChangeKind } from '../index.js'
 
 // import { EmberTreeNode, RootElement } from '../../../types/types.js'
 // import { ElementType, EmberElement } from '../../../model/EmberElement.js'
@@ -2757,6 +2757,328 @@ describe('client', () => {
 
 				expect(parameter.streamIdentifier).toBe(6)
 				expect(parameter.value).toBe(-12)
+			})
+		})
+	})
+
+	describe('the change event', () => {
+		/** A device, 1, with a gain parameter at 1.1 (5 dB), as loaded */
+		function seed(client: EmberClient): NumberedTreeNode<EmberElement> {
+			const parameter = new ParameterImpl(ParameterType.Integer, 'gain', 'Gain', 5)
+			parameter.enumMap = new Map([['unity', 0]])
+			const element = new NumberedTreeNodeImpl(1, parameter)
+			const device = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([element]))
+			element.parent = device
+			client.tree.set(1, device)
+			return element
+		}
+
+		/** The change events the client emits from now on */
+		function changeEvents(client: EmberClient): Array<Array<TreeChange>> {
+			const events: Array<Array<TreeChange>> = []
+			client.on('change', (changes) => events.push(changes))
+			return events
+		}
+
+		/** A message, as the provider would send it, decoded */
+		function message(elements: Array<RootElement>) {
+			return berDecode(berEncode(elements, RootType.Elements))
+		}
+
+		it('reports a changed property with the value it had, once the tree has the new one', async () => {
+			await runWithConnection(async (client, socket) => {
+				const element = seed(client)
+				const events = changeEvents(client)
+				let valueSeen: unknown
+				client.on('change', () => {
+					const { contents } = childOf(device(client), 1)
+					if (contents.type === ElementType.Parameter) valueSeen = contents.value
+				})
+
+				socket.mockData(
+					message([
+						new QualifiedElementImpl(
+							'1.1',
+							new ParameterImpl(ParameterType.Integer, undefined, undefined, 7)
+						),
+					])
+				)
+				await new Promise(setImmediate)
+
+				expect(events).toEqual([
+					[
+						{
+							kind: TreeChangeKind.Updated,
+							path: '1.1',
+							element,
+							changed: ['value'],
+							previous: { value: 5 },
+						},
+					],
+				])
+				expect(at(at(events, 0), 0).element).toBe(element)
+				expect(valueSeen).toBe(7)
+			})
+		})
+
+		// The nodes above the element in a nested report are passed through, not changed. A provider may send a change
+		// either way.
+		it('reports a change in a nested report once, at the element', async () => {
+			await runWithConnection(async (client, socket) => {
+				const element = seed(client)
+				const events = changeEvents(client)
+
+				const parameter = new NumberedTreeNodeImpl(
+					1,
+					new ParameterImpl(ParameterType.Integer, undefined, undefined, 7)
+				)
+				socket.mockData(message([new NumberedTreeNodeImpl(1, new EmberNodeImpl(), childrenOf([parameter]))]))
+				await new Promise(setImmediate)
+
+				expect(events).toEqual([
+					[
+						{
+							kind: TreeChangeKind.Updated,
+							path: '1.1',
+							element,
+							changed: ['value'],
+							previous: { value: 5 },
+						},
+					],
+				])
+			})
+		})
+
+		// A GetDirectory's reply, and many providers' reports, send every property again
+		it('reports nothing for properties sent again with the values they had', async () => {
+			await runWithConnection(async (client, socket) => {
+				const element = seed(client)
+				const enumMap = element.contents.type === ElementType.Parameter ? element.contents.enumMap : undefined
+				const events = changeEvents(client)
+
+				const resent = new ParameterImpl(ParameterType.Integer, 'gain', 'Gain', 5)
+				resent.enumMap = new Map([['unity', 0]])
+				socket.mockData(message([new QualifiedElementImpl('1.1', resent)]))
+				await new Promise(setImmediate)
+
+				expect(events).toEqual([])
+				expect(element.contents).toMatchObject({ value: 5 })
+				expect(element.contents.type === ElementType.Parameter && element.contents.enumMap).toBe(enumMap)
+			})
+		})
+
+		it("reports nothing for a value the client doesn't apply", async () => {
+			await runWithConnection(async (client, socket) => {
+				seed(client)
+				const events = changeEvents(client)
+				const warn = vi.fn()
+				client.on('warn', warn)
+
+				socket.mockData(
+					createQualifiedNodeResponse(
+						'1.1',
+						new ParameterImpl(ParameterType.String, undefined, undefined, 'loud'),
+						undefined
+					)
+				)
+				await new Promise(setImmediate)
+
+				expect(warn).toHaveBeenCalled()
+				expect(events).toEqual([])
+			})
+		})
+
+		it('reports each element put into the tree, and each element below it', async () => {
+			await runWithConnection(async (client, socket) => {
+				seed(client)
+				const events = changeEvents(client)
+
+				// a qualified node at 1.2, with a parameter below it
+				const level = new NumberedTreeNodeImpl(
+					1,
+					new ParameterImpl(ParameterType.Real, 'level', undefined, 0.5)
+				)
+				socket.mockData(
+					message([new QualifiedElementImpl('1.2', new EmberNodeImpl('input'), childrenOf([level]))])
+				)
+				await new Promise(setImmediate)
+
+				const input = childOf(device(client), 2)
+				expect(events).toEqual([
+					[
+						{ kind: TreeChangeKind.Added, path: '1.2', element: input },
+						{ kind: TreeChangeKind.Added, path: '1.2.1', element: childOf(input, 1) },
+					],
+				])
+			})
+		})
+
+		it('reports the first children a reply brings an element as added, and nothing for the element', async () => {
+			await runWithConnection(async (client, socket) => {
+				const events = changeEvents(client)
+				client.tree.set(1, new NumberedTreeNodeImpl(1, new EmberNodeImpl('device')))
+
+				const children = childrenOf([
+					new NumberedTreeNodeImpl(1, new ParameterImpl(ParameterType.Integer, 'gain', undefined, 5)),
+					new NumberedTreeNodeImpl(2, new EmberNodeImpl('inputs')),
+				])
+				socket.mockData(message([new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), children)]))
+				await new Promise(setImmediate)
+
+				expect(events).toEqual([
+					[
+						{ kind: TreeChangeKind.Added, path: '1.1', element: childOf(device(client), 1) },
+						{ kind: TreeChangeKind.Added, path: '1.2', element: childOf(device(client), 2) },
+					],
+				])
+			})
+		})
+
+		it('reports a top-level element put into the tree as added', async () => {
+			await runWithConnection(async (client, socket) => {
+				const events = changeEvents(client)
+
+				socket.mockData(message([new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'))]))
+				await new Promise(setImmediate)
+
+				expect(events).toEqual([[{ kind: TreeChangeKind.Added, path: '1', element: device(client) }]])
+			})
+		})
+
+		it('reports an element below one the tree has not loaded as outside the tree, as it came', async () => {
+			await runWithConnection(async (client, socket) => {
+				seed(client)
+				const events = changeEvents(client)
+
+				// below a node the device hasn't loaded, and below a device the tree hasn't loaded
+				const parameter = new ParameterImpl(ParameterType.Integer, 'gain', undefined, 3)
+				socket.mockData(
+					message([new QualifiedElementImpl('1.5.1', parameter), new QualifiedElementImpl('2.1', parameter)])
+				)
+				await new Promise(setImmediate)
+
+				expect(events).toEqual([
+					[
+						{
+							kind: TreeChangeKind.OutsideTree,
+							path: '1.5.1',
+							element: expect.objectContaining({
+								path: '1.5.1',
+								contents: expect.objectContaining({ value: 3 }),
+							}),
+						},
+						{
+							kind: TreeChangeKind.OutsideTree,
+							path: '2.1',
+							element: expect.objectContaining({ path: '2.1' }),
+						},
+					],
+				])
+				expect(device(client).children?.has(5)).toBe(false)
+			})
+		})
+
+		it("reports one message's changes together, in the order it gave them", async () => {
+			await runWithConnection(async (client, socket) => {
+				const gain = seed(client)
+				const events = changeEvents(client)
+
+				socket.mockData(
+					message([
+						new QualifiedElementImpl('1', new EmberNodeImpl(undefined, 'The device')),
+						new QualifiedElementImpl(
+							'1.1',
+							new ParameterImpl(ParameterType.Integer, undefined, undefined, 7)
+						),
+					])
+				)
+				await new Promise(setImmediate)
+
+				expect(events).toEqual([
+					[
+						{
+							kind: TreeChangeKind.Updated,
+							path: '1',
+							element: device(client),
+							changed: ['description'],
+							previous: { description: undefined },
+						},
+						{
+							kind: TreeChangeKind.Updated,
+							path: '1.1',
+							element: gain,
+							changed: ['value'],
+							previous: { value: 5 },
+						},
+					],
+				])
+			})
+		})
+
+		it("reports a matrix's labels when they change, and not when they are sent again", async () => {
+			await runWithConnection(async (client, socket) => {
+				const labels = [new LabelImpl('1.9', 'Default Labels')]
+				const matrix = new NumberedTreeNodeImpl(
+					1,
+					new MatrixImpl('router', signalsOf([1, 2]), signalsOf([1, 2]))
+				)
+				if (matrix.contents.type === ElementType.Matrix) matrix.contents.labels = labels
+				const top = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([matrix]))
+				matrix.parent = top
+				client.tree.set(1, top)
+				const events = changeEvents(client)
+
+				const report = (labels: Array<LabelImpl>) => {
+					const update = new MatrixImpl('router', signalsOf([1, 2]), signalsOf([1, 2]))
+					update.labels = labels
+					return message([new QualifiedElementImpl('1.1', update)])
+				}
+				socket.mockData(report([new LabelImpl('1.9', 'Default Labels')]))
+				await new Promise(setImmediate)
+				expect(events).toEqual([])
+
+				socket.mockData(report([new LabelImpl('1.9', 'Default Labels'), new LabelImpl('1.10', 'Short Labels')]))
+				await new Promise(setImmediate)
+				expect(events).toEqual([
+					[
+						{
+							kind: TreeChangeKind.Updated,
+							path: '1.1',
+							element: matrix,
+							changed: ['labels'],
+							previous: { labels },
+						},
+					],
+				])
+			})
+		})
+
+		it('reports nothing when nothing listens, and to a listener only what comes after it', async () => {
+			await runWithConnection(async (client, socket) => {
+				seed(client)
+
+				socket.mockData(
+					message([
+						new QualifiedElementImpl(
+							'1.1',
+							new ParameterImpl(ParameterType.Integer, undefined, undefined, 6)
+						),
+					])
+				)
+				await new Promise(setImmediate)
+				const events = changeEvents(client)
+				socket.mockData(
+					message([
+						new QualifiedElementImpl(
+							'1.1',
+							new ParameterImpl(ParameterType.Integer, undefined, undefined, 7)
+						),
+					])
+				)
+				await new Promise(setImmediate)
+
+				expect(events).toHaveLength(1)
+				expect(at(at(events, 0), 0)).toMatchObject({ previous: { value: 6 } })
 			})
 		})
 	})
