@@ -20,6 +20,7 @@ import {
 	S101Socket,
 	S101SocketEvents,
 	setDebugLogging,
+	SignalLabel,
 	TreeChange,
 	TreeChangeKind,
 	Types,
@@ -43,7 +44,11 @@ describe('the package exports', () => {
 				? (change.connections ?? []).map((connection: ConnectionChange) => connection.target)
 				: []
 
+		const signals = (changes: Array<TreeChange>): Array<number> =>
+			changes.flatMap(({ label }: { label?: SignalLabel }) => (label ? [label.signal] : []))
+
 		expect(kinds([])).toEqual([])
+		expect(signals([])).toEqual([])
 		expect(
 			targets({
 				kind: TreeChangeKind.OutsideTree,

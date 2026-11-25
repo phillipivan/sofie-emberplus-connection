@@ -3298,6 +3298,249 @@ describe('client', () => {
 				})
 			})
 		})
+
+		describe("a matrix's labels", () => {
+			/** A string parameter: a label */
+			const label = (number: number, text: string) =>
+				new NumberedTreeNodeImpl(
+					number,
+					new ParameterImpl(ParameterType.String, `label-${number}`, undefined, text)
+				)
+
+			/**
+			 * A device, 1, as loaded: a matrix at 1.1 with a label set at 1.9 (targets 1 and 2 labelled at 1.9.1, source
+			 * 1 at 1.9.2), its target 1 with a labelsLocation 1.8 holding one label, and a parameter at 1.2
+			 */
+			function seedLabels(client: EmberClient) {
+				const set = new LabelImpl('1.9', 'Default Labels')
+				const contents = new MatrixImpl(
+					'router',
+					new Map([
+						[1, { labelsLocation: '1.8' as const }],
+						[2, {}],
+					]),
+					signalsOf([1])
+				)
+				contents.labels = [set]
+				const matrix = new NumberedTreeNodeImpl(1, contents)
+				const labelSet = new NumberedTreeNodeImpl(
+					9,
+					new EmberNodeImpl('labels'),
+					childrenOf([
+						new NumberedTreeNodeImpl(
+							1,
+							new EmberNodeImpl('targets'),
+							childrenOf([label(1, 'Out 1'), label(2, 'Out 2')])
+						),
+						new NumberedTreeNodeImpl(2, new EmberNodeImpl('sources'), childrenOf([label(1, 'In 1')])),
+					])
+				)
+				const location = new NumberedTreeNodeImpl(
+					8,
+					new EmberNodeImpl('target 1 labels'),
+					childrenOf([label(1, 'Out 1 long')])
+				)
+				const gain = new NumberedTreeNodeImpl(
+					2,
+					new ParameterImpl(ParameterType.String, 'name', undefined, 'Desk')
+				)
+				const top = new NumberedTreeNodeImpl(
+					1,
+					new EmberNodeImpl('device'),
+					childrenOf([matrix, gain, labelSet, location])
+				)
+				const fix = (node: NumberedTreeNode<EmberElement>) => {
+					for (const child of node.children?.values() ?? []) {
+						child.parent = node
+						fix(child)
+					}
+				}
+				fix(top)
+				client.tree.set(1, top)
+				return { matrix, set }
+			}
+
+			/** A report of a string parameter's new value, by its path */
+			const relabel = (path: RelativeOID, text: string) =>
+				new QualifiedElementImpl(path, new ParameterImpl(ParameterType.String, undefined, undefined, text))
+
+			/** The label each change of the events has, if any */
+			const labelsOf = (events: Array<Array<TreeChange>>) => events.flat().map((change) => change.label)
+
+			it("says whose label a label set's changed label is, a target's or a source's", async () => {
+				await runWithConnection(async (client, socket) => {
+					const { matrix, set } = seedLabels(client)
+					const events = changeEvents(client)
+
+					socket.mockData(message([relabel('1.9.1.2', 'PGM'), relabel('1.9.2.1', 'Camera 1')]))
+					await new Promise(setImmediate)
+
+					expect(events).toEqual([
+						[
+							expect.objectContaining({
+								kind: TreeChangeKind.Updated,
+								path: '1.9.1.2',
+								label: { matrix, matrixPath: '1.1', kind: 'target', signal: 2, set, text: 'PGM' },
+							}),
+							expect.objectContaining({
+								kind: TreeChangeKind.Updated,
+								path: '1.9.2.1',
+								label: { matrix, matrixPath: '1.1', kind: 'source', signal: 1, set, text: 'Camera 1' },
+							}),
+						],
+					])
+					expect(labelsOf(events)[0]?.matrix).toBe(matrix)
+				})
+			})
+
+			it("says whose label one below a signal's labelsLocation is, without a set", async () => {
+				await runWithConnection(async (client, socket) => {
+					const { matrix } = seedLabels(client)
+					const events = changeEvents(client)
+
+					socket.mockData(message([relabel('1.8.1', 'Programme out')]))
+					await new Promise(setImmediate)
+
+					expect(labelsOf(events)).toEqual([
+						{ matrix, matrixPath: '1.1', kind: 'target', signal: 1, text: 'Programme out' },
+					])
+				})
+			})
+
+			it('says whose label each label put into the tree is', async () => {
+				await runWithConnection(async (client, socket) => {
+					const { matrix, set } = seedLabels(client)
+					const events = changeEvents(client)
+
+					socket.mockData(
+						message([
+							new QualifiedElementImpl(
+								'1.9.1',
+								new EmberNodeImpl('targets'),
+								childrenOf([label(3, 'Out 3')])
+							),
+						])
+					)
+					await new Promise(setImmediate)
+
+					expect(labelsOf(events)).toEqual([
+						{ matrix, matrixPath: '1.1', kind: 'target', signal: 3, set, text: 'Out 3' },
+					])
+				})
+			})
+
+			// The label node's parent may not be loaded: getMatrixLabels asks for the label nodes by their paths
+			it("says whose label one is when the tree hasn't loaded its label node", async () => {
+				await runWithConnection(async (client, socket) => {
+					const { matrix, set } = seedLabels(client)
+					device(client).children?.delete(9)
+					const events = changeEvents(client)
+
+					socket.mockData(message([relabel('1.9.1.2', 'PGM')]))
+					await new Promise(setImmediate)
+
+					expect(events).toEqual([
+						[
+							expect.objectContaining({
+								kind: TreeChangeKind.OutsideTree,
+								label: { matrix, matrixPath: '1.1', kind: 'target', signal: 2, set, text: 'PGM' },
+							}),
+						],
+					])
+				})
+			})
+
+			it("says nothing for a parameter that is no label, and gives a label's text as the tree has it", async () => {
+				await runWithConnection(async (client, socket) => {
+					seedLabels(client)
+					const events = changeEvents(client)
+
+					socket.mockData(
+						message([
+							relabel('1.2', 'Studio desk'),
+							// only the description: the text is the value the label has
+							new QualifiedElementImpl(
+								'1.9.1.1',
+								new ParameterImpl(ParameterType.String, undefined, 'Output 1')
+							),
+							new QualifiedElementImpl('1.9', new EmberNodeImpl(undefined, 'Label sets')),
+							// a parameter at a label's place that isn't a string has no text
+							new QualifiedElementImpl(
+								'1.9.1.5',
+								new ParameterImpl(ParameterType.Integer, undefined, undefined, 5)
+							),
+						])
+					)
+					await new Promise(setImmediate)
+
+					expect(events.flat().map((change) => change.path)).toEqual(['1.2', '1.9.1.1', '1.9', '1.9.1.5'])
+					const labels = labelsOf(events)
+					expect(labels).toEqual([
+						undefined,
+						expect.objectContaining({ kind: 'target', signal: 1, text: 'Out 1' }),
+						undefined,
+						expect.objectContaining({ kind: 'target', signal: 5 }),
+					])
+					expect(labels[3]).not.toHaveProperty('text')
+				})
+			})
+
+			it("follows a matrix's label sets as they change, and a matrix put into the tree", async () => {
+				await runWithConnection(async (client, socket) => {
+					const { matrix } = seedLabels(client)
+					const events = changeEvents(client)
+					// (the label nodes found once)
+					socket.mockData(message([relabel('1.9.1.1', 'PGM')]))
+					await new Promise(setImmediate)
+
+					// the matrix's label set moved
+					const moved = new MatrixImpl('router')
+					moved.labels = [new LabelImpl('1.7', 'Moved Labels')]
+					socket.mockData(message([new QualifiedElementImpl('1.1', moved)]))
+					await new Promise(setImmediate)
+					socket.mockData(message([relabel('1.9.1.1', 'Old'), relabel('1.7.1.1', 'New')]))
+					await new Promise(setImmediate)
+
+					// a second matrix, put into the tree with a label set, and a label of it in the same message
+					const second = new MatrixImpl('second')
+					second.labels = [new LabelImpl('1.6', 'Second Labels')]
+					socket.mockData(message([new QualifiedElementImpl('1.3', second), relabel('1.6.2.4', 'Mic 4')]))
+					await new Promise(setImmediate)
+
+					const labels = labelsOf(events.slice(1))
+					expect(labels).toEqual([
+						undefined, // the matrix's own change
+						undefined, // 1.9 is no label node any more
+						expect.objectContaining({ matrix, kind: 'target', signal: 1, text: 'New' }),
+						undefined, // the second matrix itself
+						expect.objectContaining({ matrixPath: '1.3', kind: 'source', signal: 4, text: 'Mic 4' }),
+					])
+				})
+			})
+
+			it('forgets the matrices of a top-level element another one replaced', async () => {
+				await runWithConnection(async (client, socket) => {
+					seedLabels(client)
+					const events = changeEvents(client)
+					socket.mockData(message([relabel('1.9.1.1', 'PGM')]))
+					await new Promise(setImmediate)
+
+					socket.mockData(
+						message([
+							new NumberedTreeNodeImpl(
+								1,
+								new ParameterImpl(ParameterType.String, 'device', undefined, 'gone')
+							),
+						])
+					)
+					await new Promise(setImmediate)
+					socket.mockData(message([relabel('1.9.1.1', 'Old')]))
+					await new Promise(setImmediate)
+
+					expect(labelsOf(events)).toEqual([expect.objectContaining({ signal: 1 }), undefined, undefined])
+				})
+			})
+		})
 	})
 
 	describe('subscriptions after a reconnect', () => {

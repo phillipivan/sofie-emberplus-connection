@@ -176,7 +176,21 @@ client.on('change', (changes) => {
 })
 ```
 
-A property sent again with the value it had isn't a change, so a GetDirectory's reply, which sends every property again, gives none for what is already known. The same goes for a matrix's connections, which a provider may report in part: each target's connection is a change when its sources or its disposition differ from the ones the client has. A target marked pending, while a change is queued, keeps its sources until the provider reports the change made, so `connection.sources` are always the current ones. An object, such as an `enumMap` or a matrix's `labels`, is compared by what it holds. The nodes a nested report passes through aren't changes either. The event reports only what the provider sends: a GetDirectory on a node is what asks it to send the changes to that node's children. Stream values come with `streamUpdate` instead.
+A property sent again with the value it had isn't a change, so a GetDirectory's reply, which sends every property again, gives none for what is already known. The same goes for a matrix's connections, which a provider may report in part: each target's connection is a change when its sources or its disposition differ from the ones the client has. A target marked pending, while a change is queued, keeps its sources until the provider reports the change made, so `connection.sources` are always the current ones. An object, such as an `enumMap` or a matrix's `labels`, is compared by what it holds. The nodes a nested report passes through aren't changes either. A change to a matrix's label, the parameter itself, says whose label it is in `change.label`: `{ matrix, matrixPath, kind, signal, set, text }`, `kind` being `'target'` or `'source'`, and `set` the label set (one of the matrix's `labels`), or undefined for a label below the signal's `labelsLocation`. It is there on each kind of change, so the labels `getMatrixLabels` fetches come as added, a later change as updated, and one whose label node the tree hasn't loaded as outside the tree. The matrix's own GetDirectory brings its signals' `labelsLocation`s:
+
+```javascript
+client.on('change', (changes) => {
+	for (const { label } of changes) {
+		if (label?.text !== undefined) console.log(label.matrixPath, label.kind, label.signal, label.text)
+	}
+})
+await (
+	await client.getDirectory(matrix)
+).response
+await client.getMatrixLabels(matrix) // asks the provider for the label sets, and so for their changes
+```
+
+The event reports only what the provider sends: a GetDirectory on a node is what asks it to send the changes to that node's children. Stream values come with `streamUpdate` instead.
 
 ### Connection and Reconnecting
 

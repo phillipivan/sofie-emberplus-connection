@@ -20,7 +20,7 @@ import { ElementType, EmberElement } from '../../model/EmberElement.js'
 import { EmberFunction } from '../../model/EmberFunction.js'
 import { EmberNodeImpl } from '../../model/EmberNode.js'
 import { InvocationResult } from '../../model/InvocationResult.js'
-import { LabelSet } from '../../model/Label.js'
+import { Label, LabelSet } from '../../model/Label.js'
 import { Connections, connectionsOf, hasSignal, Matrix } from '../../model/Matrix.js'
 import { fitsItsType, isValueOfType, Parameter, ParameterImpl } from '../../model/Parameter.js'
 import { Children, NumberedTreeNodeImpl, QualifiedElementImpl } from '../../model/Tree.js'
@@ -43,6 +43,7 @@ import {
 	isElementOfType,
 	isEmptyNode,
 	isNumbered,
+	parentPath,
 	propertiesOf,
 	sameValue,
 	toQualifiedCommand,
@@ -114,12 +115,31 @@ export enum TreeChangeKind {
 export type ContentsProperty =
 	Exclude<EmberElement, Command> extends infer E ? (E extends unknown ? keyof E : never) : never
 
+/**
+ * What a label parameter is the label of: a target or source of a matrix the tree has. A label is a parameter directly
+ * below a label node: `<basePath>.1` (targets) or `<basePath>.2` (sources) of one of the matrix's label sets (its
+ * `labels`), the parameter numbered by its signal, or a signal's `labelsLocation`.
+ */
+export interface SignalLabel {
+	/** The matrix, as the tree has it */
+	matrix: NumberedTreeNode<Matrix>
+	matrixPath: RelativeOID
+	kind: 'target' | 'source'
+	signal: number
+	/** The label set the label is of; undefined for a label below the signal's `labelsLocation` */
+	set?: Label
+	/** The label's text: the parameter's value, when it is a string */
+	text?: string
+}
+
 /** An element the tree didn't have, put into it */
 export interface TreeChangeAdded {
 	kind: TreeChangeKind.Added
 	path: RelativeOID
 	/** The element, as the tree has it */
 	element: NumberedTreeNode<EmberElement>
+	/** For a matrix's label: whose */
+	label?: SignalLabel
 }
 
 /**
@@ -146,6 +166,8 @@ export interface TreeChangeUpdated {
 	previous: { [K in ContentsProperty]?: unknown }
 	/** For a matrix whose connections changed: each connection that did, in the order the report gave them */
 	connections?: Array<ConnectionChange>
+	/** For a matrix's label: whose */
+	label?: SignalLabel
 }
 
 /** An element reported below one the tree hasn't loaded: not in the tree, so given as the provider reported it */
@@ -153,6 +175,8 @@ export interface TreeChangeOutsideTree {
 	kind: TreeChangeKind.OutsideTree
 	path: RelativeOID
 	element: QualifiedElement<Exclude<EmberElement, Command>>
+	/** For a matrix's label: whose */
+	label?: SignalLabel
 }
 
 /**
@@ -213,6 +237,13 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	 * doesn't have a path's first element. Undefined until one is sent, and again when one fails.
 	 */
 	private _rootDirectory: Promise<void> | undefined
+	/**
+	 * The matrices in the tree, from when the change event first looked for a label: kept up to date as elements are
+	 * put into the tree. (One no longer in the tree is dropped when the label nodes are next found.)
+	 */
+	private _matrices: Set<NumberedTreeNode<Matrix>> | undefined
+	/** The label nodes of those matrices, by path, until a matrix is put into the tree or its labels or signals change */
+	private _labelNodeIndex: Map<RelativeOID, LabelNode> | undefined
 
 	private _timeout = 3000
 	private _resendTimeout = 1000
@@ -969,7 +1000,10 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		// at last, emit the errors for logging purposes
 		incoming.errors.forEach((e) => this.emit('warn', e))
 
-		if (treeChanges?.length) this.emit('change', treeChanges)
+		if (treeChanges?.length) {
+			this._addLabels(treeChanges)
+			this.emit('change', treeChanges)
+		}
 	}
 
 	/** Puts a message's elements into the tree. Notes each change for the change event in `notes`, when given. */
@@ -1009,7 +1043,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 							const inserted = toTreeElement(rootElement, number)
 							this.tree.set(number, inserted)
 							changes.push({ path: undefined, node: inserted }, insertedChange(rootElement, inserted))
-							if (notes) noteAdded(inserted, notes)
+							this._inserted(inserted, notes)
 							continue
 						}
 					}
@@ -1031,7 +1065,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 								{ path: rootElement.path.split('.').slice(0, -1).join('.'), node: tree },
 								insertedChange(rootElement, element)
 							)
-							if (notes) noteAdded(element, notes)
+							this._inserted(element, notes)
 							inserted = true
 							break
 						}
@@ -1060,9 +1094,11 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 						changes.push(...this._updateTree(rootElement, cached, notes))
 						changes.push({ path: undefined, node: cached })
 					} else {
+						// (an element of another type replaces the cached one, and whatever matrices were below it)
+						if (cached) this._labelNodeIndex = undefined
 						this.tree.set(rootElement.number, rootElement)
 						changes.push({ path: undefined, node: rootElement })
-						if (notes) noteAdded(rootElement, notes)
+						this._inserted(rootElement, notes)
 					}
 				}
 			}
@@ -1154,7 +1190,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 				tree.children = update.children
 				for (const c of update.children.values()) {
 					c.parent = tree
-					if (notes) noteAdded(c, notes)
+					this._inserted(c, notes)
 				}
 			} else {
 				// Update existing children and insert missing children without recursing into undefined nodes.
@@ -1167,7 +1203,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					} else {
 						child.parent = tree
 						tree.children.set(i, child)
-						if (notes) noteAdded(child, notes)
+						this._inserted(child, notes)
 						insertedChild = true
 					}
 				}
@@ -1200,6 +1236,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		// are replaced, contents and all, by a report that has them: they are the matrix's whole collection.
 		const properties = propertiesOf(update).filter((key) => key !== 'connections')
 		const previous = updateProps<Matrix>(matrix, update, properties)
+		if ('labels' in previous || 'targets' in previous || 'sources' in previous) this._labelNodeIndex = undefined
 		const changes: Array<ConnectionChange> = []
 
 		// update connections
@@ -1242,6 +1279,72 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			}
 		}
 		return { previous, connections: changes }
+	}
+
+	/** An element put into the tree: noted for the change event, when given notes, and any matrices in it kept */
+	private _inserted(element: NumberedTreeNode<EmberElement>, notes: Array<TreeChange> | undefined): void {
+		if (notes) noteAdded(element, notes)
+		if (this._matrices && collectMatrices(element, this._matrices)) this._labelNodeIndex = undefined
+	}
+
+	/** Says, on each change to a parameter that is a matrix's label, whose label it is */
+	private _addLabels(changes: Array<TreeChange>): void {
+		let labelNodes: Map<RelativeOID, LabelNode> | undefined
+		for (const change of changes) {
+			const { contents } = change.element
+			if (contents.type !== ElementType.Parameter) continue
+			labelNodes ??= this._labelNodes()
+			const node = labelNodes.get(parentPath(change.path))
+			if (!node) continue
+			change.label = {
+				matrix: node.matrix,
+				matrixPath: getPath(node.matrix),
+				kind: node.kind,
+				// a label set's label is numbered by its signal
+				signal: node.signal ?? Number(change.path.slice(change.path.lastIndexOf('.') + 1)),
+				...(node.set ? { set: node.set } : {}),
+				...(typeof contents.value === 'string' ? { text: contents.value } : {}),
+			}
+		}
+	}
+
+	/** The label nodes of the tree's matrices, by path: found again only after they may have changed */
+	private _labelNodes(): Map<RelativeOID, LabelNode> {
+		if (!this._matrices) {
+			this._matrices = new Set()
+			for (const top of this.tree.values()) collectMatrices(top, this._matrices)
+		}
+		if (this._labelNodeIndex) return this._labelNodeIndex
+
+		const index = new Map<RelativeOID, LabelNode>()
+		for (const matrix of this._matrices) {
+			if (!this._isInTree(matrix)) {
+				this._matrices.delete(matrix)
+				continue
+			}
+			const { labels, targets, sources } = matrix.contents
+			for (const set of labels ?? []) {
+				index.set(childPath(set.basePath, 1), { matrix, kind: 'target', set })
+				index.set(childPath(set.basePath, 2), { matrix, kind: 'source', set })
+			}
+			for (const [kind, signals] of [
+				['target', targets],
+				['source', sources],
+			] as const) {
+				for (const [signal, { labelsLocation }] of signals ?? []) {
+					if (labelsLocation !== undefined) index.set(labelsLocation, { matrix, kind, signal })
+				}
+			}
+		}
+		this._labelNodeIndex = index
+		return index
+	}
+
+	/** Whether an element of the tree is still in it: an element of another type may have replaced its top level */
+	private _isInTree(element: NumberedTreeNode<EmberElement>): boolean {
+		let top: RootElement = element
+		while (top.parent) top = top.parent
+		return isNumbered(top) && this.tree.get(top.number) === top
 	}
 
 	private _addSubscription(path: string | undefined, cb: SubscriptionCallback): void {
@@ -1300,6 +1403,27 @@ function connectionChange(cached: Connection): ConnectionChange {
 		previous: { sources: cached.sources, disposition: cached.disposition },
 		connection: cached,
 	}
+}
+
+/** A matrix's label node: the node whose parameters are labels, of a label set's targets or sources, or of a signal */
+interface LabelNode {
+	matrix: NumberedTreeNode<Matrix>
+	kind: 'target' | 'source'
+	/** For a label set's node: the set (each label numbered by its signal) */
+	set?: Label
+	/** For a signal's labelsLocation: the signal */
+	signal?: number
+}
+
+/** Adds the matrices in an element, itself included, to a set: whether there were any */
+function collectMatrices(element: NumberedTreeNode<EmberElement>, into: Set<NumberedTreeNode<Matrix>>): boolean {
+	let found = false
+	if (isElementOfType(element, ElementType.Matrix)) {
+		into.add(element)
+		found = true
+	}
+	for (const child of element.children?.values() ?? []) found = collectMatrices(child, into) || found
+	return found
 }
 
 /** Notes an element put into the tree, and each element below it, as added */
