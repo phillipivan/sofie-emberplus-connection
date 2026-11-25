@@ -55,19 +55,19 @@
 	},
 	"devDependencies": {
 		"@ianvs/prettier-plugin-sort-imports": "~4.7.1",
-		"@sofie-automation/code-standard-preset": "~4.0.3",
+		"@sofie-automation/code-standard-preset": "~4.0.4",
 		"@types/debug": "^4.1.13",
 		"@types/node": "^26.6.6",
-		"@vitest/coverage-v8": "^5.1.0",
+		"@vitest/coverage-v8": "^5.1.1",
 		"eslint": "^10.15.0",
 		"husky": "^9.1.7",
-		"lint-staged": "^17.6.0",
+		"lint-staged": "^17.6.1",
 		"prettier": "^3.10.1",
 		"rimraf": "^6.1.4",
 		"typescript": "~6.0.3",
-		"typescript-eslint": "^8.72.2",
-		"vite": "^8.2.6",
-		"vitest": "^5.1.0"
+		"typescript-eslint": "^8.73.0",
+		"vite": "^8.3.8",
+		"vitest": "^5.1.1"
 	},
 	"bugs": {
 		"url": "https://github.com/phillipivan/sofie-emberplus-connection/issues"
