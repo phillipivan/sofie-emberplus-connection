@@ -44,6 +44,7 @@ import {
 	isEmptyNode,
 	isNumbered,
 	propertiesOf,
+	sameValue,
 	toQualifiedCommand,
 	updateProps,
 } from '../Lib/util.js'
@@ -121,16 +122,30 @@ export interface TreeChangeAdded {
 	element: NumberedTreeNode<EmberElement>
 }
 
-/** An element the tree has, with properties of its contents changed */
+/**
+ * A change to one of a matrix's connections: its sources, or its disposition (pending while a change is queued, then
+ * modified, locked or tally). No sources and none listed are the same, as are no disposition and tally.
+ */
+export interface ConnectionChange {
+	target: number
+	/** The connection as it was: undefined when the client had none for the target */
+	previous: { sources?: Array<number>; disposition?: ConnectionDisposition } | undefined
+	/** The connection as the matrix has it now */
+	connection: Connection
+}
+
+/** An element the tree has, with properties of its contents, or a matrix's connections, changed */
 export interface TreeChangeUpdated {
 	kind: TreeChangeKind.Updated
 	path: RelativeOID
 	/** The element, as the tree has it: with the new values */
 	element: NumberedTreeNode<EmberElement>
-	/** The properties that changed */
+	/** The properties that changed, a matrix's connections apart (see `connections`): none when only they did */
 	changed: Array<ContentsProperty>
 	/** The value each changed property had before (undefined: it had none) */
 	previous: { [K in ContentsProperty]?: unknown }
+	/** For a matrix whose connections changed: each connection that did, in the order the report gave them */
+	connections?: Array<ConnectionChange>
 }
 
 /** An element reported below one the tree hasn't loaded: not in the tree, so given as the provider reported it */
@@ -1073,6 +1088,7 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			})
 			// A provider reports changes to any property, and leaves out the ones that haven't changed
 			let previous: TreeChangeUpdated['previous'] = {}
+			let connections: Array<ConnectionChange> = []
 			switch (tree.contents.type) {
 				case ElementType.Node:
 				case ElementType.Function:
@@ -1112,12 +1128,19 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 					break
 				case ElementType.Matrix:
 					if (update.contents.type !== ElementType.Matrix) break // the same type, as above
-					previous = this._updateMatrix(update.contents, tree.contents)
+					;({ previous, connections } = this._updateMatrix(update.contents, tree.contents))
 					break
 			}
 			const changed = propertiesOf(previous)
-			if (notes && changed.length) {
-				notes.push({ kind: TreeChangeKind.Updated, path: getPath(tree), element: tree, changed, previous })
+			if (notes && (changed.length || connections.length)) {
+				notes.push({
+					kind: TreeChangeKind.Updated,
+					path: getPath(tree),
+					element: tree,
+					changed,
+					previous,
+					...(connections.length ? { connections } : {}),
+				})
 			}
 		}
 		if (update.children) {
@@ -1165,12 +1188,19 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 		this._streamManager.registerParameter(parameter, path)
 	}
 
-	/** Merges a matrix update into the matrix the tree has, returning the properties changed (as updateProps) */
-	private _updateMatrix(update: Matrix, matrix: Matrix): Partial<Matrix> {
+	/**
+	 * Merges a matrix update into the matrix the tree has, returning the properties changed (as updateProps), and the
+	 * connections that changed
+	 */
+	private _updateMatrix(
+		update: Matrix,
+		matrix: Matrix
+	): { previous: Partial<Matrix>; connections: Array<ConnectionChange> } {
 		// Connections are merged below, since a report may cover only the targets that changed. The targets and sources
 		// are replaced, contents and all, by a report that has them: they are the matrix's whole collection.
 		const properties = propertiesOf(update).filter((key) => key !== 'connections')
 		const previous = updateProps<Matrix>(matrix, update, properties)
+		const changes: Array<ConnectionChange> = []
 
 		// update connections
 		if (update.connections) {
@@ -1178,30 +1208,40 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 			for (const connection of update.connections.values()) {
 				// (connections are kept by their target: no need to go through them all to find it)
 				const cached = connections.get(connection.target)
+				const sameDisposition = cached && sameDispositions(cached.disposition, connection.disposition)
 
 				if (connection.disposition === ConnectionDisposition.Pending) {
 					// The change is queued: "sources contains future state". The target's connection stays as it
 					// is, marked as pending, until the provider reports the change as made. Without a connection
 					// for the target there is nothing to mark, and its sources aren't known.
-					if (cached) cached.disposition = connection.disposition
+					if (cached && !sameDisposition) {
+						changes.push(connectionChange(cached))
+						cached.disposition = connection.disposition
+					}
 					continue
 				}
 
 				// Tally, modified or locked: the sources are the target's current ones. The disposition is kept
-				// as the provider's last word on the target.
+				// as the provider's last word on the target. Sources and a disposition the same as the ones it has
+				// are kept as they are.
 				if (cached) {
-					cached.sources = connection.sources
-					cached.disposition = connection.disposition
+					const sameSources = sameValue(cached.sources ?? [], connection.sources ?? [])
+					if (sameSources && sameDisposition) continue
+					changes.push(connectionChange(cached))
+					if (!sameSources) cached.sources = connection.sources
+					if (!sameDisposition) cached.disposition = connection.disposition
 				} else {
-					connections.set(connection.target, {
+					const added: Connection = {
 						target: connection.target,
 						sources: connection.sources,
 						disposition: connection.disposition,
-					})
+					}
+					connections.set(connection.target, added)
+					changes.push({ target: connection.target, previous: undefined, connection: added })
 				}
 			}
 		}
-		return previous
+		return { previous, connections: changes }
 	}
 
 	private _addSubscription(path: string | undefined, cb: SubscriptionCallback): void {
@@ -1246,6 +1286,20 @@ function reportedConnections(update: TreeElement<EmberElement>): Connections | u
 
 function findConnection(connections: Connections | undefined, target: number): Connection | undefined {
 	return connections?.get(target)
+}
+
+/** Whether two dispositions are the same: none is tally, the default */
+function sameDispositions(a: ConnectionDisposition | undefined, b: ConnectionDisposition | undefined): boolean {
+	return (a ?? ConnectionDisposition.Tally) === (b ?? ConnectionDisposition.Tally)
+}
+
+/** A connection's change, before it is made: what it is now, as the previous state, and the connection itself */
+function connectionChange(cached: Connection): ConnectionChange {
+	return {
+		target: cached.target,
+		previous: { sources: cached.sources, disposition: cached.disposition },
+		connection: cached,
+	}
 }
 
 /** Notes an element put into the tree, and each element below it, as added */

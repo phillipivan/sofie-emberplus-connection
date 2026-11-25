@@ -160,6 +160,10 @@ client.on('change', (changes) => {
 				if (change.changed.includes('value')) {
 					console.log(change.path, change.previous.value, '->', change.element.contents.value)
 				}
+				// change.connections: for a matrix, each connection that changed (none: undefined)
+				for (const { target, previous, connection } of change.connections ?? []) {
+					console.log(target, previous?.sources, '->', connection.sources, connection.disposition)
+				}
 				break
 			case TreeChangeKind.Added:
 				// an element the tree didn't have; each element below it is a change of its own
@@ -172,7 +176,7 @@ client.on('change', (changes) => {
 })
 ```
 
-A property sent again with the value it had isn't a change, so a GetDirectory's reply, which sends every property again, gives none for what is already known. An object, such as an `enumMap` or a matrix's `labels`, is compared by what it holds. The nodes a nested report passes through aren't changes either. The event reports only what the provider sends: a GetDirectory on a node is what asks it to send the changes to that node's children. Stream values come with `streamUpdate` instead.
+A property sent again with the value it had isn't a change, so a GetDirectory's reply, which sends every property again, gives none for what is already known. The same goes for a matrix's connections, which a provider may report in part: each target's connection is a change when its sources or its disposition differ from the ones the client has. A target marked pending, while a change is queued, keeps its sources until the provider reports the change made, so `connection.sources` are always the current ones. An object, such as an `enumMap` or a matrix's `labels`, is compared by what it holds. The nodes a nested report passes through aren't changes either. The event reports only what the provider sends: a GetDirectory on a node is what asks it to send the changes to that node's children. Stream values come with `streamUpdate` instead.
 
 ### Connection and Reconnecting
 

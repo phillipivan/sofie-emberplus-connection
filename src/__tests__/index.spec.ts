@@ -1,6 +1,7 @@
 import {
 	berDecode,
 	berEncode,
+	ConnectionChange,
 	ConnectionStatus,
 	DebugLog,
 	DecodedRoot,
@@ -37,8 +38,19 @@ describe('the package exports', () => {
 	test('the change event and its entries', () => {
 		const kinds = (...[changes]: EmberClientEvents['change']): Array<TreeChangeKind> =>
 			changes.map((change: TreeChange) => change.kind)
+		const targets = (change: TreeChange): Array<number> =>
+			change.kind === TreeChangeKind.Updated
+				? (change.connections ?? []).map((connection: ConnectionChange) => connection.target)
+				: []
 
 		expect(kinds([])).toEqual([])
+		expect(
+			targets({
+				kind: TreeChangeKind.OutsideTree,
+				path: '1',
+				element: new Model.QualifiedElementImpl('1', new Model.EmberNodeImpl()),
+			})
+		).toEqual([])
 		expect(TreeChangeKind.Updated).toBe('UPDATED')
 	})
 

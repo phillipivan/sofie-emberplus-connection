@@ -3081,6 +3081,223 @@ describe('client', () => {
 				expect(at(at(events, 0), 0)).toMatchObject({ previous: { value: 6 } })
 			})
 		})
+
+		describe("a matrix's connections", () => {
+			/** A device, 1, with a matrix at 1.1 whose targets 1 and 2 are connected to sources 1 and 2, as loaded */
+			function seedMatrix(client: EmberClient) {
+				const contents = new MatrixImpl(
+					'router',
+					undefined,
+					undefined,
+					connectionsOf([
+						{ target: 1, sources: [1] },
+						{ target: 2, sources: [2], disposition: ConnectionDisposition.Tally },
+					])
+				)
+				const matrix = new NumberedTreeNodeImpl(1, contents)
+				const top = new NumberedTreeNodeImpl(1, new EmberNodeImpl('device'), childrenOf([matrix]))
+				matrix.parent = top
+				client.tree.set(1, top)
+				return { matrix, contents }
+			}
+
+			/** A provider's report of the matrix, with these connections (and the identifier, as it is) */
+			function report(connections: Array<Connection>, description?: string) {
+				return message([
+					new QualifiedElementImpl(
+						'1.1',
+						new MatrixImpl('router', undefined, undefined, connectionsOf(connections), description)
+					),
+				])
+			}
+
+			it('reports a changed connection with what it was, and the connection the matrix has now', async () => {
+				await runWithConnection(async (client, socket) => {
+					const { matrix, contents } = seedMatrix(client)
+					const events = changeEvents(client)
+
+					socket.mockData(report([{ target: 1, sources: [3], disposition: ConnectionDisposition.Modified }]))
+					await new Promise(setImmediate)
+
+					expect(events).toEqual([
+						[
+							{
+								kind: TreeChangeKind.Updated,
+								path: '1.1',
+								element: matrix,
+								changed: [],
+								previous: {},
+								connections: [
+									{
+										target: 1,
+										previous: { sources: [1], disposition: undefined },
+										connection: {
+											target: 1,
+											sources: [3],
+											disposition: ConnectionDisposition.Modified,
+										},
+									},
+								],
+							},
+						],
+					])
+					const change = at(at(events, 0), 0)
+					expect(change.kind === TreeChangeKind.Updated && at(change.connections ?? [], 0).connection).toBe(
+						contents.connections?.get(1)
+					)
+				})
+			})
+
+			// A GetDirectory's reply lists every connection again. No sources and none listed are the same, as are no
+			// disposition and tally.
+			it('reports nothing for connections sent again as they were', async () => {
+				await runWithConnection(async (client, socket) => {
+					const { contents } = seedMatrix(client)
+					const sources = contents.connections?.get(2)?.sources
+					const events = changeEvents(client)
+
+					socket.mockData(
+						report([
+							{ target: 1, sources: [1], disposition: ConnectionDisposition.Tally },
+							{ target: 2, sources: [2] },
+						])
+					)
+					await new Promise(setImmediate)
+					expect(events).toEqual([])
+					expect(contents.connections?.get(2)?.sources).toBe(sources)
+
+					socket.mockData(report([{ target: 1, sources: [] }]))
+					await new Promise(setImmediate)
+					socket.mockData(report([{ target: 1 }]))
+					await new Promise(setImmediate)
+					expect(events).toHaveLength(1)
+				})
+			})
+
+			it('reports a target marked pending, its sources as they were, and then the change made', async () => {
+				await runWithConnection(async (client, socket) => {
+					const { contents } = seedMatrix(client)
+					const events = changeEvents(client)
+
+					socket.mockData(report([{ target: 1, sources: [3], disposition: ConnectionDisposition.Pending }]))
+					await new Promise(setImmediate)
+					// sent again, and for a target the client has no connection for: nothing to mark
+					socket.mockData(
+						report([
+							{ target: 1, sources: [3], disposition: ConnectionDisposition.Pending },
+							{ target: 7, sources: [3], disposition: ConnectionDisposition.Pending },
+						])
+					)
+					await new Promise(setImmediate)
+					socket.mockData(report([{ target: 1, sources: [3], disposition: ConnectionDisposition.Modified }]))
+					await new Promise(setImmediate)
+
+					const connectionChanges = events.map((changes) =>
+						changes.map((change) => change.kind === TreeChangeKind.Updated && change.connections)
+					)
+					const connection = contents.connections?.get(1)
+					expect(connectionChanges).toEqual([
+						[
+							[
+								{
+									target: 1,
+									previous: { sources: [1], disposition: undefined },
+									connection,
+								},
+							],
+						],
+						[
+							[
+								{
+									target: 1,
+									previous: { sources: [1], disposition: ConnectionDisposition.Pending },
+									connection,
+								},
+							],
+						],
+					])
+					expect(connection).toEqual({ target: 1, sources: [3], disposition: ConnectionDisposition.Modified })
+				})
+			})
+
+			it("reports a target's first connection as one the client had none for", async () => {
+				await runWithConnection(async (client, socket) => {
+					const { contents } = seedMatrix(client)
+					const events = changeEvents(client)
+
+					socket.mockData(report([{ target: 3, sources: [1, 2] }]))
+					await new Promise(setImmediate)
+
+					expect(events).toEqual([
+						[
+							expect.objectContaining({
+								connections: [
+									{
+										target: 3,
+										previous: undefined,
+										connection: { target: 3, sources: [1, 2], disposition: undefined },
+									},
+								],
+							}),
+						],
+					])
+					expect(contents.connections?.get(3)).toEqual({ target: 3, sources: [1, 2], disposition: undefined })
+				})
+			})
+
+			it("reports a matrix's changed properties and connections in one entry", async () => {
+				await runWithConnection(async (client, socket) => {
+					const { matrix } = seedMatrix(client)
+					const events = changeEvents(client)
+
+					socket.mockData(
+						report(
+							[
+								{ target: 1, sources: [1] },
+								{ target: 2, sources: [] },
+							],
+							'Main router'
+						)
+					)
+					await new Promise(setImmediate)
+
+					expect(events).toEqual([
+						[
+							{
+								kind: TreeChangeKind.Updated,
+								path: '1.1',
+								element: matrix,
+								changed: ['description'],
+								previous: { description: undefined },
+								connections: [
+									{
+										target: 2,
+										previous: { sources: [2], disposition: ConnectionDisposition.Tally },
+										connection: {
+											target: 2,
+											sources: [],
+											disposition: ConnectionDisposition.Tally,
+										},
+									},
+								],
+							},
+						],
+					])
+				})
+			})
+
+			it('gives no connections for an element whose connections did not change', async () => {
+				await runWithConnection(async (client, socket) => {
+					seedMatrix(client)
+					const events = changeEvents(client)
+
+					socket.mockData(report([{ target: 1, sources: [1] }], 'Main router'))
+					await new Promise(setImmediate)
+
+					expect(at(at(events, 0), 0)).not.toHaveProperty('connections')
+				})
+			})
+		})
 	})
 
 	describe('subscriptions after a reconnect', () => {

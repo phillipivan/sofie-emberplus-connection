@@ -1,5 +1,6 @@
 import { ConnectionStatus } from './Ember/Client/ConnectionStatus.js'
 import {
+	ConnectionChange,
 	ContentsProperty,
 	EmberClient,
 	EmberClientEvents,
@@ -68,6 +69,7 @@ export {
 	TreeChangeOutsideTree,
 	TreeChangeUpdated,
 	ContentsProperty,
+	ConnectionChange,
 	ConnectionStatus,
 	Decoder,
 	EmberLib,
