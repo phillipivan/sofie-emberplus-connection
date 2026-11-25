@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [Convential Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) for commit guidelines.
 
+## [Unreleased](https://github.com/phillipivan/sofie-emberplus-connection/compare/v0.5.0...HEAD)
+
+### Features
+
+* **Change event:** `EmberClient` emits `change` once for each message from the provider that changed its tree, after the tree has the changes, with a `TreeChange` for each, in the message's order: `Added`, an element put into the tree (each element below it is one too); `Updated`, an element whose properties got a different value, with the properties (`changed`) and the values they had (`previous`); or `OutsideTree`, an element below one the tree hasn't loaded, as the provider reported it. A property sent again with the value it had is no change, an object such as an `enumMap` or a matrix's `labels` compared by what it holds, so a GetDirectory's reply gives none for what the client already has; nor are the nodes a nested report passes through. Such a property keeps the value it had, an object its identity, and a value going from 0 to -0 is now applied. A consumer can follow, say, a matrix's labels without a callback for each. [dba3f47](https://github.com/phillipivan/sofie-emberplus-connection/commit/dba3f4718fd34ccff38e2310374f3cfb64d5e49f)
+
 ## [0.5.0](https://github.com/phillipivan/sofie-emberplus-connection/compare/v0.4.5...v0.5.0) (Fri Nov 20 2026)
 
 ### ⚠ BREAKING CHANGES
