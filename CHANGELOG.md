@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file. See [Convential Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) for commit guidelines.
 
-## [Unreleased](https://github.com/phillipivan/sofie-emberplus-connection/compare/v0.5.1...HEAD)
+## [0.5.2](https://github.com/phillipivan/sofie-emberplus-connection/compare/v0.5.1...v0.5.2) (Fri Nov 27 2026)
 
 ### Features
 
