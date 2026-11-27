@@ -87,6 +87,8 @@ export default class S101Client extends S101Socket {
 				// (re)creates client, either on first run or new attempt
 				if (!this.socket) {
 					this.socket = new net.Socket()
+					// (a new socket has it off)
+					if (this.noDelay) this.socket.setNoDelay(true)
 					this.socket.on('close', (hadError) => this._onClose(hadError))
 					this.socket.on('connect', () => this._onConnect())
 					this.socket.on('data', (chunk) => {
@@ -227,6 +229,8 @@ export default class S101Client extends S101Socket {
 
 	private _onConnect() {
 		this._clearConnectionAttemptTimer()
+		// (again once connected: Node applies one set while connecting, but has no way to read it back)
+		if (this.noDelay) this.socket?.setNoDelay(true)
 		this.startKeepAlive()
 		// this._sentKeepalive = Date.now()
 		// this._receivedKeepalive = this._sentKeepalive + 1 // for some reason keepalive doesn't return directly after conn.

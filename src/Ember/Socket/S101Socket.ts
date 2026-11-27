@@ -37,6 +37,8 @@ export interface S101SocketOptions {
 	 * for a socket made from a connection, as a server's are. (S101Client starts them when it connects.) Off by default.
 	 */
 	keepalive?: boolean
+	/** TCP_NODELAY for the connection, see setNoDelay. Off (Node's default) by default. */
+	noDelay?: boolean
 }
 
 export default class S101Socket extends EventEmitter<S101SocketEvents> {
@@ -52,6 +54,8 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 	protected readonly codec = new S101Codec()
 	/** Where the peer of a socket made from a connection (as a server's are) was, kept after the connection closes */
 	private readonly peer: { address?: string; port?: number } | undefined
+	/** TCP_NODELAY, as setNoDelay last set it: for the connections an S101Client makes later too */
+	protected noDelay = false
 
 	constructor(socket?: Socket, options?: S101SocketOptions) {
 		super()
@@ -88,6 +92,19 @@ export default class S101Socket extends EventEmitter<S101SocketEvents> {
 
 		this._initSocket()
 		if (options?.keepalive && this.socket) this.startKeepAlive()
+		// (a new connection has it off)
+		if (options?.noDelay) this.setNoDelay(true)
+	}
+
+	/**
+	 * Sets TCP_NODELAY on the connection: true sends each message at once, false (Node's default) lets the system hold a
+	 * small one back for a moment to send it with the next (Nagle's algorithm). True lowers the latency of small
+	 * messages, such as a setValue or a matrix connect, at the cost of more, smaller packets. An S101Client keeps it for the connections it makes
+	 * later, reconnecting.
+	 */
+	setNoDelay(noDelay = true): void {
+		this.noDelay = noDelay
+		this.socket?.setNoDelay(noDelay)
 	}
 
 	/** The peer's IP address: for a server's socket, the consumer's, also after it disconnects */

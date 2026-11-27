@@ -218,6 +218,18 @@ await client.getElementByPath('1.2.3', (node) => {
 })
 ```
 
+### TCP_NODELAY
+
+`setNoDelay(noDelay = true)` sets TCP_NODELAY on the connection, as Node's `socket.setNoDelay` does: with it, each message goes out at once; without it (Node's default) the system may hold a small message back for a moment, to send it with the next (Nagle's algorithm). Setting it lowers the latency of small messages, such as a `setValue` or a matrix connect, at the cost of more, smaller packets.
+
+```javascript
+const client = new EmberClient(HOST, PORT)
+client.setNoDelay(true) // can be set before connecting, and is kept after a reconnect
+
+const server = new EmberServer(9000)
+server.setNoDelay(true) // the consumers connected now, and those that connect later
+```
+
 ### Setting New Value
 
 ```javascript

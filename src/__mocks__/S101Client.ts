@@ -31,6 +31,8 @@ export default class S101Client
 	autoConnect = false
 
 	public destroyed = false
+	/** TCP_NODELAY, as setNoDelay last set it */
+	public noDelay = false
 
 	status: ConnectionStatus = ConnectionStatus.Disconnected
 
@@ -57,6 +59,10 @@ export default class S101Client
 		sockets.push(this)
 
 		if (this.autoConnect) this.connect().catch(() => null) // errors are already emitted
+	}
+
+	setNoDelay(noDelay = true): void {
+		this.noDelay = noDelay
 	}
 
 	async connect(_timeout?: number): Promise<void | Error> {

@@ -61,6 +61,8 @@ export class S101Server extends EventEmitter<S101ServerEvents> {
 	private readonly maxSendBufferSize: number
 	private readonly maxClients: number
 	private readonly keepalive: boolean
+	/** TCP_NODELAY for the consumers' connections from now on, see setNoDelay */
+	private noDelay = false
 
 	constructor(port: number, address?: string, options?: S101ServerOptions) {
 		super()
@@ -76,8 +78,17 @@ export class S101Server extends EventEmitter<S101ServerEvents> {
 	addClient(socket: Socket): void {
 		socket.setKeepAlive(true, TCP_KEEPALIVE_DELAY)
 		// Wrap the tcp socket into an S101Socket.
-		const client = new S101Socket(socket, { maxSendBufferSize: this.maxSendBufferSize, keepalive: this.keepalive })
+		const client = new S101Socket(socket, {
+			maxSendBufferSize: this.maxSendBufferSize,
+			keepalive: this.keepalive,
+			noDelay: this.noDelay,
+		})
 		this.emit('connection', client)
+	}
+
+	/** TCP_NODELAY (see S101Socket.setNoDelay) for the consumers that connect from now on */
+	setNoDelay(noDelay = true): void {
+		this.noDelay = noDelay
 	}
 
 	async listen(): Promise<void> {

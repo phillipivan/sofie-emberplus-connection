@@ -501,6 +501,17 @@ export class EmberServer extends EventEmitter<EmberServerEvents> {
 		return true
 	}
 
+	/**
+	 * Sets TCP_NODELAY on the consumers' connections, those connected now and those to come: true sends each message at
+	 * once, false (Node's default) lets the system hold a small one back for a moment to send it with the next (Nagle's
+	 * algorithm). True lowers the latency of small messages, such as a value's change, at the cost of more, smaller
+	 * packets.
+	 */
+	setNoDelay(noDelay = true): void {
+		this._server.setNoDelay(noDelay)
+		for (const client of this._clients) client.setNoDelay(noDelay)
+	}
+
 	discard(): void {
 		this._clients.forEach((c) => {
 			c.removeAllListeners()

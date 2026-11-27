@@ -328,6 +328,16 @@ export class EmberClient extends EventEmitter<EmberClientEvents> {
 	}
 
 	/**
+	 * Sets TCP_NODELAY on the connection to the provider, now and after a reconnect: true sends each request at once,
+	 * false (Node's default) lets the system hold a small one back for a moment to send it with the next (Nagle's
+	 * algorithm). True lowers the latency of small requests, such as a setValue or a matrix connect, at the cost of
+	 * more, smaller packets. It can be set before connecting.
+	 */
+	setNoDelay(noDelay = true): void {
+		this._client.setNoDelay(noDelay)
+	}
+
+	/**
 	 * Closes the s101 socket to the provider
 	 */
 	async disconnect(): Promise<void> {

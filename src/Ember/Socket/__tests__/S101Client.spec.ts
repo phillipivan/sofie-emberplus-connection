@@ -28,6 +28,13 @@ class FakeNetSocket extends EventEmitter {
 	keepaliveRequests = 0
 	/** Whether it answers them, as a live provider does */
 	answerKeepalives = true
+	/** What setNoDelay (TCP_NODELAY) was given, in order */
+	noDelayCalls: boolean[] = []
+
+	setNoDelay(noDelay = true): this {
+		this.noDelayCalls.push(noDelay)
+		return this
+	}
 
 	connect(): this {
 		FakeNetSocket.attempts++
@@ -390,6 +397,37 @@ describe('S101Client reconnecting', () => {
 		connection.emit('close', false)
 		await refuseFor(client, 35000)
 		expect(FakeNetSocket.attemptTimes.slice(before).map((t) => t - droppedAt)).toEqual([0, 5000, 15000, 30000])
+
+		client.removeAllListeners()
+		await client.disconnect()
+	})
+
+	// A dropped connection is made again on the same socket, as a new connection: so the option is set on each connect
+	it('sets TCP_NODELAY on its socket and on each connection, once asked to, until asked not to', async () => {
+		const client = new S101Client('127.0.0.1', 9000)
+		client.on('error', () => null)
+		client.setNoDelay(true)
+		void client.connect()
+
+		// set on the socket it makes, and again once connected
+		const socket = currentSocket(client)
+		socket.succeed()
+		expect(socket.noDelayCalls).toEqual([true, true])
+
+		// the connection drops, and is made again
+		await advanceInSteps(10000)
+		socket.emit('close', false)
+		await vi.advanceTimersByTimeAsync(0)
+		currentSocket(client).succeed()
+		expect(currentSocket(client).noDelayCalls).toEqual([true, true, true])
+
+		// turned off: on the connection now, and not set again on the next (a connection starts with it off)
+		client.setNoDelay(false)
+		await advanceInSteps(10000)
+		currentSocket(client).emit('close', false)
+		await vi.advanceTimersByTimeAsync(0)
+		currentSocket(client).succeed()
+		expect(currentSocket(client).noDelayCalls).toEqual([true, true, true, false])
 
 		client.removeAllListeners()
 		await client.disconnect()
