@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [Convential Commits](https://www.conventionalcommits.org/en/v1.0.0/#specification) for commit guidelines.
 
+## [Unreleased](https://github.com/phillipivan/sofie-emberplus-connection/compare/v0.5.1...HEAD)
+
+### Features
+
+* **TCP_NODELAY:** `EmberClient.setNoDelay(noDelay = true)` turns TCP_NODELAY on or off for the connection to the provider, as Node's `socket.setNoDelay` does: with it on, each message is sent at once, lowering the latency of small ones such as a `setValue` or a matrix connect; off, as by default, the system may hold a small one back to send it with the next (Nagle's algorithm). It can be set before connecting, and is kept after a reconnect. `EmberServer.setNoDelay` sets it for the consumers connected and those to come. [ca32a00](https://github.com/phillipivan/sofie-emberplus-connection/commit/ca32a00a1ebbbd79a437cad98170536f4d448dce)
+
 ## [0.5.1](https://github.com/phillipivan/sofie-emberplus-connection/compare/v0.5.0...v0.5.1) (Wed Nov 25 2026)
 
 ### Features
